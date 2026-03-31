@@ -1,11 +1,9 @@
 
 
 import React, { useState, useEffect } from 'react';
-import logo from '../assets/logo.png.js';
 import { Box, Typography, Button, Paper, TextField, Dialog, DialogTitle, DialogContent, DialogActions, List, ListItem, ListItemText } from '@mui/material';
 import { useAuthContext } from '../components/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import ChatbotWidget from '../components/ChatbotWidget';
 
 
 const GuardDashboard = () => {
@@ -14,27 +12,17 @@ const GuardDashboard = () => {
   const [visitor, setVisitor] = useState({ name: '', flat: '', purpose: '', time: '' });
   const [visitors, setVisitors] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
   const { logout } = useAuthContext();
   const navigate = useNavigate();
 
   const fetchVisitors = async () => {
     setLoading(true);
-    setError(null);
     try {
       const res = await fetch('http://localhost:4000/visitors');
-      if (!res.ok) {
-        const errData = await res.json();
-        setError(errData.error || 'Failed to fetch visitors');
-        setVisitors([]);
-        setLoading(false);
-        return;
-      }
       const data = await res.json();
       setVisitors(data);
     } catch (err) {
-      setError('Network or server error');
-      setVisitors([]);
+      // Optionally handle error
     }
     setLoading(false);
   };
@@ -60,39 +48,25 @@ const GuardDashboard = () => {
 
   const handleLogVisitor = async () => {
     if (visitor.name && visitor.flat && visitor.purpose && visitor.time) {
-      setError(null);
       try {
-        const res = await fetch('http://localhost:4000/visitors', {
+        await fetch('http://localhost:4000/visitors', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(visitor),
         });
-        if (!res.ok) {
-          const errData = await res.json();
-          setError(errData.error || 'Failed to log visitor');
-        } else {
-          fetchVisitors();
-          handleClose();
-        }
+        fetchVisitors();
       } catch (err) {
-        setError('Network or server error');
+        // Optionally handle error
       }
+      handleClose();
     }
   };
 
   return (
     <Box p={3} bgcolor="#f5f5f5" minHeight="100vh">
-      {error && (
-        <Paper elevation={3} sx={{ p: 2, mb: 2, background: '#ffeaea', color: '#b71c1c' }}>
-          <Typography variant="body1">{error}</Typography>
-        </Paper>
-      )}
-      <Box display="flex" flexDirection="column" alignItems="center" mb={2}>
-        <img src={logo} alt="Soulvest Logo" style={{ width: 64, height: 64, marginBottom: 8 }} />
-        <Typography variant="h4" mb={1} color="primary" fontWeight={700} align="center">
-          Soulvest Commune
-        </Typography>
-      </Box>
+      <Typography variant="h4" mb={3} color="primary" fontWeight={700} align="center">
+        Soulvest Commune
+      </Typography>
       <Paper elevation={2} sx={{ p: 3, mb: 3, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <Box>
           <Typography variant="h5" mb={2}>Guard Dashboard</Typography>
@@ -154,7 +128,6 @@ const GuardDashboard = () => {
           <Button onClick={handleLogVisitor} variant="contained">Log</Button>
         </DialogActions>
       </Dialog>
-      <ChatbotWidget />
     </Box>
   );
 }

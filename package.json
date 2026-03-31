@@ -1,8 +1,8 @@
 {
-  "name": "myapt_gate",
+  "name": "soulvest_commune",
   "private": true,
   "version": "0.0.0",
-  "type": "module",
+    "type": "module", // Marked as resolved
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -16,6 +16,7 @@
     "@mui/material": "^7.3.9",
     "firebase": "^12.11.0",
     "firebase-admin": "^13.7.0",
+    "node-fetch": "^2.7.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-router-dom": "^7.13.2"

@@ -6,36 +6,25 @@ const initialMessages = [
   { sender: 'bot', text: 'Hi! I am your AI assistant. How can I help you today?' }
 ];
 
-const getLLMReply = async (input) => {
-  try {
-    const res = await fetch('http://localhost:4000/chatbot-llm', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: input })
-    });
-    const data = await res.json();
-    if (data.reply) return data.reply;
-    return data.error ? `Error: ${data.error}` : 'Sorry, I could not get a reply.';
-  } catch (err) {
-    return 'Sorry, there was a problem connecting to the AI service.';
-  }
+const simpleBotReply = (input) => {
+  const text = input.toLowerCase();
+  if (text.includes('approve')) return 'To approve a visitor, click the Approve button next to their name.';
+  if (text.includes('visitor')) return 'You can view all visitors in the Pending Visitor Approvals section.';
+  if (text.includes('help')) return 'I can help you with visitor approvals, notifications, and more!';
+  if (text.includes('log')) return 'Visitor logs are available in the dashboard.';
+  return "Sorry, I didn't understand that. Please try asking about visitors, approvals, or help.";
 };
 
 const ChatbotWidget = () => {
   const [messages, setMessages] = useState(initialMessages);
   const [input, setInput] = useState('');
 
-  const [loading, setLoading] = useState(false);
-
-  const handleSend = async () => {
+  const handleSend = () => {
     if (!input.trim()) return;
     const userMsg = { sender: 'user', text: input };
-    setMessages((msgs) => [...msgs, userMsg]);
-    setLoading(true);
+    const botMsg = { sender: 'bot', text: simpleBotReply(input) };
+    setMessages((msgs) => [...msgs, userMsg, botMsg]);
     setInput('');
-    const reply = await getLLMReply(input);
-    setMessages((msgs) => [...msgs, { sender: 'bot', text: reply }]);
-    setLoading(false);
   };
 
   return (
@@ -59,13 +48,12 @@ const ChatbotWidget = () => {
           <TextField
             fullWidth
             size="small"
-            placeholder={loading ? 'Waiting for AI reply...' : 'Type your message...'}
+            placeholder="Type your message..."
             value={input}
             onChange={e => setInput(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter' && !loading) handleSend(); }}
-            disabled={loading}
+            onKeyDown={e => { if (e.key === 'Enter') handleSend(); }}
           />
-          <IconButton color="primary" onClick={handleSend} sx={{ ml: 1 }} disabled={loading}>
+          <IconButton color="primary" onClick={handleSend} sx={{ ml: 1 }}>
             <SendIcon />
           </IconButton>
         </Box>

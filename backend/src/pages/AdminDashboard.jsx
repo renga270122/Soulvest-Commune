@@ -1,9 +1,7 @@
 import React from 'react';
-import logo from '../assets/logo.png.js';
 import { Box, Typography, Paper, Button } from '@mui/material';
 import { useAuthContext } from '../components/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import ChatbotWidget from '../components/ChatbotWidget';
 
 
 const AdminDashboard = () => {
@@ -15,13 +13,9 @@ const AdminDashboard = () => {
   };
   return (
     <Box p={3} bgcolor="#f5f5f5" minHeight="100vh">
-      <Box display="flex" flexDirection="column" alignItems="center" mb={2}>
-        <img src={logo} alt="Soulvest Logo" style={{ width: 64, height: 64, marginBottom: 8 }} />
-        <Typography variant="h4" mb={1} color="primary" fontWeight={700} align="center">
-          Soulvest Commune
-        </Typography>
-      </Box>
-        <ChatbotWidget />
+      <Typography variant="h4" mb={3} color="primary" fontWeight={700} align="center">
+        Soulvest Commune
+      </Typography>
       <Paper elevation={2} sx={{ p: 3, mb: 3, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <Box>
           <Typography variant="h5" mb={2}>Admin Dashboard</Typography>

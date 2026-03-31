@@ -6,6 +6,10 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// LLM Chatbot route
+const chatbotLLM = require('./chatbot-llm');
+app.use(chatbotLLM);
+
 // Health check
 app.get('/', (req, res) => {
   res.send('API is running');

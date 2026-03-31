@@ -1,7 +1,6 @@
 
 
 import React, { useState, useEffect } from 'react';
-import logo from '../assets/logo.png.js';
 import {
   List, ListItem, ListItemText, Button, Box, Paper, Typography, Avatar, Badge, Grid, Divider, IconButton
 } from '@mui/material';
@@ -15,7 +14,6 @@ import CancelIcon from '@mui/icons-material/Cancel';
 import HomeIcon from '@mui/icons-material/Home';
 import { useAuthContext } from '../components/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import ChatbotWidget from '../components/ChatbotWidget';
 
 const ResidentDashboard = () => {
   const [visitors, setVisitors] = useState([]);
@@ -90,7 +88,7 @@ const ResidentDashboard = () => {
       {/* Top Bar */}
       <Box display="flex" alignItems="center" justifyContent="space-between" mb={3}>
         <Box display="flex" alignItems="center">
-          <Avatar src={logo} sx={{ width: 48, height: 48, mr: 2, bgcolor: 'primary.main' }}>
+          <Avatar src="/src/assets/hero.png" sx={{ width: 48, height: 48, mr: 2, bgcolor: 'primary.main' }}>
             <HomeIcon fontSize="large" />
           </Avatar>
           <Box>
@@ -101,14 +99,13 @@ const ResidentDashboard = () => {
               Soulvest Commune
             </Typography>
           </Box>
-          <ChatbotWidget />
         </Box>
         <Button variant="outlined" color="secondary" onClick={handleLogout}>Logout</Button>
       </Box>
       {/* Main Grid */}
-      <Grid container columns={12} spacing={3}>
+      <Grid container spacing={3}>
         {/* Left: Pending Approvals */}
-        <Grid span={4}>
+        <Grid item xs={12} md={4}>
           <Paper elevation={3} sx={{ p: 2, borderRadius: 3, bgcolor: '#fffbe6', boxShadow: '0 2px 12px #ffecb3' }}>
             <Box display="flex" alignItems="center" mb={1}>
               <Badge color="warning" variant="dot" invisible={myVisitors.filter(v => v.status === 'pending').length === 0}>
@@ -147,7 +144,7 @@ const ResidentDashboard = () => {
           </Paper>
         </Grid>
         {/* Center: Recent Activity Timeline */}
-        <Grid span={5}>
+        <Grid item xs={12} md={5}>
           <Paper elevation={3} sx={{ p: 2, borderRadius: 3, bgcolor: '#e3f2fd', boxShadow: '0 2px 12px #90caf9' }}>
             <Box display="flex" alignItems="center" mb={1}>
               <PersonIcon color="primary" sx={{ mr: 1 }} />
@@ -184,7 +181,7 @@ const ResidentDashboard = () => {
           </Paper>
         </Grid>
         {/* Right: Notifications */}
-        <Grid span={3}>
+        <Grid item xs={12} md={3}>
           <Paper elevation={3} sx={{ p: 2, borderRadius: 3, bgcolor: '#f5f5f5', boxShadow: '0 2px 12px #bdbdbd' }}>
             <Box display="flex" alignItems="center" mb={1}>
               <Badge badgeContent={notificationCount} color="error" max={9} sx={{ mr: 1 }}>

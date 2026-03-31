@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import logo from '../assets/logo.png.js';
 import {
   Button, TextField, Select, MenuItem, InputLabel, FormControl,
   Box, Typography, Paper, CircularProgress, Alert
@@ -117,7 +116,7 @@ const LoginPage = () => {
       />
       <Box sx={{ zIndex: 1, width: '100%', maxWidth: 400 }}>
         <Box display="flex" flexDirection="column" alignItems="center" mb={2}>
-          <img src={logo} alt="Soulvest Logo" style={{ width: 64, height: 64, marginBottom: 8 }} />
+          <img src="/logo192.png" alt="Soulvest Logo" style={{ width: 64, height: 64, marginBottom: 8 }} />
           <Typography variant="h4" color="primary" fontWeight={700} align="center" gutterBottom>
             Soulvest Commune
           </Typography>
