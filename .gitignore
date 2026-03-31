@@ -1,3 +1,5 @@
+# Ignore service account key
+backend/serviceAccountKey.json
 # Logs
 logs
 *.log
