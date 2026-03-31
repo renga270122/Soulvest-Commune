@@ -88,62 +88,97 @@ const LoginPage = () => {
   };
 
   return (
-    <Box display="flex" flexDirection="column" justifyContent="center" alignItems="center" minHeight="100vh" bgcolor="#f5f5f5">
-      <Typography variant="h4" mb={3} color="primary" fontWeight={700} align="center">
-        Soulvest Commune
-      </Typography>
-      <Paper elevation={3} sx={{ p: 4, minWidth: 320 }}>
-        <Typography variant="h5" mb={2} align="center">Login</Typography>
-        {!otpSent ? (
-          <form onSubmit={handleSendOtp}>
-            <TextField
-              fullWidth
-              label="Mobile Number"
-              placeholder="Enter 10-digit mobile number"
-              margin="normal"
-              variant="outlined"
-              value={mobile}
-              onChange={e => setMobile(e.target.value)}
-              required
-            />
-            <FormControl fullWidth margin="normal">
-              <InputLabel id="role-label">Role</InputLabel>
-              <Select
-                labelId="role-label"
-                label="Role"
-                value={role}
-                onChange={e => setRole(e.target.value)}
-              >
-                <MenuItem value="guard">Guard</MenuItem>
-                <MenuItem value="resident">Resident</MenuItem>
-                <MenuItem value="admin">Admin</MenuItem>
-              </Select>
-            </FormControl>
-            <div id="recaptcha-container" style={{ display: 'none' }} /> {/* ✅ hidden container */}
-            <Button fullWidth variant="contained" color="primary" sx={{ mt: 2 }} type="submit" disabled={loading}>
-              {loading ? <CircularProgress size={24} /> : 'Send OTP'}
-            </Button>
-            {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
-          </form>
-        ) : (
-          <form onSubmit={handleVerifyOtp}>
-            <TextField
-              fullWidth
-              label="Enter OTP"
-              placeholder="Enter the OTP received"
-              margin="normal"
-              variant="outlined"
-              value={otp}
-              onChange={e => setOtp(e.target.value)}
-              required
-            />
-            <Button fullWidth variant="contained" color="primary" sx={{ mt: 2 }} type="submit" disabled={loading}>
-              {loading ? <CircularProgress size={24} /> : 'Verify OTP'}
-            </Button>
-            {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
-          </form>
-        )}
-      </Paper>
+    <Box
+      display="flex"
+      flexDirection="column"
+      justifyContent="center"
+      alignItems="center"
+      minHeight="100vh"
+      sx={{
+        bgcolor: 'background.default',
+        position: 'relative',
+        overflow: 'hidden',
+      }}
+    >
+      {/* Subtle background accent */}
+      <Box
+        sx={{
+          position: 'absolute',
+          top: -120,
+          left: -120,
+          width: 400,
+          height: 400,
+          bgcolor: 'primary.light',
+          opacity: 0.12,
+          borderRadius: '50%',
+          zIndex: 0,
+        }}
+      />
+      <Box sx={{ zIndex: 1, width: '100%', maxWidth: 400 }}>
+        <Box display="flex" flexDirection="column" alignItems="center" mb={2}>
+          <img src="/logo192.png" alt="Soulvest Logo" style={{ width: 64, height: 64, marginBottom: 8 }} />
+          <Typography variant="h4" color="primary" fontWeight={700} align="center" gutterBottom>
+            Soulvest Commune
+          </Typography>
+          <Typography variant="subtitle1" color="text.secondary" align="center" sx={{ mb: 1 }}>
+            Apartment Management
+          </Typography>
+        </Box>
+        <Paper elevation={3} sx={{ p: 4, borderRadius: 3 }}>
+          <Typography variant="h5" mb={2} align="center" fontWeight={600}>Login</Typography>
+          {!otpSent ? (
+            <form onSubmit={handleSendOtp}>
+              <TextField
+                fullWidth
+                label="Mobile Number"
+                placeholder="Enter 10-digit mobile number"
+                margin="normal"
+                variant="outlined"
+                value={mobile}
+                onChange={e => setMobile(e.target.value)}
+                required
+                inputProps={{ maxLength: 10, inputMode: 'numeric', pattern: '[0-9]*' }}
+              />
+              <FormControl fullWidth margin="normal">
+                <InputLabel id="role-label">Role</InputLabel>
+                <Select
+                  labelId="role-label"
+                  label="Role"
+                  value={role}
+                  onChange={e => setRole(e.target.value)}
+                >
+                  <MenuItem value="guard">Guard</MenuItem>
+                  <MenuItem value="resident">Resident</MenuItem>
+                  <MenuItem value="admin">Admin</MenuItem>
+                </Select>
+              </FormControl>
+              <div id="recaptcha-container" style={{ display: 'none' }} />
+              <Button fullWidth variant="contained" color="primary" sx={{ mt: 2, fontWeight: 600 }} type="submit" disabled={loading}>
+                {loading ? <CircularProgress size={24} /> : 'Send OTP'}
+              </Button>
+              {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
+            </form>
+          ) : (
+            <form onSubmit={handleVerifyOtp}>
+              <TextField
+                fullWidth
+                label="Enter OTP"
+                placeholder="Enter the OTP received"
+                margin="normal"
+                variant="outlined"
+                value={otp}
+                onChange={e => setOtp(e.target.value)}
+                required
+                inputProps={{ maxLength: 6, inputMode: 'numeric', pattern: '[0-9]*' }}
+              />
+              <Button fullWidth variant="contained" color="primary" sx={{ mt: 2, fontWeight: 600 }} type="submit" disabled={loading}>
+                {loading ? <CircularProgress size={24} /> : 'Verify OTP'}
+              </Button>
+              {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
+            </form>
+          )}
+        </Paper>
+      </Box>
     </Box>
   );
 };
