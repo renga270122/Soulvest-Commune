@@ -12,17 +12,27 @@ const GuardDashboard = () => {
   const [visitor, setVisitor] = useState({ name: '', flat: '', purpose: '', time: '' });
   const [visitors, setVisitors] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   const { logout } = useAuthContext();
   const navigate = useNavigate();
 
   const fetchVisitors = async () => {
     setLoading(true);
+    setError(null);
     try {
       const res = await fetch('http://localhost:4000/visitors');
+      if (!res.ok) {
+        const errData = await res.json();
+        setError(errData.error || 'Failed to fetch visitors');
+        setVisitors([]);
+        setLoading(false);
+        return;
+      }
       const data = await res.json();
       setVisitors(data);
     } catch (err) {
-      // Optionally handle error
+      setError('Network or server error');
+      setVisitors([]);
     }
     setLoading(false);
   };
@@ -48,22 +58,33 @@ const GuardDashboard = () => {
 
   const handleLogVisitor = async () => {
     if (visitor.name && visitor.flat && visitor.purpose && visitor.time) {
+      setError(null);
       try {
-        await fetch('http://localhost:4000/visitors', {
+        const res = await fetch('http://localhost:4000/visitors', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(visitor),
         });
-        fetchVisitors();
+        if (!res.ok) {
+          const errData = await res.json();
+          setError(errData.error || 'Failed to log visitor');
+        } else {
+          fetchVisitors();
+          handleClose();
+        }
       } catch (err) {
-        // Optionally handle error
+        setError('Network or server error');
       }
-      handleClose();
     }
   };
 
   return (
     <Box p={3} bgcolor="#f5f5f5" minHeight="100vh">
+      {error && (
+        <Paper elevation={3} sx={{ p: 2, mb: 2, background: '#ffeaea', color: '#b71c1c' }}>
+          <Typography variant="body1">{error}</Typography>
+        </Paper>
+      )}
       <Typography variant="h4" mb={3} color="primary" fontWeight={700} align="center">
         Soulvest Commune
       </Typography>
