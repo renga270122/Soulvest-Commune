@@ -1,187 +1,113 @@
-import React, { useState, useEffect } from 'react';
-import logo from '../assets/logo.png.js';
-import {
-  Button, TextField, Select, MenuItem, InputLabel, FormControl,
-  Box, Typography, Paper, CircularProgress, Alert
-} from '@mui/material';
-import { useNavigate } from 'react-router-dom';
-import { useAuthContext } from '../components/AuthContext';
-import { auth } from '../firebase';
-import { RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
 
-const LoginPage = () => {
-  const [mobile, setMobile] = useState('');
-  const [role, setRole] = useState('guard');
-  const [otpSent, setOtpSent] = useState(false);
-  const [otp, setOtp] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [confirmationResult, setConfirmationResult] = useState(null);
+
+import React, { useState } from "react";
+import { auth } from "../firebase";
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { useNavigate } from "react-router-dom";
+import styles from "./LoginPage.module.css";
+
+import topIllustration from "../assets/top-illustration.png";
+import bottomIllustration from "../assets/bottom-illustration.png";
+import logo from "../assets/logo.png";
+import phoneIcon from "../assets/phone.svg";
+import lockIcon from "../assets/lock.svg";
+import googleIcon from "../assets/google-icon.svg";
+import facebookIcon from "../assets/facebook-icon.svg";
+
+export default function LoginPage() {
+  const [emailOrMobile, setEmailOrMobile] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const navigate = useNavigate();
-  const { login, user } = useAuthContext();
 
-  useEffect(() => {
-    if (user) {
-      if (user.role === 'guard') navigate('/guard');
-      else if (user.role === 'resident') navigate('/resident');
-      else if (user.role === 'admin') navigate('/admin');
-    }
-  }, [user, navigate]);
-
-  const setupRecaptcha = () => {
-    if (!window.recaptchaVerifier) {
-      window.recaptchaVerifier = new RecaptchaVerifier(
-        auth,
-        'recaptcha-container',
-        {
-          size: 'invisible', // ✅ invisible reCAPTCHA
-          callback: (response) => {
-            console.log('Recaptcha verified');
-          },
-        }
-      );
-    }
-  };
-
-  const handleSendOtp = async (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
-    setError('');
-    setLoading(true);
-
-    setupRecaptcha();
-
-    // User enters only 10 digits (e.g., 9663801374)
-    let phoneNumber = mobile.trim();
-
-    // Validate length
-    if (!/^\d{10}$/.test(phoneNumber)) {
-      setError('Please enter a valid 10-digit mobile number.');
-      setLoading(false);
-      return;
-    }
-
-    // Convert to E.164 format for India
-    phoneNumber = '+91' + phoneNumber;
-
+    setError("");
+    setSuccess("");
     try {
-      const confirmation = await signInWithPhoneNumber(auth, phoneNumber, window.recaptchaVerifier);
-      setConfirmationResult(confirmation);
-      setOtpSent(true);
+      // Only email login is supported (mobile/email field)
+      await signInWithEmailAndPassword(auth, emailOrMobile, password);
+      setSuccess("Login successful! Redirecting...");
+      setTimeout(() => navigate("/home"), 1000);
     } catch (err) {
-      setError(err?.message || 'Failed to send OTP. Please check the number and try again.');
-      console.error('OTP send error:', err);
+      setError(err.message);
     }
-
-    setLoading(false);
-  };
-
-  const handleVerifyOtp = async (e) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
-    try {
-      await confirmationResult.confirm(otp);
-      login(mobile, role);
-    } catch (err) {
-      setError('Invalid OTP. Please try again.');
-    }
-    setLoading(false);
   };
 
   return (
-    <Box
-      display="flex"
-      flexDirection="column"
-      justifyContent="center"
-      alignItems="center"
-      minHeight="100vh"
-      sx={{
-        bgcolor: 'background.default',
-        position: 'relative',
-        overflow: 'hidden',
-      }}
-    >
-      {/* Subtle background accent */}
-      <Box
-        sx={{
-          position: 'absolute',
-          top: -120,
-          left: -120,
-          width: 400,
-          height: 400,
-          bgcolor: 'primary.light',
-          opacity: 0.12,
-          borderRadius: '50%',
-          zIndex: 0,
-        }}
-      />
-      <Box sx={{ zIndex: 1, width: '100%', maxWidth: 400 }}>
-        <Box display="flex" flexDirection="column" alignItems="center" mb={2}>
-          <img src={logo} alt="Soulvest Logo" style={{ width: 64, height: 64, marginBottom: 8 }} />
-          <Typography variant="h4" color="primary" fontWeight={700} align="center" gutterBottom>
-            Soulvest Commune
-          </Typography>
-          <Typography variant="subtitle1" color="text.secondary" align="center" sx={{ mb: 1 }}>
-            Apartment Management
-          </Typography>
-        </Box>
-        <Paper elevation={3} sx={{ p: 4, borderRadius: 3 }}>
-          <Typography variant="h5" mb={2} align="center" fontWeight={600}>Login</Typography>
-          {!otpSent ? (
-            <form onSubmit={handleSendOtp}>
-              <TextField
-                fullWidth
-                label="Mobile Number"
-                placeholder="Enter 10-digit mobile number"
-                margin="normal"
-                variant="outlined"
-                value={mobile}
-                onChange={e => setMobile(e.target.value)}
-                required
-                inputProps={{ maxLength: 10, inputMode: 'numeric', pattern: '[0-9]*' }}
-              />
-              <FormControl fullWidth margin="normal">
-                <InputLabel id="role-label">Role</InputLabel>
-                <Select
-                  labelId="role-label"
-                  label="Role"
-                  value={role}
-                  onChange={e => setRole(e.target.value)}
-                >
-                  <MenuItem value="guard">Guard</MenuItem>
-                  <MenuItem value="resident">Resident</MenuItem>
-                  <MenuItem value="admin">Admin</MenuItem>
-                </Select>
-              </FormControl>
-              <div id="recaptcha-container" style={{ display: 'none' }} />
-              <Button fullWidth variant="contained" color="primary" sx={{ mt: 2, fontWeight: 600 }} type="submit" disabled={loading}>
-                {loading ? <CircularProgress size={24} /> : 'Send OTP'}
-              </Button>
-              {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
-            </form>
-          ) : (
-            <form onSubmit={handleVerifyOtp}>
-              <TextField
-                fullWidth
-                label="Enter OTP"
-                placeholder="Enter the OTP received"
-                margin="normal"
-                variant="outlined"
-                value={otp}
-                onChange={e => setOtp(e.target.value)}
-                required
-                inputProps={{ maxLength: 6, inputMode: 'numeric', pattern: '[0-9]*' }}
-              />
-              <Button fullWidth variant="contained" color="primary" sx={{ mt: 2, fontWeight: 600 }} type="submit" disabled={loading}>
-                {loading ? <CircularProgress size={24} /> : 'Verify OTP'}
-              </Button>
-              {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
-            </form>
-          )}
-        </Paper>
-      </Box>
-    </Box>
-  );
-};
+    <div className={styles.landingBg}>
+      {/* Top Illustration */}
+      <img src={topIllustration} alt="Top" className={styles.illustration} />
 
-export default LoginPage;
+      {/* Header with logo and title */}
+      <div className={styles.header}>
+        <div className={styles.title}>Welcome Back!</div>
+        <div style={{ color: '#5a3a0a', fontSize: '1.1rem', marginTop: '0.3rem' }}>to Soulvest Commune</div>
+      </div>
+
+      {/* Login Card */}
+      <form onSubmit={handleLogin} className={styles.loginCard}>
+        {error && <div style={{ color: 'red', marginBottom: 8 }}>{error}</div>}
+        {success && <div style={{ color: 'green', marginBottom: 8 }}>{success}</div>}
+        <div className={styles.label}>Mobile Number / Email</div>
+        <div className={styles.inputGroup}>
+          <img src={phoneIcon} alt="Phone" className={styles.inputIcon} />
+          <input
+            type="text"
+            value={emailOrMobile}
+            onChange={(e) => setEmailOrMobile(e.target.value)}
+            placeholder="Enter your mobile number or email"
+            className={styles.inputField}
+            required
+          />
+        </div>
+
+        <div className={styles.label} style={{ marginTop: "0.5rem" }}>Password</div>
+        <div className={styles.inputGroup}>
+          <img src={lockIcon} alt="Lock" className={styles.inputIcon} />
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Enter your password"
+            className={styles.inputField}
+            required
+          />
+        </div>
+
+        <div className={styles.forgot}>
+          <a href="#" className={styles.forgotLink}>
+            Forgot Password?
+          </a>
+        </div>
+
+        <button type="submit" className={styles.loginBtn}>
+          Login
+        </button>
+
+        <div className={styles.or}>or</div>
+
+        {/* Social Login Buttons */}
+        <button type="button" className={`${styles.socialBtn} ${styles.googleBtn}`}> 
+          <img src={googleIcon} alt="Google" height={20} />
+          Continue with Google
+        </button>
+        <button type="button" className={`${styles.socialBtn} ${styles.facebookBtn}`}> 
+          <img src={facebookIcon} alt="Facebook" height={20} />
+          Continue with Facebook
+        </button>
+
+        <div className={styles.signup}>
+          New to Soulvest Commune?
+          <a href="/signup" className={styles.signupLink}>
+            Sign Up
+          </a>
+        </div>
+      </form>
+
+      {/* Bottom Illustration */}
+      <img src={bottomIllustration} alt="Bottom" className={styles.footerIllus} />
+    </div>
+  );
+}

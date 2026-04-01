@@ -1,0 +1,167 @@
+/* LoginPage.module.css - Styles for Soulvest Commune Landing Page */
+
+.landingBg {
+  min-height: 100vh;
+  background: linear-gradient(to bottom, #fbe7b2 0%, #fff6e0 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Georgia', 'Times New Roman', serif;
+  position: relative;
+}
+
+.header {
+  text-align: center;
+  margin-bottom: 1.5rem;
+}
+.logo {
+  height: 60px;
+  margin: 0 auto 0.5rem auto;
+}
+.title {
+  font-size: 2.2rem;
+  font-weight: bold;
+  color: #5a3a0a;
+  margin-bottom: 0.2rem;
+}
+
+.illustration {
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto 1.5rem auto;
+}
+
+.loginCard {
+  background: #fff8ec;
+  box-shadow: 0 4px 24px rgba(90,58,10,0.08);
+  border-radius: 16px;
+  padding: 2rem 2rem 1.5rem 2rem;
+  width: 100%;
+  max-width: 420px;
+  margin: 0 auto;
+  border: 1.5px solid #e2c48d;
+}
+
+.inputGroup {
+  display: flex;
+  align-items: center;
+  background: #fff;
+  border: 1.5px solid #e2c48d;
+  border-radius: 8px;
+  margin-bottom: 1.2rem;
+  padding: 0.2rem 0.8rem;
+}
+.inputIcon {
+  margin-right: 0.7rem;
+  width: 22px;
+  height: 22px;
+  opacity: 0.8;
+}
+.inputField {
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 1rem;
+  flex: 1;
+  padding: 0.7rem 0;
+  color: #5a3a0a;
+}
+
+.label {
+  font-weight: bold;
+  color: #5a3a0a;
+  margin-bottom: 0.2rem;
+  font-size: 1.08rem;
+}
+
+.forgot {
+  text-align: right;
+  margin-bottom: 1.2rem;
+}
+.forgotLink {
+  color: #e07a1c;
+  font-weight: 500;
+  text-decoration: none;
+  font-size: 0.98rem;
+}
+.forgotLink:hover {
+  text-decoration: underline;
+}
+
+.loginBtn {
+  width: 100%;
+  background: linear-gradient(90deg, #e07a1c 60%, #c95c0b 100%);
+  color: #fff;
+  font-size: 1.15rem;
+  font-weight: bold;
+  border: none;
+  border-radius: 8px;
+  padding: 0.85rem 0;
+  margin-bottom: 1.1rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.loginBtn:hover {
+  background: linear-gradient(90deg, #c95c0b 60%, #e07a1c 100%);
+}
+
+.or {
+  text-align: center;
+  color: #a67c2d;
+  margin: 0.7rem 0 0.7rem 0;
+  font-size: 1.05rem;
+}
+
+.socialBtn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 8px;
+  font-size: 1.08rem;
+  font-weight: 500;
+  padding: 0.7rem 0;
+  margin-bottom: 0.7rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.googleBtn {
+  background: #fff;
+  color: #333;
+  border: 1.5px solid #e2c48d;
+}
+.googleBtn img {
+  margin-right: 0.7rem;
+}
+.facebookBtn {
+  background: #1877f3;
+  color: #fff;
+}
+.facebookBtn img {
+  margin-right: 0.7rem;
+}
+
+.signup {
+  text-align: center;
+  margin-top: 1.2rem;
+  color: #5a3a0a;
+  font-size: 1.01rem;
+}
+.signupLink {
+  color: #e07a1c;
+  font-weight: bold;
+  text-decoration: none;
+  margin-left: 0.2rem;
+}
+.signupLink:hover {
+  text-decoration: underline;
+}
+
+.footerIllus {
+  width: 100%;
+  max-width: 600px;
+  margin: 2.5rem auto 0 auto;
+  display: block;
+}
