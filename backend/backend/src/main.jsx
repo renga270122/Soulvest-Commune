@@ -6,13 +6,6 @@ import { AuthProvider } from './components/AuthContext.jsx';
 import { ThemeProvider, CssBaseline } from '@mui/material';
 import theme from './theme';
 
-// Register service worker for PWA (VitePWA)
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js', { scope: '/' });
-  });
-}
-
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <ThemeProvider theme={theme}>

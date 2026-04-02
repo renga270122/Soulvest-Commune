@@ -1,10 +1,13 @@
 
 
 import React, { useState } from "react";
-import { auth } from "../firebase";
-import { signInWithEmailAndPassword } from "firebase/auth";
+
+import { auth, db } from "../firebase";
+import { signInWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
 import { useNavigate } from "react-router-dom";
+import { collection, query, where, getDocs } from "firebase/firestore";
 import styles from "./LoginPage.module.css";
+import { useAuthContext } from "../components/AuthContext";
 
 import topIllustration from "../assets/top-illustration.png";
 import bottomIllustration from "../assets/bottom-illustration.png";
@@ -14,22 +17,72 @@ import lockIcon from "../assets/lock.svg";
 import googleIcon from "../assets/google-icon.svg";
 import facebookIcon from "../assets/facebook-icon.svg";
 
+
 export default function LoginPage() {
   const [emailOrMobile, setEmailOrMobile] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const navigate = useNavigate();
+  const { login } = useAuthContext();
+
+  // Helper: check if input is mobile number (10+ digits)
+  const isMobile = (input) => /^\d{10,}$/.test(input.trim());
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setError("");
     setSuccess("");
+    let emailToUse = emailOrMobile;
     try {
-      // Only email login is supported (mobile/email field)
-      await signInWithEmailAndPassword(auth, emailOrMobile, password);
+      // If input is mobile, look up email in Firestore
+      let userDoc = null;
+      if (isMobile(emailOrMobile)) {
+        const q = query(collection(db, "users"), where("mobile", "==", emailOrMobile.trim()));
+        const snap = await getDocs(q);
+        if (snap.empty) throw new Error("No user found with this mobile number");
+        userDoc = snap.docs[0].data();
+        emailToUse = userDoc.email;
+      } else {
+        // If input is email, fetch user by email for role
+        const q = query(collection(db, "users"), where("email", "==", emailOrMobile.trim()));
+        const snap = await getDocs(q);
+        if (!snap.empty) userDoc = snap.docs[0].data();
+      }
+      await signInWithEmailAndPassword(auth, emailToUse, password);
+      // Get user role for redirection
+      const role = userDoc?.role || "user";
+      login(emailOrMobile, role);
       setSuccess("Login successful! Redirecting...");
-      setTimeout(() => navigate("/home"), 1000);
+      // Redirect to role-based dashboard
+      let redirectPath = "/dashboard";
+      if (role === "admin") redirectPath = "/admin";
+      else if (role === "guard") redirectPath = "/guard";
+      else if (role === "resident") redirectPath = "/resident";
+      setTimeout(() => navigate(redirectPath), 1000);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  // Forgot Password
+  const handleForgotPassword = async () => {
+    setError("");
+    setSuccess("");
+    if (!emailOrMobile) {
+      setError("Please enter your email or mobile number above first.");
+      return;
+    }
+    let emailToUse = emailOrMobile;
+    try {
+      if (isMobile(emailOrMobile)) {
+        const q = query(collection(db, "users"), where("mobile", "==", emailOrMobile.trim()));
+        const snap = await getDocs(q);
+        if (snap.empty) throw new Error("No user found with this mobile number");
+        emailToUse = snap.docs[0].data().email;
+      }
+      await sendPasswordResetEmail(auth, emailToUse);
+      setSuccess("Password reset email sent. Please check your inbox.");
     } catch (err) {
       setError(err.message);
     }
@@ -77,9 +130,9 @@ export default function LoginPage() {
         </div>
 
         <div className={styles.forgot}>
-          <a href="#" className={styles.forgotLink}>
+          <button type="button" className={styles.forgotLink} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }} onClick={handleForgotPassword}>
             Forgot Password?
-          </a>
+          </button>
         </div>
 
         <button type="submit" className={styles.loginBtn}>

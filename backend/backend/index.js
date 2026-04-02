@@ -6,55 +6,75 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// LLM Chatbot route
+const chatbotLLM = require('./chatbot-llm');
+app.use(chatbotLLM);
+
 // Health check
 app.get('/', (req, res) => {
   res.send('API is running');
 });
 
 
-// In-memory visitor storage
-let visitors = [];
-let nextVisitorId = 1;
 
-// Log a new visitor
-app.post('/visitors', (req, res) => {
+// Firestore
+const db = require('./firebase');
+
+// Log a new visitor (Firestore)
+app.post('/visitors', async (req, res) => {
   const { name, flat, purpose, time } = req.body;
   if (!name || !flat || !purpose || !time) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
-  const visitor = {
-    id: nextVisitorId++,
-    name,
-    flat,
-    purpose,
-    time,
-    status: 'pending',
-    createdAt: new Date().toISOString(),
-  };
-  visitors.unshift(visitor);
-  res.status(201).json(visitor);
+  try {
+    const docRef = await db.collection('visitors').add({
+      name,
+      flat,
+      purpose,
+      time,
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+    });
+    const doc = await docRef.get();
+    res.status(201).json({ id: docRef.id, ...doc.data() });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to add visitor', details: err.message });
+  }
 });
 
 // Get all visitors (optionally filter by status)
-app.get('/visitors', (req, res) => {
+app.get('/visitors', async (req, res) => {
   const { status } = req.query;
-  if (status) {
-    return res.json(visitors.filter(v => v.status === status));
+  try {
+    let query = db.collection('visitors').orderBy('createdAt', 'desc');
+    if (status) {
+      query = query.where('status', '==', status);
+    }
+    const snapshot = await query.get();
+    const visitors = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    res.json(visitors);
+  } catch (err) {
+    console.error('Error fetching visitors:', err);
+    res.status(500).json({ error: 'Failed to fetch visitors', details: err.message, stack: err.stack });
   }
-  res.json(visitors);
 });
 
 // Update visitor status (approve/deny)
-app.patch('/visitors/:id', (req, res) => {
+app.patch('/visitors/:id', async (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
-  const visitor = visitors.find(v => v.id === parseInt(id));
-  if (!visitor) return res.status(404).json({ error: 'Visitor not found' });
   if (!['approved', 'denied'].includes(status)) {
     return res.status(400).json({ error: 'Invalid status' });
   }
-  visitor.status = status;
-  res.json(visitor);
+  try {
+    const docRef = db.collection('visitors').doc(id);
+    const doc = await docRef.get();
+    if (!doc.exists) return res.status(404).json({ error: 'Visitor not found' });
+    await docRef.update({ status });
+    res.json({ id, ...doc.data(), status });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update visitor', details: err.message });
+  }
 });
 
 const PORT = process.env.PORT || 4000;
