@@ -1,0 +1,1 @@
+if('serviceWorker' in navigator) {window.addEventListener('load', () => {navigator.serviceWorker.register('/Soulvest-Commune/sw.js', { scope: '/Soulvest-Commune/' })})}
