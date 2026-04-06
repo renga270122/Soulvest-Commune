@@ -9,6 +9,10 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      outDir: 'dist',
+      filename: 'sw.js',
+      scope: '/Soulvest-Commune/',
+      base: '/Soulvest-Commune/',
       manifest: {
         name: 'Soulvest Commune',
         short_name: 'Soulvest',
@@ -17,6 +21,7 @@ export default defineConfig({
         background_color: '#ffffff',
         display: 'standalone',
         start_url: '/Soulvest-Commune/',
+        scope: '/Soulvest-Commune/',
         icons: [
           {
             src: '/Soulvest-Commune/icons/icon-192x192.png',
