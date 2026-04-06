@@ -4,15 +4,15 @@ import { VitePWA } from 'vite-plugin-pwa';
 
 // https://vite.dev/config/
 export default defineConfig({
-  base: '/Soulvest-Commune/',
+  base: '/',
   plugins: [
     react(),
     VitePWA({
       registerType: 'autoUpdate',
       outDir: 'dist',
       filename: 'sw.js',
-      scope: '/Soulvest-Commune/',
-      base: '/Soulvest-Commune/',
+      scope: '/',
+      base: '/',
       manifest: {
         name: 'Soulvest Commune',
         short_name: 'Soulvest',
@@ -20,21 +20,21 @@ export default defineConfig({
         theme_color: '#ffffff',
         background_color: '#ffffff',
         display: 'standalone',
-        start_url: '/Soulvest-Commune/',
-        scope: '/Soulvest-Commune/',
+        start_url: '/',
+        scope: '/',
         icons: [
           {
-            src: '/Soulvest-Commune/icons/icon-192x192.png',
+            src: '/icons/icon-192x192.png',
             sizes: '192x192',
             type: 'image/png',
           },
           {
-            src: '/Soulvest-Commune/icons/icon-512x512.png',
+            src: '/icons/icon-512x512.png',
             sizes: '512x512',
             type: 'image/png',
           },
           {
-            src: '/Soulvest-Commune/icons/icon-512x512.png',
+            src: '/icons/icon-512x512.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'any maskable',
