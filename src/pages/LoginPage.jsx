@@ -23,6 +23,8 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [resetSent, setResetSent] = useState(false);
+  const [resendDisabled, setResendDisabled] = useState(false);
   const navigate = useNavigate();
   const { login } = useAuthContext();
 
@@ -69,6 +71,7 @@ export default function LoginPage() {
   const handleForgotPassword = async () => {
     setError("");
     setSuccess("");
+    setResetSent(false);
     if (!emailOrMobile) {
       setError("Please enter your email or mobile number above first.");
       return;
@@ -82,10 +85,31 @@ export default function LoginPage() {
         emailToUse = snap.docs[0].data().email;
       }
       await sendPasswordResetEmail(auth, emailToUse);
-      setSuccess("Password reset email sent. Please check your inbox.");
+      setSuccess("Password reset email sent. Please check your inbox (and spam folder). If you didn't receive it, you can resend below.");
+      setResetSent(true);
     } catch (err) {
       setError(err.message);
     }
+  };
+
+  const handleResendReset = async () => {
+    setError("");
+    setSuccess("");
+    setResendDisabled(true);
+    let emailToUse = emailOrMobile;
+    try {
+      if (isMobile(emailOrMobile)) {
+        const q = query(collection(db, "users"), where("mobile", "==", emailOrMobile.trim()));
+        const snap = await getDocs(q);
+        if (snap.empty) throw new Error("No user found with this mobile number");
+        emailToUse = snap.docs[0].data().email;
+      }
+      await sendPasswordResetEmail(auth, emailToUse);
+      setSuccess("Password reset email resent. Please check your inbox (and spam folder).");
+    } catch (err) {
+      setError(err.message);
+    }
+    setTimeout(() => setResendDisabled(false), 30000); // 30 seconds cooldown
   };
 
   return (
@@ -130,9 +154,26 @@ export default function LoginPage() {
         </div>
 
         <div className={styles.forgot}>
-          <button type="button" className={styles.forgotLink} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }} onClick={handleForgotPassword}>
+          <button
+            type="button"
+            className={styles.forgotLink}
+            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+            onClick={handleForgotPassword}
+            disabled={resendDisabled}
+          >
             Forgot Password?
           </button>
+          {resetSent && (
+            <button
+              type="button"
+              className={styles.forgotLink}
+              style={{ background: 'none', border: 'none', padding: 0, marginLeft: 12, color: '#007bff', cursor: resendDisabled ? 'not-allowed' : 'pointer', textDecoration: 'underline' }}
+              onClick={handleResendReset}
+              disabled={resendDisabled}
+            >
+              Resend password reset email
+            </button>
+          )}
         </div>
 
         <button type="submit" className={styles.loginBtn}>
