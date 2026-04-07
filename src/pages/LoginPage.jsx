@@ -38,12 +38,12 @@ const roles = [
 ];
 
 const featureCards = [
-  { title: "Visitor OTP Passes", tag: "Live", text: "Residents pre-approve guests with OTP and QR passes before they reach the gate." },
+  { title: "Visitor Entry", tag: "Live", text: "Visitor entry flows from gate approval to an instant resident alert without extra calls." },
   { title: "Guard PWA Flow", tag: "Realtime", text: "Guards verify visitors in seconds and log every entry directly into Firestore." },
   { title: "Resident Alerts", tag: "AI Ready", text: "Residents see live entry notifications and approval history on one screen." },
-  { title: "Announcements", tag: "Admin", text: "Society notices travel from admin to residents without WhatsApp chaos." },
-  { title: "Maintenance Dues", tag: "Finance", text: "Residents view dues, payment history, and upcoming fee cycles clearly." },
-  { title: "Complaint Desk", tag: "Next", text: "Track service requests with clear statuses residents and admins can follow easily." },
+  { title: "Announcements", tag: "Admin", text: "Admin announcements get acknowledged by residents without WhatsApp clutter." },
+  { title: "Maintenance Dues", tag: "Finance", text: "Residents check maintenance dues from the dashboard or ask the AI concierge for status." },
+  { title: "Complaint Desk", tag: "Next", text: "Residents raise issues and follow transparent status updates through resolution." },
   { title: "AI Concierge", tag: "Gemini", text: "Ask about dues, visitors, and complaint status from a single assistant." },
   { title: "Unified Dashboard", tag: "Operations", text: "Bring residents, guards, admins, and AI workflows together in one connected platform." },
 ];

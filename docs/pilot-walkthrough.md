@@ -1,5 +1,12 @@
 # Soulvest Commune Pilot Walkthrough
 
+## Demo Flow To Showcase
+
+1. Visitor entry: guard approves, and the resident gets an instant alert.
+2. Admin announcement: residents acknowledge notices without WhatsApp clutter.
+3. Maintenance dues: resident checks status from the dashboard or through the AI concierge.
+4. Complaint desk: resident raises an issue and sees transparent status updates.
+
 ## Demo Story
 
 1. Resident creates a visitor pass or guard logs a walk-in.
