@@ -4,6 +4,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { Box, CircularProgress } from '@mui/material';
 import { useAuthContext } from '../components/AuthContext';
 import { useFeatureFlags } from '../hooks/useFeatureFlags';
+import ResidentDashboard from '../pages/ResidentDashboard';
 
 const LAZY_RETRY_PREFIX = 'soulvest_lazy_retry';
 
@@ -43,7 +44,6 @@ const Profile = lazyWithRetry(() => import('../pages/Profile'), 'profile');
 const FacilityBookings = lazyWithRetry(() => import('../pages/FacilityBookings'), 'bookings');
 const SecurityLogs = lazyWithRetry(() => import('../pages/SecurityLogs'), 'security');
 const GuardDashboard = lazyWithRetry(() => import('../pages/GuardDashboard'), 'guard');
-const ResidentDashboard = lazyWithRetry(() => import('../pages/ResidentDashboard'), 'resident');
 const AdminDashboard = lazyWithRetry(() => import('../pages/AdminDashboard'), 'admin');
 const ResidentDirectory = lazyWithRetry(() => import('../pages/ResidentDirectory'), 'directory');
 const Announcements = lazyWithRetry(() => import('../pages/Announcements'), 'announcements');
