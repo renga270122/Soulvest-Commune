@@ -16,6 +16,7 @@ export const SOCIETY_COLLECTIONS = Object.freeze({
   staffAttendance: 'staffAttendance',
   announcements: 'announcements',
   complaints: 'complaints',
+  facilityBookings: 'facilityBookings',
   payments: 'payments',
 });
 
@@ -107,6 +108,17 @@ export const FIRESTORE_SCHEMA = Object.freeze({
     aiPriority: 'low',
     createdAt: null,
     resolvedAt: null,
+  }),
+  facilityBooking: () => ({
+    residentId: null,
+    residentName: '',
+    flat: '',
+    amenity: '',
+    bookingDate: null,
+    slot: '',
+    status: 'confirmed',
+    notes: '',
+    createdAt: null,
   }),
   payment: () => ({
     residentId: null,
