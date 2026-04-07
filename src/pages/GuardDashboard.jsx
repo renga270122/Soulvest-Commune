@@ -33,6 +33,7 @@ const statusColorMap = {
   checked_in: 'success',
   checked_out: 'default',
   denied: 'error',
+  expired: 'error',
   pending: 'warning',
   preapproved: 'info',
 };
@@ -228,6 +229,9 @@ export default function GuardDashboard() {
                   <Typography color="text.secondary">OTP {entry.otp}</Typography>
                   <Typography color="text.secondary">
                     Expected: {entry.expectedAt ? new Date(entry.expectedAt).toLocaleString() : 'Not specified'}
+                  </Typography>
+                  <Typography color="text.secondary">
+                    Valid until: {entry.passExpiresAt ? new Date(entry.passExpiresAt).toLocaleString() : entry.expectedAt ? new Date(new Date(entry.expectedAt).getTime() + 2 * 60 * 60 * 1000).toLocaleString() : 'Gate verification only'}
                   </Typography>
                 </Paper>
               ))}

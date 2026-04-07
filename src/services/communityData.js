@@ -32,6 +32,7 @@ const getPaymentDoc = (paymentId, context) => getSocietyDocRef('payments', payme
 const getAnnouncementDoc = (announcementId, context) => getSocietyDocRef('announcements', announcementId, getSocietyId(context));
 const getComplaintDoc = (complaintId, context) => getSocietyDocRef('complaints', complaintId, getSocietyId(context));
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'https://commune.soulvest.ai').replace(/\/$/, '');
+const PASS_EXPIRY_GRACE_MS = 2 * 60 * 60 * 1000;
 
 export const normalizeFlat = (flat) => flat?.trim().toUpperCase() || '';
 
@@ -173,6 +174,24 @@ const createPassToken = () => {
   return `SV-${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
 };
 const buildQrPayload = (passToken, otp) => JSON.stringify({ type: 'soulvest-pass', passToken, otp });
+const getPassExpiryDate = (visitorOrPass) => {
+  const explicitExpiry = toDateValue(visitorOrPass?.passExpiresAt);
+  if (explicitExpiry) return explicitExpiry;
+
+  const expectedAt = toDateValue(visitorOrPass?.expectedAt);
+  if (!expectedAt) return null;
+
+  return new Date(expectedAt.getTime() + PASS_EXPIRY_GRACE_MS);
+};
+const isPassExpired = (visitorOrPass) => {
+  const expiryDate = getPassExpiryDate(visitorOrPass);
+  return Boolean(expiryDate && expiryDate.getTime() < Date.now());
+};
+const isPassConsumed = (visitor) => Boolean(
+  visitor?.passState === 'used'
+  || visitor?.passInvalidationReason === 'verified'
+  || visitor?.passUsedAt,
+);
 
 async function createNotification(notification) {
   await addDoc(notificationsCollection, {
@@ -287,9 +306,18 @@ export async function createVisitor(visitor) {
 
 export async function createVisitorPass(pass) {
   const societyId = getSocietyId(pass);
+  const expectedAt = toDateValue(pass.expectedAt);
+  if (!expectedAt) {
+    throw new Error('Expected arrival time is invalid.');
+  }
+  if (expectedAt.getTime() < Date.now()) {
+    throw new Error('Expected arrival time must be in the future.');
+  }
+
   const otp = createOtp();
   const passToken = createPassToken();
   const qrPayload = buildQrPayload(passToken, otp);
+  const passExpiresAt = getPassExpiryDate({ expectedAt: expectedAt.toISOString() })?.toISOString();
 
   const docRef = await addDoc(getVisitorsCollection(societyId), {
     visitorName: pass.visitorName,
@@ -302,10 +330,12 @@ export async function createVisitorPass(pass) {
     flat: normalizeFlat(pass.flat),
     residentId: pass.residentId,
     residentName: pass.residentName,
-    expectedAt: pass.expectedAt,
+    expectedAt: expectedAt.toISOString(),
+    passExpiresAt,
     otp,
     passToken,
     qrPayload,
+    passState: 'active',
     status: 'preapproved',
     entryMethod: 'resident-pass',
     history: [
@@ -335,6 +365,7 @@ export async function createVisitorPass(pass) {
     otp,
     passToken,
     qrPayload,
+    passExpiresAt,
   };
 }
 
@@ -357,15 +388,36 @@ export async function verifyVisitorPass(code, guardUser) {
   const visitorDoc = snapshot.docs[0];
   const visitor = { id: visitorDoc.id, ...visitorDoc.data() };
 
-  if (visitor.status === 'checked_in') {
-    throw new Error('This visitor has already been checked in.');
+  if (isPassConsumed(visitor) || ['checked_in', 'checked_out'].includes(visitor.status)) {
+    throw new Error('This visitor pass has already been used. Ask the resident to create a new pass if re-entry is needed.');
   }
+  if (isPassExpired(visitor)) {
+    await updateDoc(getVisitorDoc(visitor.id, societyId), {
+      status: 'expired',
+      passState: 'expired',
+      passInvalidatedAt: serverTimestamp(),
+      passInvalidationReason: 'expired',
+      updatedAt: serverTimestamp(),
+      history: arrayUnion({
+        type: 'expired',
+        actor: guardUser?.name || 'Guard',
+        at: new Date().toISOString(),
+      }),
+    });
+
+    throw new Error('This visitor pass has expired. Ask the resident to create a new pass.');
+  }
+
   if (visitor.status !== 'preapproved') {
     throw new Error(`This visitor pass is currently marked as ${visitor.status}.`);
   }
 
   await updateDoc(getVisitorDoc(visitor.id, societyId), {
     status: 'checked_in',
+    passState: 'used',
+    passUsedAt: serverTimestamp(),
+    passInvalidatedAt: serverTimestamp(),
+    passInvalidationReason: 'verified',
     checkedInAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
     verifiedBy: {
@@ -452,11 +504,36 @@ export async function checkInVisitor(visitorId, guardUser) {
   if (!['approved', 'preapproved'].includes(visitor.status)) {
     throw new Error(`Only approved visitors can be checked in. Current status: ${visitor.status}.`);
   }
+  if (visitor.status === 'preapproved' && isPassConsumed(visitor)) {
+    throw new Error('This visitor pass has already been used. Ask the resident to create a new pass if re-entry is needed.');
+  }
+  if (visitor.status === 'preapproved' && isPassExpired(visitor)) {
+    await updateDoc(visitorRef, {
+      status: 'expired',
+      passState: 'expired',
+      passInvalidatedAt: serverTimestamp(),
+      passInvalidationReason: 'expired',
+      updatedAt: serverTimestamp(),
+      history: arrayUnion({
+        type: 'expired',
+        actor: guardUser?.name || 'Guard',
+        at: new Date().toISOString(),
+      }),
+    });
+
+    throw new Error('This visitor pass has expired. Ask the resident to create a new pass.');
+  }
 
   await updateDoc(visitorRef, {
     status: 'checked_in',
     checkedInAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
+    ...(visitor.status === 'preapproved' ? {
+      passState: 'used',
+      passUsedAt: serverTimestamp(),
+      passInvalidatedAt: serverTimestamp(),
+      passInvalidationReason: 'verified',
+    } : {}),
     verifiedBy: {
       uid: guardUser?.uid || '',
       name: guardUser?.name || 'Guard',
@@ -799,6 +876,8 @@ export async function seedDemoDayData({ adminUser, residents = [] } = {}) {
     passToken: 'SV-DEMO123',
     qrPayload: buildQrPayload('SV-DEMO123', '654321'),
     expectedAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+    passExpiresAt: new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString(),
+    passState: 'active',
     status: 'preapproved',
     entryMethod: 'resident-pass',
     history: [

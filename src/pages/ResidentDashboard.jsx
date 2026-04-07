@@ -37,6 +37,7 @@ const statusColorMap = {
   checked_in: 'success',
   checked_out: 'default',
   denied: 'error',
+  expired: 'error',
   pending: 'warning',
   preapproved: 'info',
 };
@@ -53,7 +54,6 @@ export default function ResidentDashboard() {
     visitorName: '',
     purpose: 'Guest visit',
     phone: '',
-    vehicleNumber: '',
     expectedAt: '',
     notes: '',
   });
@@ -132,9 +132,13 @@ export default function ResidentDashboard() {
         flat: myFlat,
         societyId: user.societyId,
       });
-      setCreatedPass({ ...pass, visitorName: passForm.visitorName, expectedAt: passForm.expectedAt });
+      setCreatedPass({
+        ...pass,
+        visitorName: passForm.visitorName,
+        expectedAt: passForm.expectedAt,
+      });
       setPassDialogOpen(false);
-      setPassForm({ visitorName: '', purpose: 'Guest visit', phone: '', vehicleNumber: '', expectedAt: '', notes: '' });
+      setPassForm({ visitorName: '', purpose: 'Guest visit', phone: '', expectedAt: '', notes: '' });
       setBanner({ type: 'success', message: `Visitor pass created for ${passForm.visitorName}. Share the OTP or QR with your guest.` });
     } catch (error) {
       setBanner({ type: 'error', message: error.message || 'Unable to create the visitor pass.' });
@@ -250,7 +254,7 @@ export default function ResidentDashboard() {
             </Stack>
             <Stack spacing={1.5} sx={{ mb: 3 }}>
               <Typography color="text.secondary">
-                Generate a QR pass or OTP before your guest arrives. Guard can verify either one at the gate.
+                Generate a QR pass or OTP before your guest arrives. Each pass stays valid until two hours after the scheduled arrival.
               </Typography>
               <Chip label={`${preApprovedVisitors.length} active pre-approved pass${preApprovedVisitors.length === 1 ? '' : 'es'}`} color="info" variant="outlined" />
             </Stack>
@@ -320,6 +324,10 @@ export default function ResidentDashboard() {
                           ? `Exited: ${new Date(visitor.exitTime?.seconds ? visitor.exitTime.seconds * 1000 : visitor.exitTime).toLocaleString()}`
                           : visitor.checkedInAt
                             ? `Checked in: ${new Date(visitor.checkedInAt?.seconds ? visitor.checkedInAt.seconds * 1000 : visitor.checkedInAt).toLocaleString()}`
+                            : visitor.passExpiresAt && visitor.status === 'preapproved'
+                              ? `Valid until: ${new Date(visitor.passExpiresAt).toLocaleString()}`
+                              : visitor.passExpiresAt && visitor.status === 'expired'
+                                ? `Expired at: ${new Date(visitor.passExpiresAt).toLocaleString()}`
                             : visitor.expectedAt
                               ? `Expected: ${new Date(visitor.expectedAt).toLocaleString()}`
                               : `Arrival: ${visitor.time}`}
@@ -375,7 +383,6 @@ export default function ResidentDashboard() {
             <TextField label="Visitor name" name="visitorName" value={passForm.visitorName} onChange={handlePassFormChange} fullWidth />
             <TextField label="Purpose" name="purpose" value={passForm.purpose} onChange={handlePassFormChange} fullWidth />
             <TextField label="Phone" name="phone" value={passForm.phone} onChange={handlePassFormChange} fullWidth />
-            <TextField label="Vehicle number" name="vehicleNumber" value={passForm.vehicleNumber} onChange={handlePassFormChange} fullWidth />
             <TextField
               label="Expected arrival"
               name="expectedAt"
@@ -403,6 +410,9 @@ export default function ResidentDashboard() {
             <Typography variant="h6">{createdPass?.visitorName}</Typography>
             <Typography color="text.secondary">
               Expected at {createdPass?.expectedAt ? new Date(createdPass.expectedAt).toLocaleString() : 'the scheduled time'}
+            </Typography>
+            <Typography color="text.secondary">
+              Valid until {createdPass?.passExpiresAt ? new Date(createdPass.passExpiresAt).toLocaleString() : 'two hours after arrival'}
             </Typography>
             {createdPass?.qrPayload && (
               <Box sx={{ bgcolor: '#fff', p: 2, borderRadius: 2 }}>
