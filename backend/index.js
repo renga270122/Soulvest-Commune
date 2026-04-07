@@ -91,7 +91,8 @@ function ensureRazorpayConfigured(res) {
 
 app.post('/feedback', async (req, res) => {
   const {
-    phone = '',
+    name = '',
+    flat = '',
     rating,
     category = 'general',
     message,
@@ -109,7 +110,8 @@ app.post('/feedback', async (req, res) => {
 
   try {
     const created = await db.collection('residentFeedback').add({
-      phone: String(phone).trim(),
+      name: String(name).trim(),
+      flat: String(flat).trim(),
       rating: normalizedRating,
       category: String(category).trim() || 'general',
       message: String(message).trim(),

@@ -22,7 +22,8 @@ const categories = [
 ];
 
 const initialForm = {
-  phone: '',
+  name: '',
+  flat: '',
   rating: '5',
   category: 'general',
   message: '',
@@ -88,7 +89,9 @@ export default function FeedbackForm() {
                 </Alert>
               )}
 
-              <TextField label="Phone number" value={form.phone} onChange={updateField('phone')} fullWidth />
+              <TextField label="Name (optional)" value={form.name} onChange={updateField('name')} fullWidth />
+
+              <TextField label="Flat no (optional)" value={form.flat} onChange={updateField('flat')} fullWidth />
 
               <TextField
                 select
