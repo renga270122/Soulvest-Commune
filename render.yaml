@@ -3,7 +3,7 @@ services:
     name: soulvest-commune-backend
     runtime: node
     rootDir: backend
-    plan: starter
+    plan: free
     buildCommand: npm install
     startCommand: npm start
     healthCheckPath: /health

@@ -96,3 +96,4 @@ If you do not want to use the blueprint file, create a Render Web Service manual
 - Start Command: `npm start`
 - Health Check Path: `/health`
 - Node Version: `20`
+- Instance Type: `free`
