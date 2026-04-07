@@ -91,8 +91,6 @@ function ensureRazorpayConfigured(res) {
 
 app.post('/feedback', async (req, res) => {
   const {
-    name,
-    flat,
     phone = '',
     rating,
     category = 'general',
@@ -101,8 +99,8 @@ app.post('/feedback', async (req, res) => {
   } = req.body;
 
   const normalizedRating = Number(rating);
-  if (!name || !flat || !message) {
-    return res.status(400).json({ error: 'name, flat, and message are required.' });
+  if (!message) {
+    return res.status(400).json({ error: 'message is required.' });
   }
 
   if (!Number.isInteger(normalizedRating) || normalizedRating < 1 || normalizedRating > 5) {
@@ -111,8 +109,6 @@ app.post('/feedback', async (req, res) => {
 
   try {
     const created = await db.collection('residentFeedback').add({
-      name: String(name).trim(),
-      flat: String(flat).trim().toUpperCase(),
       phone: String(phone).trim(),
       rating: normalizedRating,
       category: String(category).trim() || 'general',

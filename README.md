@@ -15,6 +15,7 @@ Soulvest Commune is a resident-community app with resident, guard, and admin flo
 
 - Resident flows: announcements, expenses, complaints, directory, profile, bookings.
 - Public resident feedback: a shareable `/feedback` form for WhatsApp group collection.
+	The form can be submitted without name or flat number.
 - Guard flows: visitor approvals and security operations.
 - Admin flows: charges, announcements, facility oversight, demo reset controls.
 - Backend flows: chatbot, notification dispatch, visitor endpoints, Razorpay order and verification endpoints.

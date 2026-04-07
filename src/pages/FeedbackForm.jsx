@@ -22,8 +22,6 @@ const categories = [
 ];
 
 const initialForm = {
-  name: '',
-  flat: '',
   phone: '',
   rating: '5',
   category: 'general',
@@ -80,7 +78,7 @@ export default function FeedbackForm() {
               Resident Feedback Form
             </Typography>
             <Typography sx={{ mt: 1.5, color: 'rgba(255, 247, 239, 0.84)' }}>
-              Share this link in the residents WhatsApp group so neighbors can submit quick feedback without signing in.
+              Share this link in the residents WhatsApp group so neighbors can submit quick feedback without signing in or sharing personal details.
             </Typography>
           </Box>
 
@@ -93,8 +91,6 @@ export default function FeedbackForm() {
                 </Alert>
               )}
 
-              <TextField label="Resident name" value={form.name} onChange={updateField('name')} required fullWidth />
-              <TextField label="Flat / unit number" value={form.flat} onChange={updateField('flat')} required fullWidth />
               <TextField label="Phone number" value={form.phone} onChange={updateField('phone')} fullWidth />
 
               <TextField

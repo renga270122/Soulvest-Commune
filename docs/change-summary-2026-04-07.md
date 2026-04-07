@@ -154,3 +154,4 @@ Implemented changes:
 Outcome:
 
 - You can now share a simple public URL such as `https://commune.soulvest.ai/feedback` in a residents WhatsApp group and collect feedback centrally.
+- The form can be submitted without collecting name or flat number.
