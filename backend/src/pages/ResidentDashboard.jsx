@@ -26,7 +26,7 @@ const ResidentDashboard = () => {
   const fetchVisitors = async () => {
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:4000/visitors');
+      const res = await fetch('https://commune.soulvest.ai/visitors');
       const data = await res.json();
       setVisitors(data);
     } catch (err) {
@@ -56,7 +56,7 @@ const ResidentDashboard = () => {
 
   const handleApprove = async (id) => {
     try {
-      await fetch(`http://localhost:4000/visitors/${id}`, {
+      await fetch(`https://commune.soulvest.ai/visitors/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'approved' }),
@@ -69,7 +69,7 @@ const ResidentDashboard = () => {
 
   const handleDeny = async (id) => {
     try {
-      await fetch(`http://localhost:4000/visitors/${id}`, {
+      await fetch(`https://commune.soulvest.ai/visitors/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'denied' }),

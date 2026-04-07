@@ -18,7 +18,7 @@ const GuardDashboard = () => {
   const fetchVisitors = async () => {
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:4000/visitors');
+      const res = await fetch('https://commune.soulvest.ai/visitors');
       const data = await res.json();
       setVisitors(data);
     } catch (err) {
@@ -49,7 +49,7 @@ const GuardDashboard = () => {
   const handleLogVisitor = async () => {
     if (visitor.name && visitor.flat && visitor.purpose && visitor.time) {
       try {
-        await fetch('http://localhost:4000/visitors', {
+        await fetch('https://commune.soulvest.ai/visitors', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(visitor),

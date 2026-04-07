@@ -8,7 +8,7 @@ const initialMessages = [
 
 const getLLMReply = async (input) => {
   try {
-    const res = await fetch('http://localhost:4000/chatbot-llm', {
+    const res = await fetch('https://commune.soulvest.ai/chatbot-llm', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ message: input })

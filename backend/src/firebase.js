@@ -3,7 +3,7 @@ import { getAuth } from 'firebase/auth';
 
 const firebaseConfig = {
   apiKey: "AIzaSyBenvU6DwDorFD_sNsHLZy-aSF61J__-5g",
-  authDomain: "soulvest-commune.firebaseapp.com",
+  authDomain: "commune.soulvest.ai",
   projectId: "soulvest-commune",
   storageBucket: "soulvest-commune.firebasestorage.app",
   messagingSenderId: "144429501800",

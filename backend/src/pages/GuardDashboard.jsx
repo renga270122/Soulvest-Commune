@@ -22,7 +22,7 @@ const GuardDashboard = () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('http://localhost:4000/visitors');
+      const res = await fetch('https://commune.soulvest.ai/visitors');
       if (!res.ok) {
         const errData = await res.json();
         setError(errData.error || 'Failed to fetch visitors');
@@ -62,7 +62,7 @@ const GuardDashboard = () => {
     if (visitor.name && visitor.flat && visitor.purpose && visitor.time) {
       setError(null);
       try {
-        const res = await fetch('http://localhost:4000/visitors', {
+        const res = await fetch('https://commune.soulvest.ai/visitors', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(visitor),
