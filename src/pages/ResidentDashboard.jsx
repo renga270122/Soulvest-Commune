@@ -26,8 +26,6 @@ import GroupsIcon from '@mui/icons-material/Groups';
 import { useNavigate } from 'react-router-dom';
 import QRCode from 'react-qr-code';
 import { useAuthContext } from '../components/AuthContext';
-import ChatbotWidget from '../components/ChatbotWidget';
-import { useFeatureFlags } from '../hooks/useFeatureFlags';
 import {
   createVisitorPass,
   markNotificationAsRead,
@@ -47,6 +45,47 @@ const statusColorMap = {
   preapproved: 'info',
 };
 
+const formatTextValue = (value, fallback = 'Not available') => {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed || fallback;
+  }
+
+  if (typeof value === 'number') {
+    return String(value);
+  }
+
+  if (value && typeof value === 'object') {
+    if (typeof value.label === 'string' && value.label.trim()) {
+      return value.label.trim();
+    }
+    if (typeof value.text === 'string' && value.text.trim()) {
+      return value.text.trim();
+    }
+  }
+
+  return fallback;
+};
+
+const formatDateTimeValue = (value, fallback = 'Not scheduled') => {
+  if (!value) return fallback;
+
+  if (typeof value === 'string' || typeof value === 'number' || value instanceof Date) {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? fallback : date.toLocaleString();
+  }
+
+  if (typeof value?.seconds === 'number') {
+    return new Date(value.seconds * 1000).toLocaleString();
+  }
+
+  if (typeof value?.toDate === 'function') {
+    return value.toDate().toLocaleString();
+  }
+
+  return fallback;
+};
+
 export default function ResidentDashboard() {
   const [visitors, setVisitors] = useState([]);
   const [notifications, setNotifications] = useState([]);
@@ -63,7 +102,6 @@ export default function ResidentDashboard() {
     notes: '',
   });
   const { user, logout } = useAuthContext();
-  const featureFlags = useFeatureFlags();
   const navigate = useNavigate();
   const knownNotificationIds = useRef(new Set());
   const notificationsInitialized = useRef(false);
@@ -220,7 +258,7 @@ export default function ResidentDashboard() {
           <Box>
             <Typography variant="h4">Resident Dashboard</Typography>
             <Typography color="text.secondary">
-              Welcome {user?.name || 'Resident'}{myFlat ? ` • Flat ${myFlat}` : ''}
+              Welcome {formatTextValue(user?.name, 'Resident')}{myFlat ? ` • Flat ${myFlat}` : ''}
             </Typography>
           </Box>
           <Button variant="outlined" color="secondary" startIcon={<LogoutIcon />} onClick={handleLogout}>
@@ -292,10 +330,10 @@ export default function ResidentDashboard() {
               )}
               {pendingVisitors.map((visitor) => (
                 <Paper key={visitor.id} variant="outlined" sx={{ p: 2, borderRadius: 3 }}>
-                  <Typography variant="subtitle1">{visitor.name}</Typography>
-                  <Typography color="text.secondary">{visitor.purpose}</Typography>
+                  <Typography variant="subtitle1">{formatTextValue(visitor.name, 'Visitor')}</Typography>
+                  <Typography color="text.secondary">{formatTextValue(visitor.purpose, 'Purpose not provided')}</Typography>
                   <Typography color="text.secondary" sx={{ mb: 1.5 }}>
-                    Arrival: {visitor.time}
+                    Arrival: {formatTextValue(visitor.time, formatDateTimeValue(visitor.expectedAt, 'Not specified'))}
                   </Typography>
                   <Stack direction="row" spacing={1}>
                     <Button
@@ -340,23 +378,23 @@ export default function ResidentDashboard() {
                     }}
                   >
                     <Box>
-                      <Typography variant="subtitle1">{visitor.name}</Typography>
-                      <Typography color="text.secondary">{visitor.purpose}</Typography>
+                      <Typography variant="subtitle1">{formatTextValue(visitor.name, 'Visitor')}</Typography>
+                      <Typography color="text.secondary">{formatTextValue(visitor.purpose, 'Purpose not provided')}</Typography>
                       <Typography color="text.secondary">
                         {visitor.exitTime
-                          ? `Exited: ${new Date(visitor.exitTime?.seconds ? visitor.exitTime.seconds * 1000 : visitor.exitTime).toLocaleString()}`
+                          ? `Exited: ${formatDateTimeValue(visitor.exitTime)}`
                           : visitor.checkedInAt
-                            ? `Checked in: ${new Date(visitor.checkedInAt?.seconds ? visitor.checkedInAt.seconds * 1000 : visitor.checkedInAt).toLocaleString()}`
+                            ? `Checked in: ${formatDateTimeValue(visitor.checkedInAt)}`
                             : visitor.passExpiresAt && visitor.status === 'preapproved'
-                              ? `Valid until: ${new Date(visitor.passExpiresAt).toLocaleString()}`
+                              ? `Valid until: ${formatDateTimeValue(visitor.passExpiresAt)}`
                               : visitor.passExpiresAt && visitor.status === 'expired'
-                                ? `Expired at: ${new Date(visitor.passExpiresAt).toLocaleString()}`
+                                ? `Expired at: ${formatDateTimeValue(visitor.passExpiresAt)}`
                             : visitor.expectedAt
-                              ? `Expected: ${new Date(visitor.expectedAt).toLocaleString()}`
-                              : `Arrival: ${visitor.time}`}
+                              ? `Expected: ${formatDateTimeValue(visitor.expectedAt)}`
+                              : `Arrival: ${formatTextValue(visitor.time, 'Not specified')}`}
                       </Typography>
                       {visitor.otp && (
-                        <Typography color="text.secondary">OTP: {visitor.otp}</Typography>
+                        <Typography color="text.secondary">OTP: {formatTextValue(visitor.otp, '')}</Typography>
                       )}
                     </Box>
                     <Chip label={visitor.status || 'pending'} color={statusColorMap[visitor.status] || 'default'} />
@@ -382,9 +420,9 @@ export default function ResidentDashboard() {
               )}
               {notifications.slice(0, 6).map((notification) => (
                 <Paper key={notification.id} variant="outlined" sx={{ p: 2, borderRadius: 3 }}>
-                  <Typography variant="subtitle2">{notification.title}</Typography>
+                  <Typography variant="subtitle2">{formatTextValue(notification.title, 'Notification')}</Typography>
                   <Typography color="text.secondary" sx={{ mb: 1 }}>
-                    {notification.message}
+                    {formatTextValue(notification.message, 'No message available.')}
                   </Typography>
                   <Stack direction="row" spacing={1} alignItems="center">
                     {!notification.read && <Chip size="small" color="warning" label="New" />}
@@ -430,12 +468,12 @@ export default function ResidentDashboard() {
         <DialogTitle>Visitor Pass Ready</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ pt: 1, alignItems: 'center', textAlign: 'center' }}>
-            <Typography variant="h6">{createdPass?.visitorName}</Typography>
+            <Typography variant="h6">{formatTextValue(createdPass?.visitorName, 'Visitor')}</Typography>
             <Typography color="text.secondary">
-              Expected at {createdPass?.expectedAt ? new Date(createdPass.expectedAt).toLocaleString() : 'the scheduled time'}
+              Expected at {formatDateTimeValue(createdPass?.expectedAt, 'the scheduled time')}
             </Typography>
             <Typography color="text.secondary">
-              Valid until {createdPass?.passExpiresAt ? new Date(createdPass.passExpiresAt).toLocaleString() : 'two hours after arrival'}
+              Valid until {formatDateTimeValue(createdPass?.passExpiresAt, 'two hours after arrival')}
             </Typography>
             {createdPass?.qrPayload && (
               <Box sx={{ bgcolor: '#fff', p: 2, borderRadius: 2 }}>
@@ -453,7 +491,6 @@ export default function ResidentDashboard() {
           <Button onClick={() => setCreatedPass(null)}>Close</Button>
         </DialogActions>
       </Dialog>
-      {featureFlags.AI_CHATBOT && <ChatbotWidget />}
     </Box>
   );
 }
