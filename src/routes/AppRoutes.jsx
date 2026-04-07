@@ -5,21 +5,48 @@ import { Box, CircularProgress } from '@mui/material';
 import { useAuthContext } from '../components/AuthContext';
 import { useFeatureFlags } from '../hooks/useFeatureFlags';
 
-const LoginPage = lazy(() => import('../pages/LoginPage'));
-const SignupPage = lazy(() => import('../pages/SignupPage'));
-const Home = lazy(() => import('../pages/Home'));
-const UserDashboard = lazy(() => import('../pages/UserDashboard'));
-const Complaints = lazy(() => import('../pages/Complaints'));
-const Expenses = lazy(() => import('../pages/Expenses'));
-const Polls = lazy(() => import('../pages/Polls'));
-const Profile = lazy(() => import('../pages/Profile'));
-const FacilityBookings = lazy(() => import('../pages/FacilityBookings'));
-const SecurityLogs = lazy(() => import('../pages/SecurityLogs'));
-const GuardDashboard = lazy(() => import('../pages/GuardDashboard'));
-const ResidentDashboard = lazy(() => import('../pages/ResidentDashboard'));
-const AdminDashboard = lazy(() => import('../pages/AdminDashboard'));
-const ResidentDirectory = lazy(() => import('../pages/ResidentDirectory'));
-const Announcements = lazy(() => import('../pages/Announcements'));
+const LAZY_RETRY_PREFIX = 'soulvest_lazy_retry';
+
+const lazyWithRetry = (importer, routeKey) => lazy(async () => {
+  const storageKey = `${LAZY_RETRY_PREFIX}:${routeKey}`;
+  const shouldTrackRetry = typeof window !== 'undefined' && typeof sessionStorage !== 'undefined';
+  const alreadyRetried = shouldTrackRetry && sessionStorage.getItem(storageKey) === 'true';
+
+  try {
+    const module = await importer();
+    if (shouldTrackRetry) {
+      sessionStorage.removeItem(storageKey);
+    }
+    return module;
+  } catch (error) {
+    const message = String(error?.message || error || '');
+    const isChunkLoadError = /Failed to fetch dynamically imported module|Importing a module script failed|Loading chunk/i.test(message);
+
+    if (isChunkLoadError && shouldTrackRetry && !alreadyRetried) {
+      sessionStorage.setItem(storageKey, 'true');
+      window.location.reload();
+      return new Promise(() => {});
+    }
+
+    throw error;
+  }
+});
+
+const LoginPage = lazyWithRetry(() => import('../pages/LoginPage'), 'login');
+const SignupPage = lazyWithRetry(() => import('../pages/SignupPage'), 'signup');
+const Home = lazyWithRetry(() => import('../pages/Home'), 'home');
+const UserDashboard = lazyWithRetry(() => import('../pages/UserDashboard'), 'dashboard');
+const Complaints = lazyWithRetry(() => import('../pages/Complaints'), 'complaints');
+const Expenses = lazyWithRetry(() => import('../pages/Expenses'), 'expenses');
+const Polls = lazyWithRetry(() => import('../pages/Polls'), 'polls');
+const Profile = lazyWithRetry(() => import('../pages/Profile'), 'profile');
+const FacilityBookings = lazyWithRetry(() => import('../pages/FacilityBookings'), 'bookings');
+const SecurityLogs = lazyWithRetry(() => import('../pages/SecurityLogs'), 'security');
+const GuardDashboard = lazyWithRetry(() => import('../pages/GuardDashboard'), 'guard');
+const ResidentDashboard = lazyWithRetry(() => import('../pages/ResidentDashboard'), 'resident');
+const AdminDashboard = lazyWithRetry(() => import('../pages/AdminDashboard'), 'admin');
+const ResidentDirectory = lazyWithRetry(() => import('../pages/ResidentDirectory'), 'directory');
+const Announcements = lazyWithRetry(() => import('../pages/Announcements'), 'announcements');
 
 
 const ProtectedRoute = ({ children, role, roles }) => {
