@@ -1,16 +1,72 @@
-# React + Vite
+# Soulvest Commune
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Soulvest Commune is a resident-community app with resident, guard, and admin flows. The current codebase is set up primarily as a demo-friendly frontend with local browser-backed sample data, plus a separate Express backend for chatbot, notifications, visitor APIs, and Razorpay payment verification.
 
-Currently, two official plugins are available:
+## Current State
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- Frontend is built with React, Vite, React Router, and Material UI.
+- Demo mode is active in the frontend and uses localStorage-backed sample accounts and sample society data.
+- The admin dashboard includes a demo reset control to reseed the local store.
+- Resident expenses now support Razorpay Checkout through a backend order and signature verification flow.
+- The backend is prepared for deployment on Render using the repo-level [render.yaml](render.yaml).
+- GitHub Pages is used for the static frontend deployment.
 
-## React Compiler
+## Main App Areas
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- Resident flows: announcements, expenses, complaints, directory, profile, bookings.
+- Guard flows: visitor approvals and security operations.
+- Admin flows: charges, announcements, facility oversight, demo reset controls.
+- Backend flows: chatbot, notification dispatch, visitor endpoints, Razorpay order and verification endpoints.
 
-## Expanding the ESLint configuration
+## Local Frontend Setup
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+```bash
+npm install
+npm run dev
+```
+
+Optional frontend env file:
+
+```bash
+cp .env.example .env
+```
+
+Set `VITE_API_BASE_URL` if you want the frontend to talk to a running backend.
+
+## Local Backend Setup
+
+```bash
+cd backend
+npm install
+npm start
+```
+
+Optional backend env file:
+
+```bash
+cp .env.example .env
+```
+
+For backend startup you need either:
+
+- `GOOGLE_APPLICATION_CREDENTIALS` pointing to a local Firebase service account file, or
+- `FIREBASE_SERVICE_ACCOUNT_JSON` containing the full service account JSON string
+
+For live Razorpay payments you also need:
+
+- `RAZORPAY_KEY_ID`
+- `RAZORPAY_KEY_SECRET`
+
+## Deployment
+
+- Frontend: GitHub Pages via `npm run deploy`
+- Backend: Render via [render.yaml](render.yaml)
+
+The frontend host `https://commune.soulvest.ai` is static-only. Live payments require `VITE_API_BASE_URL` to point to the deployed backend service.
+
+## Documentation
+
+- Backend deployment guide: [backend/README.md](backend/README.md)
+- Consolidated implementation summary: [docs/change-summary-2026-04-07.md](docs/change-summary-2026-04-07.md)
+- Firebase to PostgreSQL mapping: [docs/firebase-to-postgres-mapping.md](docs/firebase-to-postgres-mapping.md)
+- PostgreSQL starter schema: [docs/postgresql-init.sql](docs/postgresql-init.sql)

@@ -22,6 +22,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthContext } from '../components/AuthContext';
 import ChatbotWidget from '../components/ChatbotWidget';
 import { useFeatureFlags } from '../hooks/useFeatureFlags';
+import { resetAllDemoData } from '../services/demoAuth';
 import {
   subscribeToFacilityBookings,
   createPaymentRecord,
@@ -45,6 +46,7 @@ export default function AdminDashboard() {
   const [banner, setBanner] = useState({ type: '', message: '' });
   const [creating, setCreating] = useState(false);
   const [seeding, setSeeding] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const [chargeForm, setChargeForm] = useState({
     residentId: 'all',
     title: 'Monthly Maintenance',
@@ -177,6 +179,21 @@ export default function AdminDashboard() {
       setBanner({ type: 'error', message: error.message || 'Unable to seed demo data.' });
     }
     setSeeding(false);
+  };
+
+  const handleResetDemoStore = async () => {
+    const confirmed = window.confirm('This will clear all local demo activity and restore the seeded demo records for this browser. Continue?');
+    if (!confirmed) return;
+
+    setResetting(true);
+    setBanner({ type: '', message: '' });
+    try {
+      resetAllDemoData();
+      setBanner({ type: 'success', message: 'Demo store reset successfully. Seeded residents, visitors, dues, and announcements are restored.' });
+    } catch (error) {
+      setBanner({ type: 'error', message: error.message || 'Unable to reset the demo store.' });
+    }
+    setResetting(false);
   };
 
   return (
@@ -372,6 +389,18 @@ export default function AdminDashboard() {
                 ))}
                 {facilityBookings.length === 0 && <Typography color="text.secondary">No amenity bookings yet.</Typography>}
               </Stack>
+            </Paper>
+
+            <Paper elevation={2} sx={{ p: 2.5, borderRadius: 3, border: '1px dashed', borderColor: 'warning.main' }}>
+              <Typography variant="h6" sx={{ mb: 1.5 }}>
+                Demo Controls
+              </Typography>
+              <Typography color="text.secondary" sx={{ mb: 2 }}>
+                Reset this browser back to the default demo residents, visitors, payments, and announcements.
+              </Typography>
+              <Button variant="outlined" color="warning" onClick={handleResetDemoStore} disabled={resetting}>
+                {resetting ? 'Resetting Demo...' : 'Reset Demo Store'}
+              </Button>
             </Paper>
           </Stack>
 

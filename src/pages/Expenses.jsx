@@ -24,6 +24,11 @@ import {
   subscribeToResidentPayments,
 } from '../services/communityData';
 import QRCode from 'react-qr-code';
+import {
+  createRazorpayOrder,
+  openRazorpayCheckout,
+  verifyRazorpayPayment,
+} from '../services/razorpay';
 
 const formatAmount = (amount) => `₹${Number(amount || 0).toLocaleString('en-IN')}`;
 const upiId = import.meta.env.VITE_UPI_ID || 'payments@soulvest';
@@ -39,7 +44,7 @@ export default function Expenses() {
   const { user } = useAuthContext();
   const [payments, setPayments] = useState([]);
   const [selectedPayment, setSelectedPayment] = useState(null);
-  const [paymentMethod, setPaymentMethod] = useState('upi');
+  const [paymentMethod, setPaymentMethod] = useState('razorpay');
   const [submitting, setSubmitting] = useState(false);
   const [banner, setBanner] = useState({ type: '', message: '' });
   const [activeReceipt, setActiveReceipt] = useState(null);
@@ -121,28 +126,84 @@ export default function Expenses() {
   const handlePayNow = async () => {
     if (!selectedPayment) return;
 
+    const currentPayment = selectedPayment;
     setSubmitting(true);
     setBanner({ type: '', message: '' });
     try {
+      if (paymentMethod === 'razorpay') {
+        const order = await createRazorpayOrder({
+          amount: currentPayment.amount,
+          currency: 'INR',
+          receipt: `sv_${currentPayment.id}_${Date.now()}`,
+          paymentId: currentPayment.id,
+          userId: user?.uid,
+          societyId: user?.societyId,
+          title: currentPayment.title,
+          notes: {
+            residentName: user?.name || 'Resident',
+            flat: currentPayment.flat || user?.flat || '',
+          },
+        });
+
+        const razorpayResponse = await openRazorpayCheckout({
+          order,
+          payment: currentPayment,
+          user,
+        });
+
+        const verification = await verifyRazorpayPayment({
+          ...razorpayResponse,
+          paymentId: currentPayment.id,
+          userId: user?.uid,
+          societyId: user?.societyId,
+        });
+
+        const receiptNumber = `RCP-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
+        await markPaymentAsPaid(currentPayment.id, {
+          method: 'razorpay',
+          paymentReference: verification.paymentId,
+          providerOrderId: verification.orderId,
+          providerPaymentId: verification.paymentId,
+          providerSignature: verification.signature,
+          receiptNumber,
+          amount: currentPayment.amount,
+          societyId: user?.societyId,
+        });
+
+        setBanner({ type: 'success', message: 'Razorpay payment verified successfully. Receipt generated instantly.' });
+        setActiveReceipt({
+          ...currentPayment,
+          method: 'razorpay',
+          paymentReference: verification.paymentId,
+          providerOrderId: verification.orderId,
+          receiptNumber,
+          receiptIssuedAt: new Date().toISOString(),
+        });
+        setSelectedPayment(null);
+        setPaymentMethod('razorpay');
+        setSubmitting(false);
+        return;
+      }
+
       const paymentReference = `SV-${Date.now()}`;
       const receiptNumber = `RCP-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
-      await markPaymentAsPaid(selectedPayment.id, {
+      await markPaymentAsPaid(currentPayment.id, {
         method: paymentMethod,
         paymentReference,
         receiptNumber,
-        amount: selectedPayment.amount,
+        amount: currentPayment.amount,
         societyId: user?.societyId,
       });
       setBanner({ type: 'success', message: 'Payment recorded successfully. Receipt generated instantly.' });
       setActiveReceipt({
-        ...selectedPayment,
+        ...currentPayment,
         method: paymentMethod,
         paymentReference,
         receiptNumber,
         receiptIssuedAt: new Date().toISOString(),
       });
       setSelectedPayment(null);
-      setPaymentMethod('upi');
+      setPaymentMethod('razorpay');
     } catch (error) {
       setBanner({ type: 'error', message: error.message || 'Unable to record payment.' });
     }
@@ -280,11 +341,20 @@ export default function Expenses() {
             value={paymentMethod}
             onChange={(event) => setPaymentMethod(event.target.value)}
           >
+            <MenuItem value="razorpay">Razorpay Checkout</MenuItem>
             <MenuItem value="upi">UPI</MenuItem>
-            <MenuItem value="card">Card</MenuItem>
-            <MenuItem value="netbanking">Net Banking</MenuItem>
             <MenuItem value="cash">Cash</MenuItem>
           </TextField>
+          {paymentMethod === 'razorpay' && selectedPayment && (
+            <Stack spacing={1.5} sx={{ mt: 2 }}>
+              <Typography color="text.secondary">
+                Pay securely with UPI, card, net banking, or wallet through Razorpay Checkout.
+              </Typography>
+              <Alert severity="info">
+                Razorpay requires the backend API to be running with valid RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET values.
+              </Alert>
+            </Stack>
+          )}
           {paymentMethod === 'upi' && selectedPayment && (
             <Stack spacing={1.5} sx={{ mt: 2, alignItems: 'center' }}>
               <Typography color="text.secondary">
@@ -323,6 +393,12 @@ export default function Expenses() {
             <Typography>{(activeReceipt?.method || 'manual').toUpperCase()}</Typography>
             <Typography variant="subtitle2">Reference</Typography>
             <Typography>{activeReceipt?.paymentReference || 'Pending sync'}</Typography>
+            {activeReceipt?.providerOrderId && (
+              <>
+                <Typography variant="subtitle2">Gateway Order</Typography>
+                <Typography>{activeReceipt.providerOrderId}</Typography>
+              </>
+            )}
           </Stack>
         </DialogContent>
         <DialogActions>

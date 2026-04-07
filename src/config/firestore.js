@@ -1,5 +1,3 @@
-import { collection, doc } from 'firebase/firestore';
-import { db } from './firebase';
 import { DEFAULT_CITY_ID, getCityConfig } from './cities';
 
 export const ROOT_COLLECTIONS = Object.freeze({
@@ -181,9 +179,15 @@ export function getSocietyCollectionPath(collectionName, societyId = DEFAULT_SOC
 }
 
 export function getSocietyCollectionRef(collectionName, societyId = DEFAULT_SOCIETY_ID) {
-  return collection(db, getSocietyCollectionPath(collectionName, societyId));
+  return {
+    kind: 'society-collection',
+    path: getSocietyCollectionPath(collectionName, societyId),
+  };
 }
 
 export function getSocietyDocRef(collectionName, docId, societyId = DEFAULT_SOCIETY_ID) {
-  return doc(db, getSocietyCollectionPath(collectionName, societyId), docId);
+  return {
+    kind: 'society-document',
+    path: `${getSocietyCollectionPath(collectionName, societyId)}/${docId}`,
+  };
 }

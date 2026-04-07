@@ -2,8 +2,6 @@
 import React, { useState } from 'react';
 import Navbar from '../components/Navbar';
 import { useNavigate } from 'react-router-dom';
-import { signOut } from 'firebase/auth';
-import { auth } from '../firebase';
 import { useAuthContext } from '../components/AuthContext';
 import topIllustration from '../assets/top-illustration.png';
 import bottomIllustration from '../assets/bottom-illustration.png';
@@ -11,7 +9,7 @@ import bottomIllustration from '../assets/bottom-illustration.png';
 
 export default function Home() {
   const navigate = useNavigate();
-  const { logout } = useAuthContext();
+  const { logout, user } = useAuthContext();
   const [announcement, setAnnouncement] = useState('Water Tank Cleaning Tomorrow');
   const [showDropdown, setShowDropdown] = useState(false);
   const announcements = [
@@ -24,7 +22,6 @@ export default function Home() {
   const currentDues = 3500;
 
   const handleLogout = async () => {
-    await signOut(auth);
     logout();
     navigate('/login');
   };
@@ -36,7 +33,7 @@ export default function Home() {
 
       {/* Header */}
       <div style={{ textAlign: 'center', marginBottom: 8 }}>
-        <div style={{ fontSize: 22, fontWeight: 'bold', color: '#5a3a0a' }}>Namaskara, Rahul!</div>
+        <div style={{ fontSize: 22, fontWeight: 'bold', color: '#5a3a0a' }}>Namaskara, {user?.name || 'Resident'}!</div>
       </div>
 
       {/* Announcements Dropdown */}
@@ -77,6 +74,10 @@ export default function Home() {
 
       {/* Bottom Illustration */}
       <img src={bottomIllustration} alt="Bottom" style={{ width: '100%', maxWidth: 600, marginTop: 24, marginBottom: 80 }} />
+
+      <button onClick={handleLogout} style={{ marginBottom: 24, background: '#5a3a0a', color: '#fff8ec', border: 'none', borderRadius: 999, padding: '10px 18px', cursor: 'pointer' }}>
+        Exit Demo Session
+      </button>
 
       {/* Bottom Navigation */}
       <Navbar />

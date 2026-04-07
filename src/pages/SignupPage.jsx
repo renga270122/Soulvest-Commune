@@ -1,14 +1,14 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import styles from "./LoginPage.module.css";
 import topIllustration from "../assets/top-illustration.png";
 import bottomIllustration from "../assets/bottom-illustration.png";
-import { auth, db } from "../firebase";
-import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
-import { doc, setDoc } from "firebase/firestore";
-import { DEFAULT_CITY_ID } from "../config/cities";
-import { DEFAULT_SOCIETY_ID } from "../config/firestore";
+import { useAuthContext } from "../components/AuthContext";
+import { registerDemoResident } from "../services/demoAuth";
 
 export default function SignupPage() {
+  const navigate = useNavigate();
+  const { login } = useAuthContext();
   const [form, setForm] = useState({
     name: "",
     flat: "",
@@ -29,26 +29,11 @@ export default function SignupPage() {
     setError("");
     setSuccess("");
     try {
-      // Create user with email and password
-      const userCredential = await createUserWithEmailAndPassword(auth, form.email, form.password);
-      // Update user profile with name
-      await updateProfile(userCredential.user, {
-        displayName: form.name,
-      });
-      // Store user info in Firestore for mobile lookup
-      await setDoc(doc(db, "users", userCredential.user.uid), {
-        name: form.name,
-        flat: form.flat.trim().toUpperCase(),
-        mobile: form.mobile,
-        email: form.email,
-        role: "resident",
-        cityId: DEFAULT_CITY_ID,
-        societyId: DEFAULT_SOCIETY_ID,
-        language: 'en',
-        createdAt: new Date().toISOString(),
-      });
-      setSuccess("Signup successful! You can now log in.");
+      const sessionUser = await registerDemoResident(form);
+      login(sessionUser);
+      setSuccess("Demo signup successful! Redirecting to your resident dashboard.");
       setForm({ name: "", flat: "", mobile: "", email: "", password: "" });
+      setTimeout(() => navigate("/resident"), 600);
     } catch (err) {
       setError(err.message);
     }
@@ -66,6 +51,9 @@ export default function SignupPage() {
       <form onSubmit={handleSubmit} className={styles.loginCard}>
         {error && <div style={{ color: 'red', marginBottom: 8 }}>{error}</div>}
         {success && <div style={{ color: 'green', marginBottom: 8 }}>{success}</div>}
+        <div style={{ color: '#5a3a0a', background: 'rgba(255, 248, 236, 0.88)', borderRadius: 12, padding: 12, marginBottom: 12 }}>
+          Demo mode stores this account only in your browser for local walkthroughs.
+        </div>
         <div className={styles.label}>Full Name</div>
         <div className={styles.inputGroup}>
           <input

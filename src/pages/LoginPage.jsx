@@ -1,35 +1,14 @@
 import React, { useState } from "react";
 
-import { auth, db } from "../firebase";
-import {
-  GoogleAuthProvider,
-  sendPasswordResetEmail,
-  signInWithEmailAndPassword,
-  signInWithPopup,
-} from "firebase/auth";
 import { useNavigate } from "react-router-dom";
-import { collection, doc, getDoc, getDocs, query, setDoc, where } from "firebase/firestore";
 import styles from "./LoginPage.module.css";
 import { useAuthContext } from "../components/AuthContext";
 import { useTranslation } from "react-i18next";
-import { DEFAULT_CITY_ID } from "../config/cities";
-import { DEFAULT_SOCIETY_ID } from "../config/firestore";
+import { getDemoAccountList, loginDemoUser, quickDemoAccess, requestDemoPasswordReset } from "../services/demoAuth";
 
 import phoneIcon from "../assets/phone.svg";
 import lockIcon from "../assets/lock.svg";
 import googleIcon from "../assets/google-icon.svg";
-
-const buildSessionUser = (firebaseUser, profile, emailOrMobile) => ({
-  uid: firebaseUser.uid,
-  email: firebaseUser.email,
-  mobile: profile?.mobile || (emailOrMobile.includes('@') ? '' : emailOrMobile.trim()),
-  role: profile?.role || "resident",
-  name: profile?.name || firebaseUser.displayName || "Resident",
-  flat: profile?.flat || "",
-  cityId: profile?.cityId || DEFAULT_CITY_ID,
-  societyId: profile?.societyId || DEFAULT_SOCIETY_ID,
-  language: profile?.language || 'en',
-});
 
 const roles = [
   { value: "resident", labelKey: "roles.resident", icon: "🏠" },
@@ -113,6 +92,7 @@ function PalaceIllustration() {
 export default function LoginPage() {
   const { t, i18n } = useTranslation();
   const currentYear = new Date().getFullYear();
+  const demoAccounts = getDemoAccountList();
   const [activeTab, setActiveTab] = useState("signin");
   const [selectedRole, setSelectedRole] = useState("resident");
   const [emailOrMobile, setEmailOrMobile] = useState("");
@@ -139,30 +119,15 @@ export default function LoginPage() {
     e.preventDefault();
     setError("");
     setSuccess("");
-    let emailToUse = emailOrMobile;
     try {
-      // If input is mobile, look up email in Firestore
-      let userDoc = null;
-      if (isMobile(emailOrMobile)) {
-        const q = query(collection(db, "users"), where("mobile", "==", emailOrMobile.trim()));
-        const snap = await getDocs(q);
-        if (snap.empty) throw new Error("No user found with this mobile number");
-        userDoc = snap.docs[0].data();
-        emailToUse = userDoc.email;
-      } else {
-        // If input is email, fetch user by email for role
-        const q = query(collection(db, "users"), where("email", "==", emailOrMobile.trim()));
-        const snap = await getDocs(q);
-        if (!snap.empty) userDoc = snap.docs[0].data();
-      }
-      const credentials = await signInWithEmailAndPassword(auth, emailToUse, password);
-      const role = userDoc?.role || "resident";
-      if (selectedRole && selectedRole !== role) {
-        throw new Error(`This account is registered as ${role}, not ${selectedRole}.`);
-      }
-      login(buildSessionUser(credentials.user, userDoc, emailOrMobile));
+      const sessionUser = await loginDemoUser({
+        identifier: emailOrMobile,
+        password,
+        role: selectedRole,
+      });
+      login(sessionUser);
       setSuccess("Login successful! Redirecting...");
-      setTimeout(() => navigate(redirectForRole(role)), 1000);
+      setTimeout(() => navigate(redirectForRole(sessionUser.role)), 600);
     } catch (err) {
       setError(err.message);
     }
@@ -174,58 +139,12 @@ export default function LoginPage() {
     setGoogleLoading(true);
 
     try {
-      const provider = new GoogleAuthProvider();
-      const result = await signInWithPopup(auth, provider);
-      const firebaseUser = result.user;
-      const userRef = doc(db, "users", firebaseUser.uid);
-      const profileSnapshot = await getDoc(userRef);
-
-      let profile = profileSnapshot.exists() ? profileSnapshot.data() : null;
-
-      if (!profile && selectedRole !== "resident") {
-        throw new Error("Google sign-in is currently enabled for resident onboarding only. Use a registered account for guard or admin access.");
-      }
-
-      if (!profile) {
-        profile = {
-          name: firebaseUser.displayName || "Resident",
-          email: firebaseUser.email || "",
-          mobile: firebaseUser.phoneNumber || "",
-          flat: "",
-          role: "resident",
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
-
-        await setDoc(userRef, profile, { merge: true });
-      } else {
-        profile = {
-          ...profile,
-          email: profile.email || firebaseUser.email || "",
-          name: profile.name || firebaseUser.displayName || "Resident",
-          mobile: profile.mobile || firebaseUser.phoneNumber || "",
-          updatedAt: new Date().toISOString(),
-        };
-
-        await setDoc(userRef, profile, { merge: true });
-      }
-
-      const role = profile.role || "resident";
-      if (selectedRole && selectedRole !== role) {
-        throw new Error(`This Google account is registered as ${role}, not ${selectedRole}.`);
-      }
-
-      login(buildSessionUser(firebaseUser, profile, profile.email || firebaseUser.email || "google"));
-      setSuccess("Google sign-in successful! Redirecting...");
-      setTimeout(() => navigate(redirectForRole(role)), 1000);
+      const sessionUser = await quickDemoAccess(selectedRole);
+      login(sessionUser);
+      setSuccess("Demo quick access enabled. Redirecting...");
+      setTimeout(() => navigate(redirectForRole(sessionUser.role)), 600);
     } catch (err) {
-      if (err.code === "auth/popup-closed-by-user") {
-        setError("Google sign-in was closed before completion.");
-      } else if (err.code === "auth/account-exists-with-different-credential") {
-        setError("This email already exists with a different sign-in method.");
-      } else {
-        setError(err.message || "Unable to complete Google sign-in.");
-      }
+      setError(err.message || "Unable to complete demo quick access.");
     }
 
     setGoogleLoading(false);
@@ -240,16 +159,9 @@ export default function LoginPage() {
       setError("Please enter your email or mobile number above first.");
       return;
     }
-    let emailToUse = emailOrMobile;
     try {
-      if (isMobile(emailOrMobile)) {
-        const q = query(collection(db, "users"), where("mobile", "==", emailOrMobile.trim()));
-        const snap = await getDocs(q);
-        if (snap.empty) throw new Error("No user found with this mobile number");
-        emailToUse = snap.docs[0].data().email;
-      }
-      await sendPasswordResetEmail(auth, emailToUse);
-      setSuccess("Password reset email sent. Please check your inbox (and spam folder). If you didn't receive it, you can resend below.");
+      const message = await requestDemoPasswordReset(emailOrMobile);
+      setSuccess(message);
       setResetSent(true);
     } catch (err) {
       setError(err.message);
@@ -260,16 +172,9 @@ export default function LoginPage() {
     setError("");
     setSuccess("");
     setResendDisabled(true);
-    let emailToUse = emailOrMobile;
     try {
-      if (isMobile(emailOrMobile)) {
-        const q = query(collection(db, "users"), where("mobile", "==", emailOrMobile.trim()));
-        const snap = await getDocs(q);
-        if (snap.empty) throw new Error("No user found with this mobile number");
-        emailToUse = snap.docs[0].data().email;
-      }
-      await sendPasswordResetEmail(auth, emailToUse);
-      setSuccess("Password reset email resent. Please check your inbox (and spam folder).");
+      const message = await requestDemoPasswordReset(emailOrMobile);
+      setSuccess(message);
     } catch (err) {
       setError(err.message);
     }
@@ -370,6 +275,33 @@ export default function LoginPage() {
               <p>{t("auth.loginDescription")}</p>
             </div>
 
+            <div className={styles.successBanner} style={{ marginBottom: 16 }}>
+              Demo mode is active. Use any account below with password demo123.
+            </div>
+
+            <div className={styles.featureGrid} style={{ marginBottom: 20 }}>
+              {demoAccounts.map((account) => (
+                <button
+                  key={account.email || account.mobile}
+                  type="button"
+                  className={styles.featureCard}
+                  style={{ textAlign: 'left', cursor: 'pointer' }}
+                  onClick={() => {
+                    setSelectedRole(account.role);
+                    setEmailOrMobile(account.email || account.mobile);
+                    setPassword(account.password);
+                    setError("");
+                    setSuccess(`${account.role} demo credentials loaded.`);
+                  }}
+                >
+                  <span className={styles.featureBadge}>{account.role}</span>
+                  <h3 style={{ marginBottom: 6 }}>{account.name}</h3>
+                  <p style={{ marginBottom: 4 }}>{account.email || account.mobile}</p>
+                  <p>Password: {account.password}</p>
+                </button>
+              ))}
+            </div>
+
             <div className={styles.roleSelector}>
               {roles.map((role) => (
                 <button
@@ -447,7 +379,7 @@ export default function LoginPage() {
 
               <button type="button" className={styles.googleBtn} onClick={handleGoogleSignIn} disabled={googleLoading}>
                 <img src={googleIcon} alt="Google" height={20} />
-                {googleLoading ? t("auth.connectingGoogle") : t("auth.googleSignIn")}
+                {googleLoading ? t("auth.connectingGoogle") : 'Quick demo access'}
               </button>
             </form>
           </div>

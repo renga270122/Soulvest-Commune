@@ -1,10 +1,42 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const crypto = require('crypto');
+const Razorpay = require('razorpay');
 
 const app = express();
-app.use(cors());
+
+function parseAllowedOrigins() {
+  const configuredOrigins = [
+    process.env.FRONTEND_URL,
+    ...(process.env.ALLOWED_ORIGINS || '').split(','),
+  ]
+    .map((value) => value && value.trim())
+    .filter(Boolean);
+
+  return configuredOrigins;
+}
+
+const allowedOrigins = parseAllowedOrigins();
+
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin || allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+      callback(null, true);
+      return;
+    }
+
+    callback(new Error(`Origin ${origin} is not allowed by CORS.`));
+  },
+}));
 app.use(express.json());
+
+const razorpay = process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET
+  ? new Razorpay({
+      key_id: process.env.RAZORPAY_KEY_ID,
+      key_secret: process.env.RAZORPAY_KEY_SECRET,
+    })
+  : null;
 
 // LLM Chatbot route
 const chatbotLLM = require('./chatbot-llm');
@@ -12,7 +44,20 @@ app.use(chatbotLLM);
 
 // Health check
 app.get('/', (req, res) => {
-  res.send('API is running');
+  res.json({
+    ok: true,
+    service: 'soulvest-commune-backend',
+    razorpayConfigured: Boolean(razorpay),
+    allowedOrigins,
+  });
+});
+
+app.get('/health', (req, res) => {
+  res.json({
+    ok: true,
+    service: 'soulvest-commune-backend',
+    razorpayConfigured: Boolean(razorpay),
+  });
 });
 
 
@@ -23,6 +68,16 @@ const { dispatchNotifications } = require('./notification-service');
 
 function getSocietyCollection(societyId, collectionName) {
   return db.collection('societies').doc(societyId).collection(collectionName);
+}
+
+function ensureRazorpayConfigured(res) {
+  if (razorpay) return true;
+
+  res.status(503).json({
+    error: 'Razorpay is not configured on the backend.',
+    details: 'Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET before using the payment gateway.',
+  });
+  return false;
 }
 
 app.post('/notifications/dispatch', async (req, res) => {
@@ -112,6 +167,102 @@ app.patch('/visitors/:id', async (req, res) => {
     res.json({ id, ...doc.data(), status });
   } catch (err) {
     res.status(500).json({ error: 'Failed to update visitor', details: err.message });
+  }
+});
+
+app.post('/payments/razorpay/order', async (req, res) => {
+  if (!ensureRazorpayConfigured(res)) return;
+
+  const {
+    amount,
+    currency = 'INR',
+    receipt,
+    notes = {},
+    paymentId,
+    userId,
+    societyId = 'brigade-metropolis',
+    title = 'Soulvest Commune Payment',
+  } = req.body;
+
+  const normalizedAmount = Number(amount);
+  if (!Number.isFinite(normalizedAmount) || normalizedAmount <= 0) {
+    return res.status(400).json({ error: 'A valid rupee amount is required.' });
+  }
+
+  try {
+    const order = await razorpay.orders.create({
+      amount: Math.round(normalizedAmount * 100),
+      currency,
+      receipt: receipt || `sv_${Date.now()}`,
+      notes: {
+        paymentId: paymentId || '',
+        userId: userId || '',
+        societyId,
+        title,
+        ...notes,
+      },
+    });
+
+    res.json({
+      orderId: order.id,
+      amount: order.amount,
+      currency: order.currency,
+      receipt: order.receipt,
+      keyId: process.env.RAZORPAY_KEY_ID,
+      name: process.env.RAZORPAY_BUSINESS_NAME || 'Soulvest Commune',
+      description: title,
+      notes: order.notes || {},
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to create Razorpay order', details: err.message });
+  }
+});
+
+app.post('/payments/razorpay/verify', async (req, res) => {
+  if (!ensureRazorpayConfigured(res)) return;
+
+  const {
+    razorpay_order_id: razorpayOrderId,
+    razorpay_payment_id: razorpayPaymentId,
+    razorpay_signature: razorpaySignature,
+    paymentId,
+    societyId = 'brigade-metropolis',
+    userId,
+  } = req.body;
+
+  if (!razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
+    return res.status(400).json({ error: 'Missing Razorpay verification fields.' });
+  }
+
+  try {
+    const expectedSignature = crypto
+      .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+      .update(`${razorpayOrderId}|${razorpayPaymentId}`)
+      .digest('hex');
+
+    if (expectedSignature !== razorpaySignature) {
+      return res.status(400).json({ error: 'Invalid Razorpay signature.' });
+    }
+
+    await db.collection('paymentGatewayLogs').add({
+      gateway: 'razorpay',
+      paymentId: paymentId || '',
+      userId: userId || '',
+      societyId,
+      razorpayOrderId,
+      razorpayPaymentId,
+      verified: true,
+      createdAt: new Date().toISOString(),
+    });
+
+    res.json({
+      verified: true,
+      orderId: razorpayOrderId,
+      paymentId: razorpayPaymentId,
+      signature: razorpaySignature,
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to verify Razorpay payment', details: err.message });
   }
 });
 
