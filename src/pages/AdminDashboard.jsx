@@ -22,6 +22,7 @@ import { useAuthContext } from '../components/AuthContext';
 import ChatbotWidget from '../components/ChatbotWidget';
 import { useFeatureFlags } from '../hooks/useFeatureFlags';
 import {
+  subscribeToFacilityBookings,
   createPaymentRecord,
   seedDemoDayData,
   subscribeToAnnouncements,
@@ -37,6 +38,7 @@ export default function AdminDashboard() {
   const [residents, setResidents] = useState([]);
   const [payments, setPayments] = useState([]);
   const [visitors, setVisitors] = useState([]);
+  const [facilityBookings, setFacilityBookings] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
   const [complaints, setComplaints] = useState([]);
   const [banner, setBanner] = useState({ type: '', message: '' });
@@ -56,12 +58,14 @@ export default function AdminDashboard() {
     const unsubResidents = subscribeToResidents(setResidents);
     const unsubPayments = subscribeToPayments(setPayments, user);
     const unsubVisitors = subscribeToVisitors(setVisitors, user);
+    const unsubFacilityBookings = subscribeToFacilityBookings(setFacilityBookings, user);
     const unsubAnnouncements = subscribeToAnnouncements(setAnnouncements, user);
     const unsubComplaints = subscribeToComplaints(setComplaints, { context: user });
     return () => {
       unsubResidents();
       unsubPayments();
       unsubVisitors();
+      unsubFacilityBookings();
       unsubAnnouncements();
       unsubComplaints();
     };
@@ -78,9 +82,10 @@ export default function AdminDashboard() {
       outstanding,
       paymentsReceived: payments.filter((payment) => payment.derivedStatus === 'paid').length,
       openComplaints: complaints.filter((complaint) => complaint.status !== 'resolved').length,
+      activeFacilityBookings: facilityBookings.filter((booking) => booking.status !== 'cancelled').length,
       pinnedAnnouncements: announcements.filter((announcement) => announcement.pinned).length,
     };
-  }, [announcements, complaints, payments, residents, visitors]);
+  }, [announcements, complaints, facilityBookings, payments, residents, visitors]);
 
   const handleLogout = () => {
     logout();
@@ -323,6 +328,7 @@ export default function AdminDashboard() {
               <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
                 <Chip label={`${stats.pinnedAnnouncements} pinned notice${stats.pinnedAnnouncements === 1 ? '' : 's'}`} color="warning" variant="outlined" />
                 <Chip label={`${stats.openComplaints} open complaint${stats.openComplaints === 1 ? '' : 's'}`} color="error" variant="outlined" />
+                <Chip label={`${stats.activeFacilityBookings} active booking${stats.activeFacilityBookings === 1 ? '' : 's'}`} color="primary" variant="outlined" />
               </Stack>
               <Divider sx={{ mb: 2 }} />
               <Stack spacing={1.5}>
@@ -341,6 +347,26 @@ export default function AdminDashboard() {
                 {announcements.length === 0 && complaints.length === 0 && (
                   <Typography color="text.secondary">No announcements or complaints yet.</Typography>
                 )}
+              </Stack>
+            </Paper>
+
+            <Paper elevation={2} sx={{ p: 2.5, borderRadius: 3 }}>
+              <Typography variant="h6" sx={{ mb: 2 }}>
+                Amenity Bookings
+              </Typography>
+              <Stack spacing={1.5}>
+                {facilityBookings.slice(0, 4).map((booking) => (
+                  <Paper key={booking.id} variant="outlined" sx={{ p: 2, borderRadius: 3 }}>
+                    <Typography variant="subtitle1">{booking.amenity}</Typography>
+                    <Typography color="text.secondary">
+                      {booking.residentName} • Flat {booking.flat || 'N/A'}
+                    </Typography>
+                    <Typography color="text.secondary">
+                      {new Date(booking.bookingDate).toLocaleString()} • {booking.slot}
+                    </Typography>
+                  </Paper>
+                ))}
+                {facilityBookings.length === 0 && <Typography color="text.secondary">No amenity bookings yet.</Typography>}
               </Stack>
             </Paper>
           </Stack>

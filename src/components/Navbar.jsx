@@ -2,7 +2,7 @@ import React from 'react';
 import { NavLink } from 'react-router-dom';
 import ReportIcon from '@mui/icons-material/Report';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
-import PollIcon from '@mui/icons-material/Poll';
+import EventAvailableIcon from '@mui/icons-material/EventAvailable';
 import PersonIcon from '@mui/icons-material/Person';
 import CampaignIcon from '@mui/icons-material/Campaign';
 import DashboardIcon from '@mui/icons-material/Dashboard';
@@ -20,9 +20,9 @@ export default function Navbar() {
   const tabs = [
     { label: 'Dashboard', to: dashboardRoute, icon: <DashboardIcon /> },
     ...(featureFlags.ANNOUNCEMENTS ? [{ label: 'Notices', to: '/announcements', icon: <CampaignIcon /> }] : []),
+    ...(featureFlags.AMENITY_BOOKINGS ? [{ label: 'Amenities', to: '/bookings', icon: <EventAvailableIcon /> }] : []),
     ...(featureFlags.COMPLAINTS ? [{ label: 'Complaints', to: '/complaints', icon: <ReportIcon /> }] : []),
     { label: 'Dues', to: '/expenses', icon: <AccountBalanceWalletIcon /> },
-    { label: 'Polls', to: '/polls', icon: <PollIcon /> },
     { label: 'Profile', to: '/profile', icon: <PersonIcon /> },
   ];
 

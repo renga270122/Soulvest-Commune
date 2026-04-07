@@ -3,6 +3,7 @@ import { DEFAULT_CITY_ID } from './cities';
 export const FEATURES = Object.freeze({
   VISITOR_OTP: true,
   VISITOR_QR: true,
+  AMENITY_BOOKINGS: true,
   ANNOUNCEMENTS: true,
   COMPLAINTS: true,
   PAYMENTS_RAZORPAY: true,

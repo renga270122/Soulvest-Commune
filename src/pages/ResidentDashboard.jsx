@@ -21,6 +21,8 @@ import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
 import CampaignIcon from '@mui/icons-material/Campaign';
 import BugReportIcon from '@mui/icons-material/BugReport';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
+import EventAvailableIcon from '@mui/icons-material/EventAvailable';
+import GroupsIcon from '@mui/icons-material/Groups';
 import { useNavigate } from 'react-router-dom';
 import QRCode from 'react-qr-code';
 import { useAuthContext } from '../components/AuthContext';
@@ -232,9 +234,12 @@ export default function ResidentDashboard() {
           </Alert>
         )}
 
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ mb: 3 }}>
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, mb: 3 }}>
           <Button variant="outlined" startIcon={<CampaignIcon />} onClick={() => navigate('/announcements')}>
             Announcements
+          </Button>
+          <Button variant="outlined" startIcon={<EventAvailableIcon />} onClick={() => navigate('/bookings')}>
+            Facility Booking
           </Button>
           <Button variant="outlined" startIcon={<AccountBalanceWalletIcon />} onClick={() => navigate('/expenses')}>
             Maintenance Dues
@@ -242,7 +247,10 @@ export default function ResidentDashboard() {
           <Button variant="outlined" startIcon={<BugReportIcon />} onClick={() => navigate('/complaints')}>
             Complaint Desk
           </Button>
-        </Stack>
+          <Button variant="outlined" startIcon={<GroupsIcon />} onClick={() => navigate('/directory')}>
+            Resident Directory
+          </Button>
+        </Box>
 
         {!myFlat && (
           <Alert severity="warning" sx={{ mb: 3 }}>

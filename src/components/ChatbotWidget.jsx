@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Box, Paper, Typography, TextField, IconButton, List, ListItem, ListItemText } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
 import { useAuthContext } from './AuthContext';
-import { subscribeToResidentComplaints, subscribeToResidentPayments } from '../services/communityData';
+import { subscribeToResidentComplaints, subscribeToResidentFacilityBookings, subscribeToResidentPayments } from '../services/communityData';
 
 const initialMessages = [
   { sender: 'bot', text: 'Hi! I am your AI assistant. How can I help you today?' }
@@ -23,7 +23,7 @@ const getLLMReply = async (input) => {
   }
 };
 
-const getLocalConciergeReply = (input, { payments, complaints }) => {
+const getLocalConciergeReply = (input, { payments, complaints, bookings }) => {
   const query = input.toLowerCase();
   if (query.includes('due') || query.includes('payment') || query.includes('maintenance')) {
     const openPayments = payments.filter((payment) => payment.derivedStatus !== 'paid');
@@ -45,6 +45,14 @@ const getLocalConciergeReply = (input, { payments, complaints }) => {
     return `Your latest complaint is ${activeComplaint.category} and it is currently ${activeComplaint.status}. Priority is ${activeComplaint.aiPriority || 'low'}.`;
   }
 
+  if (query.includes('booking') || query.includes('amenity') || query.includes('gym') || query.includes('pool') || query.includes('clubhouse')) {
+    const activeBooking = bookings.find((booking) => booking.status !== 'cancelled');
+    if (!activeBooking) {
+      return 'You have no active amenity bookings. Open Amenities to reserve the gym, pool, clubhouse, or other facilities.';
+    }
+    return `Your next amenity booking is for ${activeBooking.amenity} during ${activeBooking.slot} on ${new Date(activeBooking.bookingDate).toLocaleDateString()}.`;
+  }
+
   return '';
 };
 
@@ -54,19 +62,22 @@ const ChatbotWidget = () => {
   const [loading, setLoading] = useState(false);
   const [payments, setPayments] = useState([]);
   const [complaints, setComplaints] = useState([]);
+  const [bookings, setBookings] = useState([]);
   const { user } = useAuthContext();
 
   useEffect(() => {
     if (!user?.uid) return undefined;
     const unsubPayments = subscribeToResidentPayments(user.uid, setPayments, user);
     const unsubComplaints = subscribeToResidentComplaints(user.uid, setComplaints, user);
+    const unsubBookings = subscribeToResidentFacilityBookings(user.uid, setBookings, user);
     return () => {
       unsubPayments();
       unsubComplaints();
+      unsubBookings();
     };
   }, [user?.uid]);
 
-  const conciergeContext = useMemo(() => ({ payments, complaints }), [payments, complaints]);
+  const conciergeContext = useMemo(() => ({ payments, complaints, bookings }), [payments, complaints, bookings]);
 
   const handleSend = async () => {
     if (!input.trim()) return;

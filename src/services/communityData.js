@@ -27,10 +27,12 @@ const getVisitorsCollection = (context) => getSocietyCollectionRef('visitors', g
 const getPaymentsCollection = (context) => getSocietyCollectionRef('payments', getSocietyId(context));
 const getAnnouncementsCollection = (context) => getSocietyCollectionRef('announcements', getSocietyId(context));
 const getComplaintsCollection = (context) => getSocietyCollectionRef('complaints', getSocietyId(context));
+const getFacilityBookingsCollection = (context) => getSocietyCollectionRef('facilityBookings', getSocietyId(context));
 const getVisitorDoc = (visitorId, context) => getSocietyDocRef('visitors', visitorId, getSocietyId(context));
 const getPaymentDoc = (paymentId, context) => getSocietyDocRef('payments', paymentId, getSocietyId(context));
 const getAnnouncementDoc = (announcementId, context) => getSocietyDocRef('announcements', announcementId, getSocietyId(context));
 const getComplaintDoc = (complaintId, context) => getSocietyDocRef('complaints', complaintId, getSocietyId(context));
+const getFacilityBookingDoc = (bookingId, context) => getSocietyDocRef('facilityBookings', bookingId, getSocietyId(context));
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'https://commune.soulvest.ai').replace(/\/$/, '');
 const PASS_EXPIRY_GRACE_MS = 2 * 60 * 60 * 1000;
 
@@ -79,6 +81,29 @@ const getComplaintPriority = (description = '', category = '') => {
   if (/(fire|gas|security|lift|elevator|flood|electric shock|sparking)/.test(text)) return 'high';
   if (/(water|plumbing|electrical|maintenance|leak)/.test(text)) return 'medium';
   return 'low';
+};
+
+const createReceiptNumber = () => `RCP-${new Date().getFullYear()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+const createBookingCode = () => `BK-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+const buildBookingDateTime = (dateValue, slot = '') => {
+  const date = toDateValue(dateValue);
+  if (!date) return null;
+
+  const [startLabel = '06:00 AM'] = slot.split(' - ');
+  const [timePart = '06:00', meridiem = 'AM'] = startLabel.trim().split(' ');
+  const [rawHours = '6', rawMinutes = '0'] = timePart.split(':');
+  let hours = Number(rawHours);
+  const minutes = Number(rawMinutes);
+
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) {
+    return date;
+  }
+
+  if (meridiem.toUpperCase() === 'PM' && hours !== 12) hours += 12;
+  if (meridiem.toUpperCase() === 'AM' && hours === 12) hours = 0;
+
+  date.setHours(hours, minutes, 0, 0);
+  return date;
 };
 
 export async function getUserProfileByUid(uid) {
@@ -164,6 +189,25 @@ export function subscribeToComplaints(callback, filters = {}) {
 export function subscribeToResidentComplaints(userId, callback, context = DEFAULT_SOCIETY_ID) {
   if (!userId) return () => {};
   return subscribeToComplaints(callback, { residentId: userId, context });
+}
+
+export function subscribeToFacilityBookings(callback, context = DEFAULT_SOCIETY_ID) {
+  const bookingsQuery = query(getFacilityBookingsCollection(context));
+  return onSnapshot(bookingsQuery, (snapshot) => {
+    callback(
+      mapSnapshot(snapshot).sort((left, right) => getComparableTime(left.bookingDate) - getComparableTime(right.bookingDate)),
+    );
+  });
+}
+
+export function subscribeToResidentFacilityBookings(userId, callback, context = DEFAULT_SOCIETY_ID) {
+  if (!userId) return () => {};
+  const bookingsQuery = query(getFacilityBookingsCollection(context), where('residentId', '==', userId));
+  return onSnapshot(bookingsQuery, (snapshot) => {
+    callback(
+      mapSnapshot(snapshot).sort((left, right) => getComparableTime(left.bookingDate) - getComparableTime(right.bookingDate)),
+    );
+  });
 }
 
 const createOtp = () => `${Math.floor(100000 + Math.random() * 900000)}`;
@@ -629,6 +673,9 @@ export async function markPaymentAsPaid(paymentId, extra = {}) {
     status: 'paid',
     paidAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
+    receiptNumber: extra.receiptNumber || createReceiptNumber(),
+    receiptIssuedAt: extra.receiptIssuedAt || new Date().toISOString(),
+    paidAmount: Number(extra.paidAmount || extra.amount || 0),
     ...extra,
   });
 }
@@ -779,6 +826,115 @@ export async function updateComplaintStatus(complaintId, status, actor = {}, ext
       title: 'Complaint status updated',
       message: `${complaint.category} complaint is now ${status.replace('_', ' ')}.`,
       complaintId,
+      societyId,
+      channels: {
+        inApp: true,
+        push: true,
+        email: false,
+        sms: false,
+      },
+    });
+  }
+}
+
+export async function createFacilityBooking(booking) {
+  const societyId = getSocietyId(booking);
+  const bookingDate = buildBookingDateTime(booking.bookingDate, booking.slot);
+
+  if (!bookingDate) {
+    throw new Error('Booking date is invalid.');
+  }
+  if (bookingDate.getTime() < Date.now() - 5 * 60 * 1000) {
+    throw new Error('Choose a future date and time for the booking.');
+  }
+
+  const conflictSnapshot = await getDocs(
+    query(getFacilityBookingsCollection(societyId), where('bookingDate', '==', bookingDate.toISOString())),
+  );
+
+  const hasConflict = conflictSnapshot.docs.some((snapshotDoc) => {
+    const data = snapshotDoc.data();
+    return data.amenity === booking.amenity && data.slot === booking.slot && data.status !== 'cancelled';
+  });
+
+  if (hasConflict) {
+    throw new Error('That slot is already booked. Choose another amenity slot.');
+  }
+
+  const bookingCode = createBookingCode();
+  const docRef = await addDoc(getFacilityBookingsCollection(societyId), {
+    residentId: booking.residentId,
+    residentName: booking.residentName || 'Resident',
+    flat: normalizeFlat(booking.flat),
+    societyId,
+    amenity: booking.amenity,
+    slot: booking.slot,
+    guestCount: Number(booking.guestCount || 1),
+    bookingDate: bookingDate.toISOString(),
+    notes: booking.notes || '',
+    bookingCode,
+    status: 'confirmed',
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+    history: [
+      {
+        type: 'confirmed',
+        actor: booking.residentName || 'Resident',
+        at: new Date().toISOString(),
+      },
+    ],
+  });
+
+  await createNotification({
+    userId: booking.residentId,
+    type: 'facility-booking-confirmed',
+    title: 'Amenity booking confirmed',
+    message: `${booking.amenity} is booked for ${booking.slot} on ${bookingDate.toLocaleDateString()}.`,
+    societyId,
+    channels: {
+      inApp: true,
+      push: true,
+      email: false,
+      sms: false,
+    },
+  });
+
+  return {
+    id: docRef.id,
+    bookingCode,
+    bookingDate: bookingDate.toISOString(),
+  };
+}
+
+export async function cancelFacilityBooking(bookingId, actor = {}) {
+  const societyId = getSocietyId(actor);
+  const bookingRef = getFacilityBookingDoc(bookingId, societyId);
+  const bookingSnapshot = await getDoc(bookingRef);
+  if (!bookingSnapshot.exists()) {
+    throw new Error('Booking not found.');
+  }
+
+  const booking = { id: bookingSnapshot.id, ...bookingSnapshot.data() };
+  if (booking.status === 'cancelled') {
+    return;
+  }
+
+  await updateDoc(bookingRef, {
+    status: 'cancelled',
+    updatedAt: serverTimestamp(),
+    history: arrayUnion({
+      type: 'cancelled',
+      actor: actor.name || 'Resident',
+      at: new Date().toISOString(),
+    }),
+  });
+
+  if (booking.residentId) {
+    await createNotification({
+      userId: booking.residentId,
+      type: 'facility-booking-cancelled',
+      title: 'Amenity booking cancelled',
+      message: `${booking.amenity} booking for ${booking.slot} has been cancelled.`,
       societyId,
       channels: {
         inApp: true,

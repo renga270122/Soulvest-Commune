@@ -9,6 +9,7 @@ import Complaints from '../pages/Complaints';
 import Expenses from '../pages/Expenses';
 import Polls from '../pages/Polls';
 import Profile from '../pages/Profile';
+import FacilityBookings from '../pages/FacilityBookings';
 import GuardDashboard from '../pages/GuardDashboard';
 import ResidentDashboard from '../pages/ResidentDashboard';
 import AdminDashboard from '../pages/AdminDashboard';
@@ -42,6 +43,7 @@ const AppRoutes = () => (
       <Route path="/home" element={<ProtectedRoute><Home /></ProtectedRoute>} />
       <Route path="/dashboard" element={<ProtectedRoute><UserDashboard /></ProtectedRoute>} />
       <Route path="/complaints" element={<ProtectedRoute><FeatureRoute feature="COMPLAINTS"><Complaints /></FeatureRoute></ProtectedRoute>} />
+      <Route path="/bookings" element={<ProtectedRoute><FeatureRoute feature="AMENITY_BOOKINGS"><FacilityBookings /></FeatureRoute></ProtectedRoute>} />
       <Route path="/expenses" element={<ProtectedRoute><Expenses /></ProtectedRoute>} />
       <Route path="/polls" element={<ProtectedRoute><Polls /></ProtectedRoute>} />
       <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />

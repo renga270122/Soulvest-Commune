@@ -15,6 +15,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
+import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import Navbar from '../components/Navbar';
 import { useAuthContext } from '../components/AuthContext';
 import {
@@ -38,6 +39,31 @@ export default function Expenses() {
   const [paymentMethod, setPaymentMethod] = useState('upi');
   const [submitting, setSubmitting] = useState(false);
   const [banner, setBanner] = useState({ type: '', message: '' });
+  const [activeReceipt, setActiveReceipt] = useState(null);
+
+  const buildReceiptText = (payment) => {
+    const receiptNumber = payment.receiptNumber || `RCP-PENDING-${payment.id}`;
+    return [
+      'Soulvest Commune Payment Receipt',
+      `Receipt: ${receiptNumber}`,
+      `Resident: ${user?.name || 'Resident'}`,
+      `Flat: ${payment.flat || user?.flat || 'Not assigned'}`,
+      `Charge: ${payment.title || 'Resident charge'}`,
+      `Amount: ${formatAmount(payment.amount)}`,
+      `Method: ${(payment.method || 'manual').toUpperCase()}`,
+      `Reference: ${payment.paymentReference || 'Not available'}`,
+      `Paid At: ${formatDate(payment.paidAt || payment.receiptIssuedAt)}`,
+    ].join('\n');
+  };
+
+  const handleDownloadReceipt = (payment) => {
+    const blob = new Blob([buildReceiptText(payment)], { type: 'text/plain;charset=utf-8' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `${payment.receiptNumber || `receipt-${payment.id}`}.txt`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  };
 
   useEffect(() => {
     if (!user?.uid) return undefined;
@@ -79,12 +105,23 @@ export default function Expenses() {
     setSubmitting(true);
     setBanner({ type: '', message: '' });
     try {
+      const paymentReference = `SV-${Date.now()}`;
+      const receiptNumber = `RCP-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
       await markPaymentAsPaid(selectedPayment.id, {
         method: paymentMethod,
-        paymentReference: `SV-${Date.now()}`,
+        paymentReference,
+        receiptNumber,
+        amount: selectedPayment.amount,
         societyId: user?.societyId,
       });
-      setBanner({ type: 'success', message: 'Payment recorded successfully.' });
+      setBanner({ type: 'success', message: 'Payment recorded successfully. Receipt generated instantly.' });
+      setActiveReceipt({
+        ...selectedPayment,
+        method: paymentMethod,
+        paymentReference,
+        receiptNumber,
+        receiptIssuedAt: new Date().toISOString(),
+      });
       setSelectedPayment(null);
       setPaymentMethod('upi');
     } catch (error) {
@@ -100,7 +137,7 @@ export default function Expenses() {
           Expenses & Payments
         </Typography>
         <Typography color="text.secondary" sx={{ mb: 3 }}>
-          Track maintenance dues, view the split, and record resident payments.
+          Track maintenance, utility, rent, or clubhouse dues and pay them with instant receipt confirmation.
         </Typography>
 
         {banner.message && (
@@ -182,6 +219,11 @@ export default function Expenses() {
                       Pay Now
                     </Button>
                   )}
+                  {payment.derivedStatus === 'paid' && (
+                    <Button variant="outlined" startIcon={<ReceiptLongIcon />} onClick={() => setActiveReceipt(payment)}>
+                      View Receipt
+                    </Button>
+                  )}
                 </Stack>
               </Box>
 
@@ -232,6 +274,28 @@ export default function Expenses() {
           <Button variant="contained" onClick={handlePayNow} disabled={submitting}>
             {submitting ? 'Recording...' : 'Confirm Payment'}
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={Boolean(activeReceipt)} onClose={() => setActiveReceipt(null)} fullWidth maxWidth="sm">
+        <DialogTitle>Payment Receipt</DialogTitle>
+        <DialogContent>
+          <Stack spacing={1.5} sx={{ pt: 1 }}>
+            <Typography variant="subtitle2">Receipt Number</Typography>
+            <Typography>{activeReceipt?.receiptNumber || 'Receipt will appear after refresh if just recorded.'}</Typography>
+            <Typography variant="subtitle2">Charge</Typography>
+            <Typography>{activeReceipt?.title}</Typography>
+            <Typography variant="subtitle2">Amount</Typography>
+            <Typography>{formatAmount(activeReceipt?.amount)}</Typography>
+            <Typography variant="subtitle2">Method</Typography>
+            <Typography>{(activeReceipt?.method || 'manual').toUpperCase()}</Typography>
+            <Typography variant="subtitle2">Reference</Typography>
+            <Typography>{activeReceipt?.paymentReference || 'Pending sync'}</Typography>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => activeReceipt && handleDownloadReceipt(activeReceipt)}>Download Receipt</Button>
+          <Button onClick={() => setActiveReceipt(null)}>Close</Button>
         </DialogActions>
       </Dialog>
 
