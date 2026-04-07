@@ -392,8 +392,8 @@ export async function verifyVisitorPass(code, guardUser) {
       channels: {
         inApp: true,
         push: true,
-        email: false,
-        sms: false,
+        email: true,
+        sms: true,
       },
     });
   }
@@ -481,8 +481,8 @@ export async function checkInVisitor(visitorId, guardUser) {
       channels: {
         inApp: true,
         push: true,
-        email: false,
-        sms: false,
+        email: true,
+        sms: true,
       },
     });
   }
@@ -525,8 +525,8 @@ export async function checkOutVisitor(visitorId, guardUser) {
       channels: {
         inApp: true,
         push: true,
-        email: false,
-        sms: false,
+        email: true,
+        sms: true,
       },
     });
   }
@@ -725,6 +725,8 @@ export async function seedDemoDayData({ adminUser, residents = [] } = {}) {
   const announcementRef = getAnnouncementDoc('demo-water-shutdown', societyId);
   const complaintRef = getComplaintDoc(`demo-complaint-${primaryResident.id}`, societyId);
   const paymentRef = getPaymentDoc(`demo-charge-${primaryResident.id}-${new Date().getFullYear()}-${monthLabel}`, societyId);
+  const pendingVisitorRef = getVisitorDoc(`demo-pending-visitor-${primaryResident.id}`, societyId);
+  const completedVisitorRef = getVisitorDoc(`demo-completed-visitor-${primaryResident.id}`, societyId);
 
   await setDoc(announcementRef, {
     title: 'Water shutdown from 6 PM to 8 PM',
@@ -780,6 +782,51 @@ export async function seedDemoDayData({ adminUser, residents = [] } = {}) {
     },
     status: 'pending',
     method: 'manual',
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  }, { merge: true });
+
+  await setDoc(pendingVisitorRef, {
+    name: 'Arjun Rao',
+    visitorName: 'Arjun Rao',
+    purpose: 'Guest visit',
+    phone: '9876500101',
+    flat: normalizeFlat(primaryResident.flat),
+    residentId: primaryResident.id,
+    residentName: primaryResident.name || 'Resident',
+    societyId,
+    otp: '654321',
+    passToken: 'SV-DEMO123',
+    qrPayload: buildQrPayload('SV-DEMO123', '654321'),
+    expectedAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+    status: 'preapproved',
+    entryMethod: 'resident-pass',
+    history: [
+      { type: 'preapproved', actor: primaryResident.name || 'Resident', at: new Date().toISOString() },
+    ],
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  }, { merge: true });
+
+  await setDoc(completedVisitorRef, {
+    name: 'Meera Shah',
+    visitorName: 'Meera Shah',
+    purpose: 'Delivery',
+    phone: '9876500102',
+    flat: normalizeFlat(primaryResident.flat),
+    residentId: primaryResident.id,
+    residentName: primaryResident.name || 'Resident',
+    societyId,
+    status: 'checked_out',
+    entryMethod: 'walk-in',
+    checkedInAt: new Date(Date.now() - 90 * 60 * 1000).toISOString(),
+    exitTime: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+    history: [
+      { type: 'pending', actor: 'Guard', at: new Date(Date.now() - 110 * 60 * 1000).toISOString() },
+      { type: 'approved', actor: primaryResident.name || 'Resident', at: new Date(Date.now() - 100 * 60 * 1000).toISOString() },
+      { type: 'checked_in', actor: 'Guard', at: new Date(Date.now() - 90 * 60 * 1000).toISOString() },
+      { type: 'checked_out', actor: 'Guard', at: new Date(Date.now() - 30 * 60 * 1000).toISOString() },
+    ],
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   }, { merge: true });
