@@ -43,20 +43,35 @@ export default function Expenses() {
     if (!user?.uid) return undefined;
 
     seedResidentPaymentIfMissing(user);
-    const unsubscribe = subscribeToResidentPayments(user.uid, setPayments);
+    const unsubscribe = subscribeToResidentPayments(user.uid, setPayments, user);
     return () => unsubscribe();
   }, [user]);
 
   const summary = useMemo(() => {
-    const duePayments = payments.filter((payment) => payment.status !== 'paid');
-    const paidPayments = payments.filter((payment) => payment.status === 'paid');
+    const duePayments = payments.filter((payment) => payment.derivedStatus !== 'paid');
+    const paidPayments = payments.filter((payment) => payment.derivedStatus === 'paid');
+    const nextDue = duePayments
+      .map((payment) => ({ ...payment, dueTime: new Date(payment.dueDate).getTime() }))
+      .filter((payment) => !Number.isNaN(payment.dueTime))
+      .sort((left, right) => left.dueTime - right.dueTime)[0];
 
     return {
       outstandingAmount: duePayments.reduce((total, payment) => total + Number(payment.amount || 0), 0),
       totalPaid: paidPayments.reduce((total, payment) => total + Number(payment.amount || 0), 0),
       dueCount: duePayments.length,
+      overdueCount: duePayments.filter((payment) => payment.derivedStatus === 'overdue').length,
+      nextDue,
     };
   }, [payments]);
+
+  const duesInsight = useMemo(() => {
+    if (summary.dueCount === 0) {
+      return 'You are fully up to date. No maintenance dues are pending right now.';
+    }
+
+    const nextDueDate = summary.nextDue ? formatDate(summary.nextDue.dueDate) : 'the next cycle';
+    return `You have ${summary.dueCount} open bill${summary.dueCount === 1 ? '' : 's'} worth ${formatAmount(summary.outstandingAmount)}. Next due date is ${nextDueDate}.`;
+  }, [summary]);
 
   const handlePayNow = async () => {
     if (!selectedPayment) return;
@@ -67,6 +82,7 @@ export default function Expenses() {
       await markPaymentAsPaid(selectedPayment.id, {
         method: paymentMethod,
         paymentReference: `SV-${Date.now()}`,
+        societyId: user?.societyId,
       });
       setBanner({ type: 'success', message: 'Payment recorded successfully.' });
       setSelectedPayment(null);
@@ -96,7 +112,7 @@ export default function Expenses() {
         <Box
           sx={{
             display: 'grid',
-            gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' },
+            gridTemplateColumns: { xs: '1fr', md: 'repeat(4, 1fr)' },
             gap: 2,
             mb: 3,
           }}
@@ -113,7 +129,19 @@ export default function Expenses() {
             <Typography color="text.secondary">Open Bills</Typography>
             <Typography variant="h4">{summary.dueCount}</Typography>
           </Paper>
+          <Paper elevation={1} sx={{ p: 2.5, borderRadius: 3 }}>
+            <Typography color="text.secondary">Overdue</Typography>
+            <Typography variant="h4">{summary.overdueCount}</Typography>
+          </Paper>
         </Box>
+
+        <Paper elevation={2} sx={{ p: 2.5, borderRadius: 3, mb: 3 }}>
+          <Typography variant="h6" sx={{ mb: 1 }}>AI Concierge Insight</Typography>
+          <Typography color="text.secondary" sx={{ mb: 1.5 }}>{duesInsight}</Typography>
+          {summary.nextDue && (
+            <Chip label={`Reminder: ${summary.nextDue.title} due on ${formatDate(summary.nextDue.dueDate)}`} color="warning" variant="outlined" />
+          )}
+        </Paper>
 
         <Stack spacing={2}>
           {payments.length === 0 && (
@@ -146,10 +174,10 @@ export default function Expenses() {
                 <Stack alignItems={{ xs: 'flex-start', md: 'flex-end' }} spacing={1}>
                   <Typography variant="h5">{formatAmount(payment.amount)}</Typography>
                   <Chip
-                    label={payment.status === 'paid' ? 'Paid' : 'Due'}
-                    color={payment.status === 'paid' ? 'success' : 'warning'}
+                    label={payment.derivedStatus === 'paid' ? 'Paid' : payment.derivedStatus === 'overdue' ? 'Overdue' : 'Pending'}
+                    color={payment.derivedStatus === 'paid' ? 'success' : payment.derivedStatus === 'overdue' ? 'error' : 'warning'}
                   />
-                  {payment.status !== 'paid' && (
+                  {payment.derivedStatus !== 'paid' && (
                     <Button variant="contained" onClick={() => setSelectedPayment(payment)}>
                       Pay Now
                     </Button>
@@ -168,7 +196,7 @@ export default function Expenses() {
                 ))}
               </Stack>
 
-              {payment.status === 'paid' && (
+              {payment.derivedStatus === 'paid' && (
                 <Typography color="text.secondary" sx={{ mt: 2 }}>
                   Paid via {payment.method || 'manual'} {payment.paymentReference ? `(${payment.paymentReference})` : ''}
                 </Typography>

@@ -22,6 +22,7 @@ import { useNavigate } from 'react-router-dom';
 import QRCode from 'react-qr-code';
 import { useAuthContext } from '../components/AuthContext';
 import ChatbotWidget from '../components/ChatbotWidget';
+import { useFeatureFlags } from '../hooks/useFeatureFlags';
 import {
   createVisitorPass,
   markNotificationAsRead,
@@ -34,6 +35,7 @@ import {
 const statusColorMap = {
   approved: 'success',
   checked_in: 'success',
+  checked_out: 'default',
   denied: 'error',
   pending: 'warning',
   preapproved: 'info',
@@ -56,14 +58,15 @@ export default function ResidentDashboard() {
     notes: '',
   });
   const { user, logout } = useAuthContext();
+  const featureFlags = useFeatureFlags();
   const navigate = useNavigate();
   const knownNotificationIds = useRef(new Set());
   const notificationsInitialized = useRef(false);
 
   useEffect(() => {
-    const unsubscribe = subscribeToVisitors(setVisitors);
+    const unsubscribe = subscribeToVisitors(setVisitors, user);
     return () => unsubscribe();
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     const unsubscribe = subscribeToNotifications(user?.uid, setNotifications);
@@ -84,7 +87,7 @@ export default function ResidentDashboard() {
       knownNotificationIds.current.add(notification.id);
 
       if (
-        notification.type === 'visitor-entered'
+        ['visitor-entered', 'visitor-exited', 'visitor-awaiting-approval'].includes(notification.type)
         && typeof Notification !== 'undefined'
         && Notification.permission === 'granted'
       ) {
@@ -127,6 +130,7 @@ export default function ResidentDashboard() {
         residentId: user.uid,
         residentName: user.name || 'Resident',
         flat: myFlat,
+        societyId: user.societyId,
       });
       setCreatedPass({ ...pass, visitorName: passForm.visitorName, expectedAt: passForm.expectedAt });
       setPassDialogOpen(false);
@@ -142,7 +146,11 @@ export default function ResidentDashboard() {
     setUpdatingId(visitorId);
     setBanner({ type: '', message: '' });
     try {
-      await updateVisitorStatus(visitorId, status);
+      await updateVisitorStatus(visitorId, status, {
+        uid: user?.uid || '',
+        name: user?.name || 'Resident',
+        societyId: user?.societyId,
+      });
       setBanner({ type: 'success', message: `Visitor ${status}.` });
     } catch (error) {
       setBanner({ type: 'error', message: error.message || 'Unable to update visitor status.' });
@@ -308,7 +316,13 @@ export default function ResidentDashboard() {
                       <Typography variant="subtitle1">{visitor.name}</Typography>
                       <Typography color="text.secondary">{visitor.purpose}</Typography>
                       <Typography color="text.secondary">
-                        {visitor.expectedAt ? `Expected: ${new Date(visitor.expectedAt).toLocaleString()}` : `Arrival: ${visitor.time}`}
+                        {visitor.exitTime
+                          ? `Exited: ${new Date(visitor.exitTime?.seconds ? visitor.exitTime.seconds * 1000 : visitor.exitTime).toLocaleString()}`
+                          : visitor.checkedInAt
+                            ? `Checked in: ${new Date(visitor.checkedInAt?.seconds ? visitor.checkedInAt.seconds * 1000 : visitor.checkedInAt).toLocaleString()}`
+                            : visitor.expectedAt
+                              ? `Expected: ${new Date(visitor.expectedAt).toLocaleString()}`
+                              : `Arrival: ${visitor.time}`}
                       </Typography>
                       {visitor.otp && (
                         <Typography color="text.secondary">OTP: {visitor.otp}</Typography>
@@ -406,8 +420,7 @@ export default function ResidentDashboard() {
           <Button onClick={() => setCreatedPass(null)}>Close</Button>
         </DialogActions>
       </Dialog>
-
-      <ChatbotWidget />
+      {featureFlags.AI_CHATBOT && <ChatbotWidget />}
     </Box>
   );
 }

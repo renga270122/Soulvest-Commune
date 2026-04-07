@@ -5,6 +5,8 @@ import bottomIllustration from "../assets/bottom-illustration.png";
 import { auth, db } from "../firebase";
 import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
+import { DEFAULT_CITY_ID } from "../config/cities";
+import { DEFAULT_SOCIETY_ID } from "../config/firestore";
 
 export default function SignupPage() {
   const [form, setForm] = useState({
@@ -40,6 +42,9 @@ export default function SignupPage() {
         mobile: form.mobile,
         email: form.email,
         role: "resident",
+        cityId: DEFAULT_CITY_ID,
+        societyId: DEFAULT_SOCIETY_ID,
+        language: 'en',
         createdAt: new Date().toISOString(),
       });
       setSuccess("Signup successful! You can now log in.");

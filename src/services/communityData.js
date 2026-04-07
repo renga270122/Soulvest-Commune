@@ -13,11 +13,25 @@ import {
   where,
 } from 'firebase/firestore';
 import { db } from '../firebase';
+import {
+  DEFAULT_SOCIETY_ID,
+  getSocietyCollectionRef,
+  getSocietyDocRef,
+  getSocietyId,
+} from '../config/firestore';
 
 const usersCollection = collection(db, 'users');
-const visitorsCollection = collection(db, 'visitors');
-const paymentsCollection = collection(db, 'payments');
 const notificationsCollection = collection(db, 'notifications');
+
+const getVisitorsCollection = (context) => getSocietyCollectionRef('visitors', getSocietyId(context));
+const getPaymentsCollection = (context) => getSocietyCollectionRef('payments', getSocietyId(context));
+const getAnnouncementsCollection = (context) => getSocietyCollectionRef('announcements', getSocietyId(context));
+const getComplaintsCollection = (context) => getSocietyCollectionRef('complaints', getSocietyId(context));
+const getVisitorDoc = (visitorId, context) => getSocietyDocRef('visitors', visitorId, getSocietyId(context));
+const getPaymentDoc = (paymentId, context) => getSocietyDocRef('payments', paymentId, getSocietyId(context));
+const getAnnouncementDoc = (announcementId, context) => getSocietyDocRef('announcements', announcementId, getSocietyId(context));
+const getComplaintDoc = (complaintId, context) => getSocietyDocRef('complaints', complaintId, getSocietyId(context));
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'https://commune.soulvest.ai').replace(/\/$/, '');
 
 export const normalizeFlat = (flat) => flat?.trim().toUpperCase() || '';
 
@@ -31,6 +45,39 @@ const getComparableTime = (value) => {
   if (typeof value.seconds === 'number') return value.seconds * 1000;
   if (value?.toDate) return value.toDate().getTime();
   return 0;
+};
+
+const toDateValue = (value) => {
+  if (!value) return null;
+  if (typeof value === 'string') {
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+  if (value?.toDate) return value.toDate();
+  if (typeof value.seconds === 'number') return new Date(value.seconds * 1000);
+  return null;
+};
+
+const toMonthYear = (value) => {
+  const date = toDateValue(value) || new Date();
+  return {
+    month: String(date.getMonth() + 1).padStart(2, '0'),
+    year: date.getFullYear(),
+  };
+};
+
+const getDerivedPaymentStatus = (payment) => {
+  if (payment.status === 'paid') return 'paid';
+  const dueDate = toDateValue(payment.dueDate);
+  if (dueDate && dueDate.getTime() < Date.now()) return 'overdue';
+  return payment.status === 'due' ? 'pending' : (payment.status || 'pending');
+};
+
+const getComplaintPriority = (description = '', category = '') => {
+  const text = `${category} ${description}`.toLowerCase();
+  if (/(fire|gas|security|lift|elevator|flood|electric shock|sparking)/.test(text)) return 'high';
+  if (/(water|plumbing|electrical|maintenance|leak)/.test(text)) return 'medium';
+  return 'low';
 };
 
 export async function getUserProfileByUid(uid) {
@@ -58,6 +105,7 @@ export function subscribeToResidents(callback) {
     callback(
       mapSnapshot(snapshot)
         .filter((resident) => resident.role !== 'guard' && resident.role !== 'admin')
+        .filter((resident) => (resident.societyId || DEFAULT_SOCIETY_ID) === DEFAULT_SOCIETY_ID)
         .map((resident) => ({
           ...resident,
           flat: normalizeFlat(resident.flat) || 'UNASSIGNED',
@@ -67,8 +115,8 @@ export function subscribeToResidents(callback) {
   });
 }
 
-export function subscribeToVisitors(callback) {
-  const visitorsQuery = query(visitorsCollection);
+export function subscribeToVisitors(callback, context = DEFAULT_SOCIETY_ID) {
+  const visitorsQuery = query(getVisitorsCollection(context));
   return onSnapshot(visitorsQuery, (snapshot) => {
     callback(
       mapSnapshot(snapshot)
@@ -79,6 +127,42 @@ export function subscribeToVisitors(callback) {
         .sort((left, right) => getComparableTime(right.createdAt) - getComparableTime(left.createdAt)),
     );
   });
+}
+
+export function subscribeToAnnouncements(callback, context = DEFAULT_SOCIETY_ID) {
+  const announcementsQuery = query(getAnnouncementsCollection(context));
+  return onSnapshot(announcementsQuery, (snapshot) => {
+    callback(
+      mapSnapshot(snapshot).sort((left, right) => {
+        if (Boolean(left.pinned) !== Boolean(right.pinned)) {
+          return left.pinned ? -1 : 1;
+        }
+        return getComparableTime(right.createdAt || right.date) - getComparableTime(left.createdAt || left.date);
+      }),
+    );
+  });
+}
+
+export function subscribeToComplaints(callback, filters = {}) {
+  const complaintsQuery = filters.residentId
+    ? query(getComplaintsCollection(filters.context), where('residentId', '==', filters.residentId))
+    : query(getComplaintsCollection(filters.context));
+
+  return onSnapshot(complaintsQuery, (snapshot) => {
+    callback(
+      mapSnapshot(snapshot).sort((left, right) => {
+        const leftResolved = left.status === 'resolved';
+        const rightResolved = right.status === 'resolved';
+        if (leftResolved !== rightResolved) return leftResolved ? 1 : -1;
+        return getComparableTime(right.createdAt) - getComparableTime(left.createdAt);
+      }),
+    );
+  });
+}
+
+export function subscribeToResidentComplaints(userId, callback, context = DEFAULT_SOCIETY_ID) {
+  if (!userId) return () => {};
+  return subscribeToComplaints(callback, { residentId: userId, context });
 }
 
 const createOtp = () => `${Math.floor(100000 + Math.random() * 900000)}`;
@@ -93,13 +177,51 @@ const buildQrPayload = (passToken, otp) => JSON.stringify({ type: 'soulvest-pass
 async function createNotification(notification) {
   await addDoc(notificationsCollection, {
     ...notification,
+    societyId: notification.societyId || DEFAULT_SOCIETY_ID,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
     read: false,
   });
+
+  if (notification.userId) {
+    void fetch(`${API_BASE_URL}/notifications/dispatch`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: notification.userId,
+        societyId: notification.societyId || DEFAULT_SOCIETY_ID,
+        title: notification.title,
+        message: notification.message,
+        channels: notification.channels || {},
+        meta: {
+          type: notification.type,
+          visitorId: notification.visitorId,
+          complaintId: notification.complaintId,
+        },
+      }),
+    }).catch(() => {});
+  }
 }
 
 const sortByCreatedDesc = (items) => items.sort((left, right) => getComparableTime(right.createdAt) - getComparableTime(left.createdAt));
+
+async function getResidentByFlat(flat) {
+  const normalizedFlat = normalizeFlat(flat);
+  if (!normalizedFlat) return null;
+
+  const residentSnapshot = await getDocs(query(usersCollection, where('flat', '==', normalizedFlat)));
+  if (residentSnapshot.empty) return null;
+
+  const residentDoc = residentSnapshot.docs.find((snapshotDoc) => {
+    const data = snapshotDoc.data();
+    return data.role !== 'guard' && data.role !== 'admin';
+  }) || residentSnapshot.docs[0];
+
+  return {
+    id: residentDoc.id,
+    ...residentDoc.data(),
+  };
+}
 
 function parseVerificationCode(code) {
   const cleaned = code.trim();
@@ -121,27 +243,62 @@ function parseVerificationCode(code) {
 }
 
 export async function createVisitor(visitor) {
-  await addDoc(visitorsCollection, {
+  const societyId = getSocietyId(visitor);
+  const normalizedFlat = normalizeFlat(visitor.flat);
+  const resident = await getResidentByFlat(normalizedFlat);
+
+  const docRef = await addDoc(getVisitorsCollection(societyId), {
     ...visitor,
-    flat: normalizeFlat(visitor.flat),
+    societyId,
+    flat: normalizedFlat,
+    residentId: resident?.id || visitor.residentId || '',
+    residentName: resident?.name || visitor.residentName || '',
     status: 'pending',
+    history: [
+      {
+        type: 'pending',
+        actor: visitor.loggedByName || 'Guard',
+        at: new Date().toISOString(),
+      },
+    ],
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
+
+  if (resident?.id) {
+    await createNotification({
+      userId: resident.id,
+      type: 'visitor-awaiting-approval',
+      title: 'Visitor waiting at the gate',
+      message: `${visitor.name} is waiting for approval at Flat ${normalizedFlat}.`,
+      visitorId: docRef.id,
+      visitorName: visitor.name,
+      flat: normalizedFlat,
+      societyId,
+      channels: {
+        inApp: true,
+        push: true,
+        email: false,
+        sms: false,
+      },
+    });
+  }
 }
 
 export async function createVisitorPass(pass) {
+  const societyId = getSocietyId(pass);
   const otp = createOtp();
   const passToken = createPassToken();
   const qrPayload = buildQrPayload(passToken, otp);
 
-  const docRef = await addDoc(visitorsCollection, {
+  const docRef = await addDoc(getVisitorsCollection(societyId), {
     visitorName: pass.visitorName,
     name: pass.visitorName,
     purpose: pass.purpose,
     phone: pass.phone || '',
     vehicleNumber: pass.vehicleNumber || '',
     notes: pass.notes || '',
+    societyId,
     flat: normalizeFlat(pass.flat),
     residentId: pass.residentId,
     residentName: pass.residentName,
@@ -170,6 +327,7 @@ export async function createVisitorPass(pass) {
     visitorId: docRef.id,
     visitorName: pass.visitorName,
     flat: normalizeFlat(pass.flat),
+    societyId,
   });
 
   return {
@@ -181,14 +339,15 @@ export async function createVisitorPass(pass) {
 }
 
 export async function verifyVisitorPass(code, guardUser) {
+  const societyId = getSocietyId(guardUser);
   const { otp, passToken } = parseVerificationCode(code);
 
   let snapshot = otp
-    ? await getDocs(query(visitorsCollection, where('otp', '==', otp)))
-    : await getDocs(query(visitorsCollection, where('passToken', '==', passToken)));
+    ? await getDocs(query(getVisitorsCollection(societyId), where('otp', '==', otp)))
+    : await getDocs(query(getVisitorsCollection(societyId), where('passToken', '==', passToken)));
 
   if (snapshot.empty && passToken && passToken !== otp) {
-    snapshot = await getDocs(query(visitorsCollection, where('passToken', '==', passToken)));
+    snapshot = await getDocs(query(getVisitorsCollection(societyId), where('passToken', '==', passToken)));
   }
 
   if (snapshot.empty) {
@@ -205,7 +364,7 @@ export async function verifyVisitorPass(code, guardUser) {
     throw new Error(`This visitor pass is currently marked as ${visitor.status}.`);
   }
 
-  await updateDoc(doc(db, 'visitors', visitor.id), {
+  await updateDoc(getVisitorDoc(visitor.id, societyId), {
     status: 'checked_in',
     checkedInAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
@@ -229,31 +388,168 @@ export async function verifyVisitorPass(code, guardUser) {
       visitorId: visitor.id,
       visitorName: visitor.name || visitor.visitorName,
       flat: visitor.flat,
+      societyId,
+      channels: {
+        inApp: true,
+        push: true,
+        email: false,
+        sms: false,
+      },
     });
   }
 
   return visitor;
 }
 
-export async function updateVisitorStatus(id, status) {
-  await updateDoc(doc(db, 'visitors', id), {
+export async function updateVisitorStatus(id, status, actor = {}) {
+  const societyId = getSocietyId(actor);
+  const visitorRef = getVisitorDoc(id, societyId);
+  const visitorSnapshot = await getDoc(visitorRef);
+  if (!visitorSnapshot.exists()) {
+    throw new Error('Visitor record not found.');
+  }
+
+  const visitor = { id: visitorSnapshot.id, ...visitorSnapshot.data() };
+
+  await updateDoc(visitorRef, {
     status,
     updatedAt: serverTimestamp(),
+    history: arrayUnion({
+      type: status,
+      actor: actor.name || 'Resident',
+      at: new Date().toISOString(),
+    }),
   });
+
+  if (visitor.residentId) {
+    const title = status === 'approved' ? 'Visitor approved' : 'Visitor denied';
+    const message = status === 'approved'
+      ? `${visitor.name || visitor.visitorName} is approved and ready for check-in at the gate.`
+      : `${visitor.name || visitor.visitorName} was denied entry.`;
+
+    await createNotification({
+      userId: visitor.residentId,
+      type: `visitor-${status}`,
+      title,
+      message,
+      visitorId: visitor.id,
+      visitorName: visitor.name || visitor.visitorName,
+      flat: visitor.flat,
+      societyId,
+    });
+  }
+}
+
+export async function checkInVisitor(visitorId, guardUser) {
+  const societyId = getSocietyId(guardUser);
+  const visitorRef = getVisitorDoc(visitorId, societyId);
+  const visitorSnapshot = await getDoc(visitorRef);
+  if (!visitorSnapshot.exists()) {
+    throw new Error('Visitor record not found.');
+  }
+
+  const visitor = { id: visitorSnapshot.id, ...visitorSnapshot.data() };
+  if (!['approved', 'preapproved'].includes(visitor.status)) {
+    throw new Error(`Only approved visitors can be checked in. Current status: ${visitor.status}.`);
+  }
+
+  await updateDoc(visitorRef, {
+    status: 'checked_in',
+    checkedInAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+    verifiedBy: {
+      uid: guardUser?.uid || '',
+      name: guardUser?.name || 'Guard',
+    },
+    history: arrayUnion({
+      type: 'checked_in',
+      actor: guardUser?.name || 'Guard',
+      at: new Date().toISOString(),
+    }),
+  });
+
+  if (visitor.residentId) {
+    await createNotification({
+      userId: visitor.residentId,
+      type: 'visitor-entered',
+      title: 'Visitor entered',
+      message: `${visitor.name || visitor.visitorName} has entered Soulvest Commune.`,
+      visitorId: visitor.id,
+      visitorName: visitor.name || visitor.visitorName,
+      flat: visitor.flat,
+      societyId,
+      channels: {
+        inApp: true,
+        push: true,
+        email: false,
+        sms: false,
+      },
+    });
+  }
+}
+
+export async function checkOutVisitor(visitorId, guardUser) {
+  const societyId = getSocietyId(guardUser);
+  const visitorRef = getVisitorDoc(visitorId, societyId);
+  const visitorSnapshot = await getDoc(visitorRef);
+  if (!visitorSnapshot.exists()) {
+    throw new Error('Visitor record not found.');
+  }
+
+  const visitor = { id: visitorSnapshot.id, ...visitorSnapshot.data() };
+  if (visitor.status !== 'checked_in') {
+    throw new Error(`Only checked-in visitors can be checked out. Current status: ${visitor.status}.`);
+  }
+
+  await updateDoc(visitorRef, {
+    status: 'checked_out',
+    exitTime: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+    history: arrayUnion({
+      type: 'checked_out',
+      actor: guardUser?.name || 'Guard',
+      at: new Date().toISOString(),
+    }),
+  });
+
+  if (visitor.residentId) {
+    await createNotification({
+      userId: visitor.residentId,
+      type: 'visitor-exited',
+      title: 'Visitor exited',
+      message: `${visitor.name || visitor.visitorName} has exited Soulvest Commune.`,
+      visitorId: visitor.id,
+      visitorName: visitor.name || visitor.visitorName,
+      flat: visitor.flat,
+      societyId,
+      channels: {
+        inApp: true,
+        push: true,
+        email: false,
+        sms: false,
+      },
+    });
+  }
 }
 
 export async function createPaymentRecord(payment) {
-  await addDoc(paymentsCollection, {
+  const societyId = getSocietyId(payment);
+  const billingCycle = toMonthYear(payment.dueDate);
+  await addDoc(getPaymentsCollection(societyId), {
     ...payment,
+    societyId,
     flat: normalizeFlat(payment.flat),
     amount: Number(payment.amount || 0),
+    month: payment.month || billingCycle.month,
+    year: payment.year || billingCycle.year,
+    status: payment.status === 'paid' ? 'paid' : (payment.status || 'pending'),
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
 }
 
 export async function markPaymentAsPaid(paymentId, extra = {}) {
-  await updateDoc(doc(db, 'payments', paymentId), {
+  await updateDoc(getPaymentDoc(paymentId, extra.societyId || DEFAULT_SOCIETY_ID), {
     status: 'paid',
     paidAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
@@ -261,20 +557,24 @@ export async function markPaymentAsPaid(paymentId, extra = {}) {
   });
 }
 
-export function subscribeToPayments(callback) {
-  const paymentsQuery = query(paymentsCollection);
+export function subscribeToPayments(callback, context = DEFAULT_SOCIETY_ID) {
+  const paymentsQuery = query(getPaymentsCollection(context));
   return onSnapshot(paymentsQuery, (snapshot) => {
     callback(
-      mapSnapshot(snapshot).sort((left, right) => getComparableTime(right.createdAt) - getComparableTime(left.createdAt)),
+      mapSnapshot(snapshot)
+        .map((payment) => ({ ...payment, derivedStatus: getDerivedPaymentStatus(payment) }))
+        .sort((left, right) => getComparableTime(right.createdAt) - getComparableTime(left.createdAt)),
     );
   });
 }
 
-export function subscribeToResidentPayments(userId, callback) {
-  const residentPaymentsQuery = query(paymentsCollection, where('userId', '==', userId));
+export function subscribeToResidentPayments(userId, callback, context = DEFAULT_SOCIETY_ID) {
+  const residentPaymentsQuery = query(getPaymentsCollection(context), where('userId', '==', userId));
   return onSnapshot(residentPaymentsQuery, (snapshot) => {
     callback(
-      mapSnapshot(snapshot).sort((left, right) => getComparableTime(right.createdAt) - getComparableTime(left.createdAt)),
+      mapSnapshot(snapshot)
+        .map((payment) => ({ ...payment, derivedStatus: getDerivedPaymentStatus(payment) }))
+        .sort((left, right) => getComparableTime(right.createdAt) - getComparableTime(left.createdAt)),
     );
   });
 }
@@ -283,7 +583,7 @@ export async function seedResidentPaymentIfMissing(user) {
   if (!user?.uid) return;
   const now = new Date();
   const starterId = `starter-${user.uid}-${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  const starterRef = doc(db, 'payments', starterId);
+  const starterRef = getPaymentDoc(starterId, getSocietyId(user));
   const starterSnapshot = await getDoc(starterRef);
   if (starterSnapshot.exists()) return;
 
@@ -291,19 +591,211 @@ export async function seedResidentPaymentIfMissing(user) {
     userId: user.uid,
     residentName: user.name || 'Resident',
     flat: user.flat,
+    societyId: getSocietyId(user),
     title: 'Monthly Maintenance',
     dueDate: new Date(now.getFullYear(), now.getMonth(), 28).toISOString(),
     amount: 3500,
+    month: String(now.getMonth() + 1).padStart(2, '0'),
+    year: now.getFullYear(),
     breakdown: {
       Security: 40,
       Housekeeping: 25,
       Utilities: 20,
       Other: 15,
     },
-    status: 'due',
+    status: 'pending',
     method: 'manual',
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
+  });
+}
+
+export async function createAnnouncement(announcement) {
+  const societyId = getSocietyId(announcement);
+  await addDoc(getAnnouncementsCollection(societyId), {
+    title: announcement.title,
+    body: announcement.body,
+    societyId,
+    language: announcement.language || 'en',
+    pinned: Boolean(announcement.pinned),
+    postedBy: announcement.postedBy || null,
+    aiGenerated: Boolean(announcement.aiGenerated),
+    audience: announcement.audience || 'all',
+    acknowledgements: [],
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function acknowledgeAnnouncement(announcementId, user) {
+  const announcementRef = getAnnouncementDoc(announcementId, getSocietyId(user));
+  const announcementSnapshot = await getDoc(announcementRef);
+  if (!announcementSnapshot.exists()) {
+    throw new Error('Announcement not found.');
+  }
+
+  const announcement = announcementSnapshot.data();
+  const acknowledgements = announcement.acknowledgements || [];
+  if (acknowledgements.some((entry) => entry.userId === user?.uid)) {
+    return;
+  }
+
+  await updateDoc(announcementRef, {
+    acknowledgements: arrayUnion({
+      userId: user?.uid || '',
+      name: user?.name || 'Resident',
+      at: new Date().toISOString(),
+    }),
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function createComplaint(complaint) {
+  const societyId = getSocietyId(complaint);
+  await addDoc(getComplaintsCollection(societyId), {
+    residentId: complaint.residentId,
+    residentName: complaint.residentName || 'Resident',
+    societyId,
+    flat: normalizeFlat(complaint.flat),
+    category: complaint.category,
+    description: complaint.description,
+    status: 'open',
+    aiPriority: complaint.aiPriority || getComplaintPriority(complaint.description, complaint.category),
+    createdAt: serverTimestamp(),
+    resolvedAt: null,
+    updatedAt: serverTimestamp(),
+    history: [
+      {
+        type: 'open',
+        actor: complaint.residentName || 'Resident',
+        at: new Date().toISOString(),
+      },
+    ],
+  });
+}
+
+export async function updateComplaintStatus(complaintId, status, actor = {}, extra = {}) {
+  const societyId = getSocietyId(actor);
+  const complaintRef = getComplaintDoc(complaintId, societyId);
+  const complaintSnapshot = await getDoc(complaintRef);
+  if (!complaintSnapshot.exists()) {
+    throw new Error('Complaint not found.');
+  }
+
+  const complaint = { id: complaintSnapshot.id, ...complaintSnapshot.data() };
+  await updateDoc(complaintRef, {
+    status,
+    aiPriority: extra.aiPriority || complaint.aiPriority,
+    adminNotes: extra.adminNotes || complaint.adminNotes || '',
+    updatedAt: serverTimestamp(),
+    resolvedAt: status === 'resolved' ? serverTimestamp() : complaint.resolvedAt || null,
+    history: arrayUnion({
+      type: status,
+      actor: actor.name || 'Admin',
+      at: new Date().toISOString(),
+    }),
+  });
+
+  if (complaint.residentId) {
+    await createNotification({
+      userId: complaint.residentId,
+      type: 'complaint-status-updated',
+      title: 'Complaint status updated',
+      message: `${complaint.category} complaint is now ${status.replace('_', ' ')}.`,
+      complaintId,
+      societyId,
+      channels: {
+        inApp: true,
+        push: true,
+        email: false,
+        sms: false,
+      },
+    });
+  }
+}
+
+export async function seedDemoDayData({ adminUser, residents = [] } = {}) {
+  const primaryResident = residents[0];
+  if (!primaryResident) {
+    throw new Error('Add at least one resident before seeding demo data.');
+  }
+
+  const monthLabel = String(new Date().getMonth() + 1).padStart(2, '0');
+  const societyId = getSocietyId(adminUser || primaryResident);
+  const announcementRef = getAnnouncementDoc('demo-water-shutdown', societyId);
+  const complaintRef = getComplaintDoc(`demo-complaint-${primaryResident.id}`, societyId);
+  const paymentRef = getPaymentDoc(`demo-charge-${primaryResident.id}-${new Date().getFullYear()}-${monthLabel}`, societyId);
+
+  await setDoc(announcementRef, {
+    title: 'Water shutdown from 6 PM to 8 PM',
+    body: 'Tank cleaning is scheduled this evening. Please store enough water for two hours.',
+    societyId,
+    language: 'en',
+    pinned: true,
+    postedBy: {
+      uid: adminUser?.uid || '',
+      name: adminUser?.name || 'Admin',
+    },
+    aiGenerated: false,
+    audience: 'all',
+    acknowledgements: [],
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  }, { merge: true });
+
+  await setDoc(complaintRef, {
+    residentId: primaryResident.id,
+    residentName: primaryResident.name || 'Resident',
+    societyId,
+    flat: normalizeFlat(primaryResident.flat),
+    category: 'lift',
+    description: 'Lift B makes a loud noise and stops briefly on floor 7.',
+    status: 'inprogress',
+    aiPriority: 'high',
+    adminNotes: 'Vendor visit scheduled for 5 PM.',
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+    resolvedAt: null,
+    history: [
+      { type: 'open', actor: primaryResident.name || 'Resident', at: new Date().toISOString() },
+      { type: 'inprogress', actor: adminUser?.name || 'Admin', at: new Date().toISOString() },
+    ],
+  }, { merge: true });
+
+  await setDoc(paymentRef, {
+    userId: primaryResident.id,
+    residentName: primaryResident.name || 'Resident',
+    societyId,
+    flat: normalizeFlat(primaryResident.flat),
+    title: 'Monthly Maintenance',
+    dueDate: new Date(new Date().getFullYear(), new Date().getMonth(), 28).toISOString(),
+    amount: 4200,
+    month: monthLabel,
+    year: new Date().getFullYear(),
+    breakdown: {
+      Security: 38,
+      Housekeeping: 24,
+      Utilities: 21,
+      Other: 17,
+    },
+    status: 'pending',
+    method: 'manual',
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  }, { merge: true });
+
+  await createNotification({
+    userId: primaryResident.id,
+    type: 'announcement-posted',
+    title: 'New announcement posted',
+    message: 'Water shutdown from 6 PM to 8 PM has been posted for residents.',
+    societyId,
+    channels: {
+      inApp: true,
+      push: true,
+      email: false,
+      sms: false,
+    },
   });
 }
 

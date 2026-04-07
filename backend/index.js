@@ -19,19 +19,57 @@ app.get('/', (req, res) => {
 
 // Firestore
 const db = require('./firebase');
+const { dispatchNotifications } = require('./notification-service');
+
+function getSocietyCollection(societyId, collectionName) {
+  return db.collection('societies').doc(societyId).collection(collectionName);
+}
+
+app.post('/notifications/dispatch', async (req, res) => {
+  const { userId, societyId = 'brigade-metropolis', title, message, channels = {}, meta = {} } = req.body;
+  if (!userId || !title || !message) {
+    return res.status(400).json({ error: 'userId, title, and message are required' });
+  }
+
+  try {
+    const userSnapshot = await db.collection('users').doc(userId).get();
+    if (!userSnapshot.exists) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const user = { id: userSnapshot.id, ...userSnapshot.data() };
+    const results = await dispatchNotifications(user, { title, message, channels, meta });
+
+    await db.collection('notificationDispatchLogs').add({
+      userId,
+      societyId,
+      title,
+      message,
+      channels,
+      meta,
+      results,
+      createdAt: new Date().toISOString(),
+    });
+
+    res.json({ ok: true, results });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to dispatch notifications', details: err.message });
+  }
+});
 
 // Log a new visitor (Firestore)
 app.post('/visitors', async (req, res) => {
-  const { name, flat, purpose, time } = req.body;
+  const { name, flat, purpose, time, societyId = 'brigade-metropolis' } = req.body;
   if (!name || !flat || !purpose || !time) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
   try {
-    const docRef = await db.collection('visitors').add({
+    const docRef = await getSocietyCollection(societyId, 'visitors').add({
       name,
       flat,
       purpose,
       time,
+      societyId,
       status: 'pending',
       createdAt: new Date().toISOString(),
     });
@@ -44,9 +82,9 @@ app.post('/visitors', async (req, res) => {
 
 // Get all visitors (optionally filter by status)
 app.get('/visitors', async (req, res) => {
-  const { status } = req.query;
+  const { status, societyId = 'brigade-metropolis' } = req.query;
   try {
-    let query = db.collection('visitors').orderBy('createdAt', 'desc');
+    let query = getSocietyCollection(societyId, 'visitors').orderBy('createdAt', 'desc');
     if (status) {
       query = query.where('status', '==', status);
     }
@@ -62,12 +100,12 @@ app.get('/visitors', async (req, res) => {
 // Update visitor status (approve/deny)
 app.patch('/visitors/:id', async (req, res) => {
   const { id } = req.params;
-  const { status } = req.body;
+  const { status, societyId = 'brigade-metropolis' } = req.body;
   if (!['approved', 'denied'].includes(status)) {
     return res.status(400).json({ error: 'Invalid status' });
   }
   try {
-    const docRef = db.collection('visitors').doc(id);
+    const docRef = getSocietyCollection(societyId, 'visitors').doc(id);
     const doc = await docRef.get();
     if (!doc.exists) return res.status(404).json({ error: 'Visitor not found' });
     await docRef.update({ status });

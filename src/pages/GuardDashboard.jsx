@@ -19,11 +19,19 @@ import QrCode2Icon from '@mui/icons-material/QrCode2';
 import { useNavigate } from 'react-router-dom';
 import { useAuthContext } from '../components/AuthContext';
 import ChatbotWidget from '../components/ChatbotWidget';
-import { createVisitor, subscribeToVisitors, verifyVisitorPass } from '../services/communityData';
+import { useFeatureFlags } from '../hooks/useFeatureFlags';
+import {
+  checkInVisitor,
+  checkOutVisitor,
+  createVisitor,
+  subscribeToVisitors,
+  verifyVisitorPass,
+} from '../services/communityData';
 
 const statusColorMap = {
   approved: 'success',
   checked_in: 'success',
+  checked_out: 'default',
   denied: 'error',
   pending: 'warning',
   preapproved: 'info',
@@ -37,14 +45,16 @@ export default function GuardDashboard() {
   const [submitting, setSubmitting] = useState(false);
   const [verificationCode, setVerificationCode] = useState('');
   const [verifying, setVerifying] = useState(false);
+  const [processingVisitorId, setProcessingVisitorId] = useState('');
   const [banner, setBanner] = useState({ type: '', message: '' });
   const { user, logout } = useAuthContext();
+  const featureFlags = useFeatureFlags();
   const navigate = useNavigate();
 
   useEffect(() => {
-    const unsubscribe = subscribeToVisitors(setVisitors);
+    const unsubscribe = subscribeToVisitors(setVisitors, user);
     return () => unsubscribe();
-  }, []);
+  }, [user]);
 
   const stats = useMemo(() => ({
     total: visitors.length,
@@ -69,10 +79,14 @@ export default function GuardDashboard() {
     setSubmitting(true);
     setBanner({ type: '', message: '' });
     try {
-      await createVisitor(visitor);
+      await createVisitor({
+        ...visitor,
+        loggedByName: user?.name || 'Guard',
+        loggedByUid: user?.uid || '',
+      });
       setVisitor({ name: '', flat: '', purpose: '', time: '' });
       setDialogOpen(false);
-      setBanner({ type: 'success', message: 'Visitor logged successfully.' });
+      setBanner({ type: 'success', message: 'Visitor logged and resident alert sent.' });
     } catch (error) {
       setBanner({ type: 'error', message: error.message || 'Unable to log visitor.' });
     }
@@ -102,6 +116,34 @@ export default function GuardDashboard() {
     logout();
     navigate('/login');
   };
+
+  const handleCheckIn = async (visitorId) => {
+    setProcessingVisitorId(visitorId);
+    setBanner({ type: '', message: '' });
+    try {
+      await checkInVisitor(visitorId, user);
+      setBanner({ type: 'success', message: 'Visitor checked in and resident notified.' });
+    } catch (error) {
+      setBanner({ type: 'error', message: error.message || 'Unable to check in this visitor.' });
+    }
+    setProcessingVisitorId('');
+  };
+
+  const handleCheckOut = async (visitorId) => {
+    setProcessingVisitorId(visitorId);
+    setBanner({ type: '', message: '' });
+    try {
+      await checkOutVisitor(visitorId, user);
+      setBanner({ type: 'success', message: 'Visitor checked out and resident notified.' });
+    } catch (error) {
+      setBanner({ type: 'error', message: error.message || 'Unable to check out this visitor.' });
+    }
+    setProcessingVisitorId('');
+  };
+
+  const readyToVerify = visitors.filter((entry) => entry.status === 'preapproved');
+  const readyToCheckIn = visitors.filter((entry) => entry.status === 'approved');
+  const checkedInVisitors = visitors.filter((entry) => entry.status === 'checked_in');
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default', px: 2, py: 3 }}>
@@ -175,11 +217,11 @@ export default function GuardDashboard() {
               Ready To Verify
             </Typography>
             <Stack spacing={1.5}>
-              {visitors.filter((entry) => entry.status === 'preapproved').length === 0 && (
+              {readyToVerify.length === 0 && (
                 <Typography color="text.secondary">No pre-approved passes are waiting at the gate.</Typography>
               )}
 
-              {visitors.filter((entry) => entry.status === 'preapproved').slice(0, 6).map((entry) => (
+              {readyToVerify.slice(0, 6).map((entry) => (
                 <Paper key={entry.id} variant="outlined" sx={{ p: 2, borderRadius: 3 }}>
                   <Typography variant="subtitle1">{entry.name}</Typography>
                   <Typography color="text.secondary">Flat {entry.flat} • {entry.purpose}</Typography>
@@ -194,14 +236,14 @@ export default function GuardDashboard() {
 
           <Paper elevation={2} sx={{ p: 2.5, borderRadius: 3 }}>
             <Typography variant="h6" sx={{ mb: 2 }}>
-              Recent Visitors
+              Gate Actions
             </Typography>
             <Stack spacing={1.5}>
-              {visitors.length === 0 && (
-                <Typography color="text.secondary">No visitors logged yet.</Typography>
+              {readyToCheckIn.length === 0 && checkedInVisitors.length === 0 && (
+                <Typography color="text.secondary">No approved or checked-in visitors need action right now.</Typography>
               )}
 
-              {visitors.slice(0, 8).map((entry) => (
+              {readyToCheckIn.map((entry) => (
                 <Paper
                   key={entry.id}
                   variant="outlined"
@@ -221,16 +263,91 @@ export default function GuardDashboard() {
                         Flat {entry.flat} • {entry.purpose}
                       </Typography>
                       <Typography color="text.secondary">
-                        {entry.checkedInAt ? 'Checked in' : entry.expectedAt ? `Expected: ${new Date(entry.expectedAt).toLocaleString()}` : `Arrival: ${entry.time}`}
+                        Resident approved. Ready for gate check-in.
                       </Typography>
                     </Box>
-                    <Chip label={entry.status || 'pending'} color={statusColorMap[entry.status] || 'default'} />
+                    <Stack alignItems={{ xs: 'stretch', md: 'flex-end' }} spacing={1}>
+                      <Chip label="approved" color="success" />
+                      <Button
+                        variant="contained"
+                        onClick={() => handleCheckIn(entry.id)}
+                        disabled={processingVisitorId === entry.id}
+                      >
+                        {processingVisitorId === entry.id ? 'Checking In...' : 'Check In'}
+                      </Button>
+                    </Stack>
+                  </Box>
+                </Paper>
+              ))}
+
+              {checkedInVisitors.map((entry) => (
+                <Paper
+                  key={entry.id}
+                  variant="outlined"
+                  sx={{ p: 2, borderRadius: 3, bgcolor: 'rgba(255,255,255,0.55)' }}
+                >
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      flexDirection: { xs: 'column', md: 'row' },
+                      gap: 1,
+                    }}
+                  >
+                    <Box>
+                      <Typography variant="subtitle1">{entry.name}</Typography>
+                      <Typography color="text.secondary">
+                        Flat {entry.flat} • {entry.purpose}
+                      </Typography>
+                      <Typography color="text.secondary">
+                        {entry.checkedInAt ? `Checked in at ${new Date(entry.checkedInAt?.seconds ? entry.checkedInAt.seconds * 1000 : entry.checkedInAt).toLocaleString()}` : 'Checked in'}
+                      </Typography>
+                    </Box>
+                    <Stack alignItems={{ xs: 'stretch', md: 'flex-end' }} spacing={1}>
+                      <Chip label={entry.status || 'pending'} color={statusColorMap[entry.status] || 'default'} />
+                      <Button
+                        variant="outlined"
+                        onClick={() => handleCheckOut(entry.id)}
+                        disabled={processingVisitorId === entry.id}
+                      >
+                        {processingVisitorId === entry.id ? 'Checking Out...' : 'Check Out'}
+                      </Button>
+                    </Stack>
                   </Box>
                 </Paper>
               ))}
             </Stack>
           </Paper>
         </Box>
+
+        <Paper elevation={2} sx={{ p: 2.5, borderRadius: 3, mt: 2 }}>
+          <Typography variant="h6" sx={{ mb: 2 }}>
+            Recent Visitor Log
+          </Typography>
+          <Stack spacing={1.5}>
+            {visitors.length === 0 && <Typography color="text.secondary">No visitors logged yet.</Typography>}
+            {visitors.slice(0, 8).map((entry) => (
+              <Paper key={entry.id} variant="outlined" sx={{ p: 2, borderRadius: 3 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, flexDirection: { xs: 'column', md: 'row' } }}>
+                  <Box>
+                    <Typography variant="subtitle1">{entry.name}</Typography>
+                    <Typography color="text.secondary">Flat {entry.flat} • {entry.purpose}</Typography>
+                    <Typography color="text.secondary">
+                      {entry.exitTime
+                        ? `Exited: ${new Date(entry.exitTime?.seconds ? entry.exitTime.seconds * 1000 : entry.exitTime).toLocaleString()}`
+                        : entry.checkedInAt
+                          ? `Checked in: ${new Date(entry.checkedInAt?.seconds ? entry.checkedInAt.seconds * 1000 : entry.checkedInAt).toLocaleString()}`
+                          : entry.expectedAt
+                            ? `Expected: ${new Date(entry.expectedAt).toLocaleString()}`
+                            : `Arrival: ${entry.time}`}
+                    </Typography>
+                  </Box>
+                  <Chip label={entry.status || 'pending'} color={statusColorMap[entry.status] || 'default'} />
+                </Box>
+              </Paper>
+            ))}
+          </Stack>
+        </Paper>
       </Box>
 
       <Dialog open={dialogOpen} onClose={() => !submitting && setDialogOpen(false)} fullWidth maxWidth="sm">
@@ -285,8 +402,7 @@ export default function GuardDashboard() {
           </Button>
         </DialogActions>
       </Dialog>
-
-      <ChatbotWidget />
+      {featureFlags.AI_CHATBOT && <ChatbotWidget />}
     </Box>
   );
 }

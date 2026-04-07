@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  Divider,
   Alert,
   Box,
   Button,
@@ -12,11 +13,17 @@ import {
 } from '@mui/material';
 import LogoutIcon from '@mui/icons-material/Logout';
 import AddCardIcon from '@mui/icons-material/AddCard';
+import DownloadIcon from '@mui/icons-material/Download';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import { useNavigate } from 'react-router-dom';
 import { useAuthContext } from '../components/AuthContext';
 import ChatbotWidget from '../components/ChatbotWidget';
+import { useFeatureFlags } from '../hooks/useFeatureFlags';
 import {
   createPaymentRecord,
+  seedDemoDayData,
+  subscribeToAnnouncements,
+  subscribeToComplaints,
   subscribeToPayments,
   subscribeToResidents,
   subscribeToVisitors,
@@ -28,8 +35,11 @@ export default function AdminDashboard() {
   const [residents, setResidents] = useState([]);
   const [payments, setPayments] = useState([]);
   const [visitors, setVisitors] = useState([]);
+  const [announcements, setAnnouncements] = useState([]);
+  const [complaints, setComplaints] = useState([]);
   const [banner, setBanner] = useState({ type: '', message: '' });
   const [creating, setCreating] = useState(false);
+  const [seeding, setSeeding] = useState(false);
   const [chargeForm, setChargeForm] = useState({
     residentId: 'all',
     title: 'Monthly Maintenance',
@@ -37,31 +47,38 @@ export default function AdminDashboard() {
     dueDate: '',
   });
   const { user, logout } = useAuthContext();
+  const featureFlags = useFeatureFlags();
   const navigate = useNavigate();
 
   useEffect(() => {
     const unsubResidents = subscribeToResidents(setResidents);
-    const unsubPayments = subscribeToPayments(setPayments);
-    const unsubVisitors = subscribeToVisitors(setVisitors);
+    const unsubPayments = subscribeToPayments(setPayments, user);
+    const unsubVisitors = subscribeToVisitors(setVisitors, user);
+    const unsubAnnouncements = subscribeToAnnouncements(setAnnouncements, user);
+    const unsubComplaints = subscribeToComplaints(setComplaints, { context: user });
     return () => {
       unsubResidents();
       unsubPayments();
       unsubVisitors();
+      unsubAnnouncements();
+      unsubComplaints();
     };
-  }, []);
+  }, [user]);
 
   const stats = useMemo(() => {
     const outstanding = payments
-      .filter((payment) => payment.status !== 'paid')
+      .filter((payment) => payment.derivedStatus !== 'paid')
       .reduce((total, payment) => total + Number(payment.amount || 0), 0);
 
     return {
       residents: residents.length,
       pendingVisitors: visitors.filter((entry) => entry.status === 'pending').length,
       outstanding,
-      paymentsReceived: payments.filter((payment) => payment.status === 'paid').length,
+      paymentsReceived: payments.filter((payment) => payment.derivedStatus === 'paid').length,
+      openComplaints: complaints.filter((complaint) => complaint.status !== 'resolved').length,
+      pinnedAnnouncements: announcements.filter((announcement) => announcement.pinned).length,
     };
-  }, [payments, residents, visitors]);
+  }, [announcements, complaints, payments, residents, visitors]);
 
   const handleLogout = () => {
     logout();
@@ -94,6 +111,7 @@ export default function AdminDashboard() {
             userId: resident.id,
             residentName: resident.name || 'Resident',
             flat: resident.flat,
+            societyId: resident.societyId || user?.societyId,
             title: chargeForm.title,
             dueDate: chargeForm.dueDate || new Date().toISOString(),
             amount: Number(chargeForm.amount),
@@ -103,7 +121,7 @@ export default function AdminDashboard() {
               Utilities: 20,
               Other: 15,
             },
-            status: 'due',
+            status: 'pending',
             method: 'manual',
           }),
         ),
@@ -117,6 +135,40 @@ export default function AdminDashboard() {
       setBanner({ type: 'error', message: error.message || 'Unable to create the charge.' });
     }
     setCreating(false);
+  };
+
+  const handleExportDues = () => {
+    const rows = [
+      ['Resident', 'Flat', 'Title', 'Amount', 'Status', 'Due Date'],
+      ...payments.map((payment) => [
+        payment.residentName || 'Resident',
+        payment.flat || 'N/A',
+        payment.title || 'Charge',
+        Number(payment.amount || 0),
+        payment.derivedStatus || payment.status,
+        payment.dueDate || '',
+      ]),
+    ];
+
+    const csv = rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'soulvest-dues-summary.csv';
+    link.click();
+    URL.revokeObjectURL(link.href);
+  };
+
+  const handleSeedDemo = async () => {
+    setSeeding(true);
+    setBanner({ type: '', message: '' });
+    try {
+      await seedDemoDayData({ adminUser: user, residents });
+      setBanner({ type: 'success', message: 'Demo day data seeded for visitors, dues, announcements, and complaints.' });
+    } catch (error) {
+      setBanner({ type: 'error', message: error.message || 'Unable to seed demo data.' });
+    }
+    setSeeding(false);
   };
 
   return (
@@ -174,6 +226,15 @@ export default function AdminDashboard() {
             <Typography variant="h4">{stats.paymentsReceived}</Typography>
           </Paper>
         </Box>
+
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} sx={{ mb: 3 }}>
+          <Button variant="outlined" startIcon={<DownloadIcon />} onClick={handleExportDues}>
+            Export Dues CSV
+          </Button>
+          <Button variant="contained" color="secondary" startIcon={<AutoAwesomeIcon />} onClick={handleSeedDemo} disabled={seeding}>
+            {seeding ? 'Seeding Demo...' : 'Seed Demo Day'}
+          </Button>
+        </Stack>
 
         <Box
           sx={{
@@ -236,14 +297,42 @@ export default function AdminDashboard() {
                       <Stack alignItems="flex-end" spacing={0.5}>
                         <Typography fontWeight={700}>{formatAmount(payment.amount)}</Typography>
                         <Chip
-                          label={payment.status === 'paid' ? 'Paid' : 'Due'}
-                          color={payment.status === 'paid' ? 'success' : 'warning'}
+                          label={payment.derivedStatus === 'paid' ? 'Paid' : payment.derivedStatus === 'overdue' ? 'Overdue' : 'Pending'}
+                          color={payment.derivedStatus === 'paid' ? 'success' : payment.derivedStatus === 'overdue' ? 'error' : 'warning'}
                         />
                       </Stack>
                     </Box>
                   </Paper>
                 ))}
                 {payments.length === 0 && <Typography color="text.secondary">No payment records yet.</Typography>}
+              </Stack>
+            </Paper>
+
+            <Paper elevation={2} sx={{ p: 2.5, borderRadius: 3 }}>
+              <Typography variant="h6" sx={{ mb: 2 }}>
+                Communications & Issues
+              </Typography>
+              <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
+                <Chip label={`${stats.pinnedAnnouncements} pinned notice${stats.pinnedAnnouncements === 1 ? '' : 's'}`} color="warning" variant="outlined" />
+                <Chip label={`${stats.openComplaints} open complaint${stats.openComplaints === 1 ? '' : 's'}`} color="error" variant="outlined" />
+              </Stack>
+              <Divider sx={{ mb: 2 }} />
+              <Stack spacing={1.5}>
+                {announcements.slice(0, 2).map((announcement) => (
+                  <Paper key={announcement.id} variant="outlined" sx={{ p: 2, borderRadius: 3 }}>
+                    <Typography variant="subtitle1">{announcement.title}</Typography>
+                    <Typography color="text.secondary">Ack count: {(announcement.acknowledgements || []).length}</Typography>
+                  </Paper>
+                ))}
+                {complaints.slice(0, 2).map((complaint) => (
+                  <Paper key={complaint.id} variant="outlined" sx={{ p: 2, borderRadius: 3 }}>
+                    <Typography variant="subtitle1">{complaint.category}</Typography>
+                    <Typography color="text.secondary">{complaint.status} • {complaint.flat || 'No flat'}</Typography>
+                  </Paper>
+                ))}
+                {announcements.length === 0 && complaints.length === 0 && (
+                  <Typography color="text.secondary">No announcements or complaints yet.</Typography>
+                )}
               </Stack>
             </Paper>
           </Stack>
@@ -288,8 +377,7 @@ export default function AdminDashboard() {
           </Stack>
         </Box>
       </Box>
-
-      <ChatbotWidget />
+      {featureFlags.AI_CHATBOT && <ChatbotWidget />}
     </Box>
   );
 }

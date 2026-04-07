@@ -5,16 +5,18 @@ import ReportIcon from '@mui/icons-material/Report';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import PollIcon from '@mui/icons-material/Poll';
 import PersonIcon from '@mui/icons-material/Person';
-
-const tabs = [
-  { label: 'Home', to: '/home', icon: <HomeIcon /> },
-  { label: 'Complaints', to: '/complaints', icon: <ReportIcon /> },
-  { label: 'Expenses', to: '/expenses', icon: <AccountBalanceWalletIcon /> },
-  { label: 'Polls', to: '/polls', icon: <PollIcon /> },
-  { label: 'Profile', to: '/profile', icon: <PersonIcon /> },
-];
+import { useFeatureFlags } from '../hooks/useFeatureFlags';
 
 export default function Navbar() {
+  const featureFlags = useFeatureFlags();
+  const tabs = [
+    { label: 'Home', to: '/home', icon: <HomeIcon /> },
+    ...(featureFlags.COMPLAINTS ? [{ label: 'Complaints', to: '/complaints', icon: <ReportIcon /> }] : []),
+    { label: 'Expenses', to: '/expenses', icon: <AccountBalanceWalletIcon /> },
+    { label: 'Polls', to: '/polls', icon: <PollIcon /> },
+    { label: 'Profile', to: '/profile', icon: <PersonIcon /> },
+  ];
+
   return (
     <nav className="fixed bottom-0 w-full bg-white shadow-md flex justify-around py-2 z-10 border-t">
       {tabs.map(({ label, to, icon }) => (

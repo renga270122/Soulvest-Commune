@@ -1,0 +1,45 @@
+{
+  "landing": {
+    "greeting": "Namaskara",
+    "heroTitle": "Run Your Commune Like A Royal Court, Not A Chaotic Chat Group.",
+    "heroCopy": "Soulvest Commune brings guest approvals, guard verification, resident dues, AI assistance, and society operations into one elegant Karnataka-first platform.",
+    "stats": {
+      "cheaperOps": "Cheaper Ops",
+      "assistantLayer": "Assistant Layer",
+      "realtimeUpdates": "Realtime Updates",
+      "readyForGates": "Ready For Gates"
+    },
+    "bannerEyebrow": "AI Banner",
+    "bannerTitle": "India's First AI-Powered Society App",
+    "bannerCopy": "From visitor flow to dues and complaints, every screen is built for a 10-minute committee demo that feels live, modern, and believable.",
+    "featureEstate": "Feature Estate",
+    "featureTitle": "Eight demo-ready stories in one platform.",
+    "footer": "Copyright {{year}} Soulvest Commune. All rights reserved. Made with love in Bengaluru, India."
+  },
+  "auth": {
+    "signIn": "Sign In",
+    "registerSociety": "Register Society",
+    "royalAccess": "Royal Access",
+    "enterCommune": "Enter Commune",
+    "loginDescription": "Choose your role, sign in with your registered account, and walk into the live demo story.",
+    "mobileEmail": "Mobile Number / Email",
+    "mobileEmailPlaceholder": "Enter your mobile number or email",
+    "password": "Password",
+    "passwordPlaceholder": "Enter your password",
+    "forgotPassword": "Forgot Password?",
+    "resendResetMail": "Resend Reset Mail",
+    "orContinueWith": "or continue with",
+    "googleSignIn": "Google Sign-in",
+    "connectingGoogle": "Connecting Google..."
+  },
+  "roles": {
+    "resident": "Resident",
+    "guard": "Guard",
+    "admin": "Admin"
+  },
+  "features": {
+    "announcements": "Announcements",
+    "complaints": "Complaints",
+    "aiChatbot": "AI Chatbot"
+  }
+}

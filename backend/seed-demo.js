@@ -51,6 +51,9 @@ const demoUsers = [
       mobile: '9876543210',
       flat: 'A-101',
       role: 'resident',
+      cityId: 'bengaluru',
+      societyId: 'brigade-metropolis',
+      language: 'en',
       createdAt: '2026-04-07T10:00:00.000Z',
     },
   },
@@ -65,6 +68,9 @@ const demoUsers = [
       mobile: '9876501234',
       flat: 'A-102',
       role: 'resident',
+      cityId: 'bengaluru',
+      societyId: 'brigade-metropolis',
+      language: 'en',
       createdAt: '2026-04-07T10:00:00.000Z',
     },
   },
@@ -79,6 +85,9 @@ const demoUsers = [
       mobile: '9876505678',
       flat: 'B-201',
       role: 'resident',
+      cityId: 'bengaluru',
+      societyId: 'brigade-metropolis',
+      language: 'en',
       createdAt: '2026-04-07T10:00:00.000Z',
     },
   },
@@ -93,6 +102,9 @@ const demoUsers = [
       mobile: '9876500001',
       flat: '',
       role: 'guard',
+      cityId: 'bengaluru',
+      societyId: 'brigade-metropolis',
+      language: 'en',
       createdAt: '2026-04-07T10:00:00.000Z',
     },
   },
@@ -107,10 +119,55 @@ const demoUsers = [
       mobile: '9876500002',
       flat: '',
       role: 'admin',
+      cityId: 'bengaluru',
+      societyId: 'brigade-metropolis',
+      language: 'en',
       createdAt: '2026-04-07T10:00:00.000Z',
     },
   },
 ];
+
+const demoComplaints = [
+  {
+    id: 'demo-complaint-rahul-lift',
+    residentId: 'demo-resident-rahul',
+    residentName: 'Rahul Mehra',
+    flat: 'A-101',
+    category: 'lift',
+    description: 'Lift B is stopping abruptly between floors.',
+    status: 'inprogress',
+    aiPriority: 'high',
+    adminNotes: 'Vendor inspection booked for 5 PM.',
+    history: [
+      { type: 'open', actor: 'Rahul Mehra', at: '2026-04-07T10:15:00.000Z' },
+      { type: 'inprogress', actor: 'Anita Rao', at: '2026-04-07T11:00:00.000Z' },
+    ],
+    createdAt: '2026-04-07T10:15:00.000Z',
+    updatedAt: '2026-04-07T11:00:00.000Z',
+  },
+];
+
+const demoCity = {
+  name: 'Bengaluru',
+  state: 'Karnataka',
+  language: 'kn',
+  active: true,
+  createdAt: '2026-04-07T09:00:00.000Z',
+};
+
+const demoSociety = {
+  cityId: 'bengaluru',
+  name: 'Brigade Metropolis',
+  totalUnits: 200,
+  plan: 'pro',
+  language: 'en',
+  settings: {
+    featureFlags: {},
+    notifications: {},
+    branding: {},
+  },
+  createdAt: '2026-04-07T09:00:00.000Z',
+};
 
 const demoVisitors = [
   {
@@ -285,8 +342,22 @@ async function upsertDocs(db, collectionName, docs) {
   console.log(`Seeded ${docs.length} document(s) in ${collectionName}`);
 }
 
+async function upsertSocietyDocs(db, collectionName, docs, societyId = 'brigade-metropolis') {
+  for (const entry of docs) {
+    const { id, ...data } = entry;
+    await db.collection('societies').doc(societyId).collection(collectionName).doc(id).set({
+      ...data,
+      societyId,
+    }, { merge: true });
+  }
+  console.log(`Seeded ${docs.length} document(s) in societies/${societyId}/${collectionName}`);
+}
+
 async function seed() {
   const { auth, db } = bootstrapFirebase();
+
+  await db.collection('cities').doc('bengaluru').set(demoCity, { merge: true });
+  await db.collection('societies').doc('brigade-metropolis').set(demoSociety, { merge: true });
 
   for (const user of demoUsers) {
     await upsertAuthUser(auth, user);
@@ -297,10 +368,11 @@ async function seed() {
   }
   console.log(`Seeded ${demoUsers.length} user profile document(s)`);
 
-  await upsertDocs(db, 'visitors', demoVisitors);
-  await upsertDocs(db, 'payments', demoPayments);
+  await upsertSocietyDocs(db, 'visitors', demoVisitors);
+  await upsertSocietyDocs(db, 'payments', demoPayments);
+  await upsertSocietyDocs(db, 'announcements', demoAnnouncements);
+  await upsertSocietyDocs(db, 'complaints', demoComplaints);
   await upsertDocs(db, 'notifications', demoNotifications);
-  await upsertDocs(db, 'announcements', demoAnnouncements);
 
   console.log('\nDemo data is ready.');
   console.log('Resident login: rahul@example.com / Soulvest@123');

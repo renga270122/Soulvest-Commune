@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Box, Paper, Typography, TextField, IconButton, List, ListItem, ListItemText } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
+import { useAuthContext } from './AuthContext';
+import { subscribeToResidentComplaints, subscribeToResidentPayments } from '../services/communityData';
 
 const initialMessages = [
   { sender: 'bot', text: 'Hi! I am your AI assistant. How can I help you today?' }
@@ -21,11 +23,50 @@ const getLLMReply = async (input) => {
   }
 };
 
+const getLocalConciergeReply = (input, { payments, complaints }) => {
+  const query = input.toLowerCase();
+  if (query.includes('due') || query.includes('payment') || query.includes('maintenance')) {
+    const openPayments = payments.filter((payment) => payment.derivedStatus !== 'paid');
+    if (!openPayments.length) {
+      return 'You do not have any pending maintenance dues right now.';
+    }
+    const total = openPayments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+    const nextDue = openPayments
+      .filter((payment) => payment.dueDate)
+      .sort((left, right) => new Date(left.dueDate).getTime() - new Date(right.dueDate).getTime())[0];
+    return `You have ${openPayments.length} open due${openPayments.length === 1 ? '' : 's'} totaling Rs. ${total.toLocaleString('en-IN')}. ${nextDue ? `Next due date is ${new Date(nextDue.dueDate).toLocaleDateString()}.` : ''}`;
+  }
+
+  if (query.includes('complaint')) {
+    if (!complaints.length) {
+      return 'You have no active complaints at the moment.';
+    }
+    const activeComplaint = complaints.find((complaint) => complaint.status !== 'resolved') || complaints[0];
+    return `Your latest complaint is ${activeComplaint.category} and it is currently ${activeComplaint.status}. Priority is ${activeComplaint.aiPriority || 'low'}.`;
+  }
+
+  return '';
+};
+
 const ChatbotWidget = () => {
   const [messages, setMessages] = useState(initialMessages);
   const [input, setInput] = useState('');
-
   const [loading, setLoading] = useState(false);
+  const [payments, setPayments] = useState([]);
+  const [complaints, setComplaints] = useState([]);
+  const { user } = useAuthContext();
+
+  useEffect(() => {
+    if (!user?.uid) return undefined;
+    const unsubPayments = subscribeToResidentPayments(user.uid, setPayments, user);
+    const unsubComplaints = subscribeToResidentComplaints(user.uid, setComplaints, user);
+    return () => {
+      unsubPayments();
+      unsubComplaints();
+    };
+  }, [user?.uid]);
+
+  const conciergeContext = useMemo(() => ({ payments, complaints }), [payments, complaints]);
 
   const handleSend = async () => {
     if (!input.trim()) return;
@@ -33,7 +74,8 @@ const ChatbotWidget = () => {
     setMessages((msgs) => [...msgs, userMsg]);
     setLoading(true);
     setInput('');
-    const reply = await getLLMReply(input);
+    const localReply = getLocalConciergeReply(input, conciergeContext);
+    const reply = localReply || await getLLMReply(input);
     setMessages((msgs) => [...msgs, { sender: 'bot', text: reply }]);
     setLoading(false);
   };

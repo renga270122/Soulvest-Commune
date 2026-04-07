@@ -11,6 +11,9 @@ import { useNavigate } from "react-router-dom";
 import { collection, doc, getDoc, getDocs, query, setDoc, where } from "firebase/firestore";
 import styles from "./LoginPage.module.css";
 import { useAuthContext } from "../components/AuthContext";
+import { useTranslation } from "react-i18next";
+import { DEFAULT_CITY_ID } from "../config/cities";
+import { DEFAULT_SOCIETY_ID } from "../config/firestore";
 
 import phoneIcon from "../assets/phone.svg";
 import lockIcon from "../assets/lock.svg";
@@ -23,12 +26,15 @@ const buildSessionUser = (firebaseUser, profile, emailOrMobile) => ({
   role: profile?.role || "resident",
   name: profile?.name || firebaseUser.displayName || "Resident",
   flat: profile?.flat || "",
+  cityId: profile?.cityId || DEFAULT_CITY_ID,
+  societyId: profile?.societyId || DEFAULT_SOCIETY_ID,
+  language: profile?.language || 'en',
 });
 
 const roles = [
-  { value: "resident", label: "Resident", icon: "🏠" },
-  { value: "guard", label: "Guard", icon: "💂" },
-  { value: "admin", label: "Admin", icon: "⚙️" },
+  { value: "resident", labelKey: "roles.resident", icon: "🏠" },
+  { value: "guard", labelKey: "roles.guard", icon: "💂" },
+  { value: "admin", labelKey: "roles.admin", icon: "⚙️" },
 ];
 
 const featureCards = [
@@ -105,6 +111,7 @@ function PalaceIllustration() {
 }
 
 export default function LoginPage() {
+  const { t, i18n } = useTranslation();
   const currentYear = new Date().getFullYear();
   const [activeTab, setActiveTab] = useState("signin");
   const [selectedRole, setSelectedRole] = useState("resident");
@@ -281,43 +288,43 @@ export default function LoginPage() {
       <div className={styles.aurora} />
       <div className={styles.pageShell}>
         <section className={styles.heroColumn}>
-          <p className={styles.greeting}>ನಮಸ್ಕಾರ · Namaskara</p>
-          <h1 className={styles.heroTitle}>Run Your Commune Like A Royal Court, Not A Chaotic Chat Group.</h1>
+          <p className={styles.greeting}>{`ನಮಸ್ಕಾರ · ${t("landing.greeting")}`}</p>
+          <h1 className={styles.heroTitle}>{t("landing.heroTitle")}</h1>
           <p className={styles.heroCopy}>
-            Soulvest Commune brings guest approvals, guard verification, resident dues, AI assistance, and society operations into one elegant Karnataka-first platform.
+            {t("landing.heroCopy")}
           </p>
 
           <div className={styles.statsBar}>
             <div>
               <strong>50%</strong>
-              <span>Cheaper Ops</span>
+              <span>{t("landing.stats.cheaperOps")}</span>
             </div>
             <div>
               <strong>AI</strong>
-              <span>Assistant Layer</span>
+              <span>{t("landing.stats.assistantLayer")}</span>
             </div>
             <div>
               <strong>5G</strong>
-              <span>Realtime Updates</span>
+              <span>{t("landing.stats.realtimeUpdates")}</span>
             </div>
             <div>
               <strong>IoT</strong>
-              <span>Ready For Gates</span>
+              <span>{t("landing.stats.readyForGates")}</span>
             </div>
           </div>
 
           <div className={styles.bannerCard}>
-            <span className={styles.bannerEyebrow}>AI Banner</span>
-            <h2>India&apos;s First AI-Powered Society App</h2>
-            <p>From visitor flow to dues and complaints, every screen is built for a 10-minute committee demo that feels live, modern, and believable.</p>
+            <span className={styles.bannerEyebrow}>{t("landing.bannerEyebrow")}</span>
+            <h2>{t("landing.bannerTitle")}</h2>
+            <p>{t("landing.bannerCopy")}</p>
           </div>
 
           <PalaceIllustration />
 
           <section className={styles.featuresSection}>
             <div className={styles.sectionHeader}>
-              <span>Feature Estate</span>
-              <h2>Eight demo-ready stories in one platform.</h2>
+              <span>{t("landing.featureEstate")}</span>
+              <h2>{t("landing.featureTitle")}</h2>
             </div>
             <div className={styles.featureGrid}>
               {featureCards.map((feature) => (
@@ -331,33 +338,37 @@ export default function LoginPage() {
           </section>
 
           <footer className={styles.footerLine}>
-            {`Copyright ${currentYear} Soulvest Commune. All rights reserved. Made with love in Bengaluru, India.`}
+            {t("landing.footer", { year: currentYear })}
           </footer>
         </section>
 
         <section className={styles.loginColumn}>
           <div className={styles.loginCard}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginBottom: 12 }}>
+              <button type="button" className={styles.tabButton} onClick={() => i18n.changeLanguage('en')}>EN</button>
+              <button type="button" className={styles.tabButton} onClick={() => i18n.changeLanguage('kn')}>ಕನ್ನಡ</button>
+            </div>
             <div className={styles.tabRow}>
               <button
                 type="button"
                 className={activeTab === "signin" ? styles.activeTab : styles.tabButton}
                 onClick={() => handleTabChange("signin")}
               >
-                Sign In
+                {t("auth.signIn")}
               </button>
               <button
                 type="button"
                 className={styles.tabButton}
                 onClick={() => handleTabChange("register")}
               >
-                Register Society
+                {t("auth.registerSociety")}
               </button>
             </div>
 
             <div className={styles.cardIntro}>
-              <span className={styles.kicker}>Royal Access</span>
-              <h2>Enter Commune</h2>
-              <p>Choose your role, sign in with your registered account, and walk into the live demo story.</p>
+              <span className={styles.kicker}>{t("auth.royalAccess")}</span>
+              <h2>{t("auth.enterCommune")}</h2>
+              <p>{t("auth.loginDescription")}</p>
             </div>
 
             <div className={styles.roleSelector}>
@@ -369,7 +380,7 @@ export default function LoginPage() {
                   onClick={() => setSelectedRole(role.value)}
                 >
                   <span>{role.icon}</span>
-                  <span>{role.label}</span>
+                  <span>{t(role.labelKey)}</span>
                 </button>
               ))}
             </div>
@@ -379,14 +390,14 @@ export default function LoginPage() {
               {success && <div className={styles.successBanner}>{success}</div>}
 
               <div>
-                <label className={styles.label}>Mobile Number / Email</label>
+                <label className={styles.label}>{t("auth.mobileEmail")}</label>
                 <div className={styles.inputGroup}>
                   <img src={phoneIcon} alt="Phone" className={styles.inputIcon} />
                   <input
                     type="text"
                     value={emailOrMobile}
                     onChange={(e) => setEmailOrMobile(e.target.value)}
-                    placeholder="Enter your mobile number or email"
+                    placeholder={t("auth.mobileEmailPlaceholder")}
                     className={styles.inputField}
                     required
                   />
@@ -394,14 +405,14 @@ export default function LoginPage() {
               </div>
 
               <div>
-                <label className={styles.label}>Password</label>
+                <label className={styles.label}>{t("auth.password")}</label>
                 <div className={styles.inputGroup}>
                   <img src={lockIcon} alt="Lock" className={styles.inputIcon} />
                   <input
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Enter your password"
+                    placeholder={t("auth.passwordPlaceholder")}
                     className={styles.inputField}
                     required
                   />
@@ -415,7 +426,7 @@ export default function LoginPage() {
                   onClick={handleForgotPassword}
                   disabled={resendDisabled}
                 >
-                  Forgot Password?
+                  {t("auth.forgotPassword")}
                 </button>
                 {resetSent && (
                   <button
@@ -424,20 +435,20 @@ export default function LoginPage() {
                     onClick={handleResendReset}
                     disabled={resendDisabled}
                   >
-                    Resend Reset Mail
+                    {t("auth.resendResetMail")}
                   </button>
                 )}
               </div>
 
               <button type="submit" className={styles.loginBtn}>
-                Enter Commune
+                {t("auth.enterCommune")}
               </button>
 
-              <div className={styles.divider}><span>or continue with</span></div>
+              <div className={styles.divider}><span>{t("auth.orContinueWith")}</span></div>
 
               <button type="button" className={styles.googleBtn} onClick={handleGoogleSignIn} disabled={googleLoading}>
                 <img src={googleIcon} alt="Google" height={20} />
-                {googleLoading ? "Connecting Google..." : "Google Sign-in"}
+                {googleLoading ? t("auth.connectingGoogle") : t("auth.googleSignIn")}
               </button>
             </form>
           </div>

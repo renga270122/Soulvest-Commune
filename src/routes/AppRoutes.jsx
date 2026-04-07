@@ -13,6 +13,7 @@ import GuardDashboard from '../pages/GuardDashboard';
 import ResidentDashboard from '../pages/ResidentDashboard';
 import AdminDashboard from '../pages/AdminDashboard';
 import { useAuthContext } from '../components/AuthContext';
+import { useFeatureFlags } from '../hooks/useFeatureFlags';
 
 import ResidentDirectory from '../pages/ResidentDirectory';
 
@@ -26,6 +27,12 @@ const ProtectedRoute = ({ children, role }) => {
   return children;
 };
 
+const FeatureRoute = ({ children, feature, fallback = '/dashboard' }) => {
+  const featureFlags = useFeatureFlags();
+  if (!featureFlags[feature]) return <Navigate to={fallback} replace />;
+  return children;
+};
+
 const AppRoutes = () => (
   <Router>
     <Routes>
@@ -34,7 +41,7 @@ const AppRoutes = () => (
       <Route path="/signup" element={<SignupPage />} />
       <Route path="/home" element={<Home />} />
       <Route path="/dashboard" element={<UserDashboard />} />
-      <Route path="/complaints" element={<Complaints />} />
+      <Route path="/complaints" element={<FeatureRoute feature="COMPLAINTS"><Complaints /></FeatureRoute>} />
       <Route path="/expenses" element={<Expenses />} />
       <Route path="/polls" element={<Polls />} />
       <Route path="/profile" element={<Profile />} />
@@ -42,7 +49,7 @@ const AppRoutes = () => (
       <Route path="/resident" element={<ProtectedRoute role="resident"><ResidentDashboard /></ProtectedRoute>} />
       <Route path="/admin" element={<ProtectedRoute role="admin"><AdminDashboard /></ProtectedRoute>} />
       <Route path="/directory" element={<ProtectedRoute><ResidentDirectory /></ProtectedRoute>} />
-      <Route path="/announcements" element={<ProtectedRoute><Announcements /></ProtectedRoute>} />
+      <Route path="/announcements" element={<ProtectedRoute><FeatureRoute feature="ANNOUNCEMENTS"><Announcements /></FeatureRoute></ProtectedRoute>} />
     </Routes>
   </Router>
 );
