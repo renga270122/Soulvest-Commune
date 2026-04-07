@@ -48,6 +48,13 @@ const featureCards = [
   { title: "Unified Dashboard", tag: "Operations", text: "Bring residents, guards, admins, and AI workflows together in one connected platform." },
 ];
 
+const demoFlowHighlights = [
+  "Visitor entry: guard approves, resident gets an instant alert.",
+  "Admin announcement: residents acknowledge without WhatsApp clutter.",
+  "Maintenance dues: status is visible in the dashboard or AI concierge.",
+  "Complaint desk: residents raise issues and track transparent updates.",
+];
+
 function PalaceIllustration() {
   return (
     <svg viewBox="0 0 720 520" className={styles.palaceArt} role="img" aria-label="Royal palace illustration inspired by Vidhana Soudha">
@@ -293,6 +300,18 @@ export default function LoginPage() {
           <p className={styles.heroCopy}>
             {t("landing.heroCopy")}
           </p>
+
+          <section className={styles.demoFlowCard}>
+            <span className={styles.demoFlowEyebrow}>Demo Flow To Showcase</span>
+            <div className={styles.demoFlowList}>
+              {demoFlowHighlights.map((item) => (
+                <article key={item} className={styles.demoFlowItem}>
+                  <span className={styles.demoFlowDot} />
+                  <p>{item}</p>
+                </article>
+              ))}
+            </div>
+          </section>
 
           <div className={styles.statsBar}>
             <div>

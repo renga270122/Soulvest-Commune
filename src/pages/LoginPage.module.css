@@ -72,6 +72,62 @@
   font-weight: 700;
 }
 
+.demoFlowCard {
+  margin-top: 1.35rem;
+  max-width: 760px;
+  padding: 1.1rem 1.2rem;
+  border-radius: 24px;
+  background: linear-gradient(135deg, rgba(255, 245, 221, 0.18), rgba(255, 218, 168, 0.12));
+  border: 1px solid rgba(255, 231, 189, 0.3);
+  backdrop-filter: blur(12px);
+}
+
+.demoFlowEyebrow {
+  display: inline-block;
+  margin-bottom: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: 0.74rem;
+  font-family: 'Cinzel', serif;
+  color: #fff3d2;
+  font-weight: 700;
+}
+
+.demoFlowList {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.demoFlowItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  padding: 0.8rem 0.9rem;
+  border-radius: 18px;
+  background: rgba(66, 11, 28, 0.54);
+  border: 1px solid rgba(255, 230, 189, 0.16);
+}
+
+.demoFlowItem p {
+  margin: 0;
+  color: #fff8ea;
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 1.08rem;
+  line-height: 1.35;
+  font-weight: 700;
+}
+
+.demoFlowDot {
+  width: 0.6rem;
+  height: 0.6rem;
+  margin-top: 0.38rem;
+  border-radius: 999px;
+  flex: 0 0 auto;
+  background: #f1cd84;
+  box-shadow: 0 0 0 4px rgba(241, 205, 132, 0.14);
+}
+
 .statsBar {
   margin-top: 1.8rem;
   display: grid;
@@ -514,6 +570,10 @@
   .featureGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .demoFlowList {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 720px) {
@@ -607,10 +667,25 @@
     line-height: 1.4;
   }
 
+  .demoFlowCard {
+    padding: 1rem;
+  }
+
+  .demoFlowItem {
+    padding: 0.85rem;
+    background: rgba(57, 10, 25, 0.76);
+  }
+
+  .demoFlowItem p {
+    font-size: 1rem;
+    line-height: 1.42;
+  }
+
   .greeting,
   .bannerEyebrow,
   .sectionHeader span,
   .kicker,
+  .demoFlowEyebrow,
   .label,
   .tabButton,
   .activeTab,
