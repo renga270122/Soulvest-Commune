@@ -1,83 +1,153 @@
-
-
-import React, { useState, useEffect } from 'react';
-import logo from '../assets/logo.png.js';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  List, ListItem, ListItemText, Button, Box, Paper, Typography, Avatar, Badge, Grid, Divider, IconButton
+  Alert,
+  Box,
+  Button,
+  Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  Paper,
+  Stack,
+  TextField,
+  Typography,
 } from '@mui/material';
-import PersonIcon from '@mui/icons-material/Person';
-import LocalShippingIcon from '@mui/icons-material/LocalShipping';
-import HandymanIcon from '@mui/icons-material/Handyman';
-import NotificationsIcon from '@mui/icons-material/Notifications';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
-import CancelIcon from '@mui/icons-material/Cancel';
+import LogoutIcon from '@mui/icons-material/Logout';
 import HomeIcon from '@mui/icons-material/Home';
-import { useAuthContext } from '../components/AuthContext';
+import PersonAddAlt1Icon from '@mui/icons-material/PersonAddAlt1';
+import QrCode2Icon from '@mui/icons-material/QrCode2';
+import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
 import { useNavigate } from 'react-router-dom';
+import QRCode from 'react-qr-code';
+import { useAuthContext } from '../components/AuthContext';
 import ChatbotWidget from '../components/ChatbotWidget';
+import {
+  createVisitorPass,
+  markNotificationAsRead,
+  normalizeFlat,
+  subscribeToNotifications,
+  subscribeToVisitors,
+  updateVisitorStatus,
+} from '../services/communityData';
 
-const ResidentDashboard = () => {
+const statusColorMap = {
+  approved: 'success',
+  checked_in: 'success',
+  denied: 'error',
+  pending: 'warning',
+  preapproved: 'info',
+};
+
+export default function ResidentDashboard() {
   const [visitors, setVisitors] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const { logout } = useAuthContext();
+  const [notifications, setNotifications] = useState([]);
+  const [banner, setBanner] = useState({ type: '', message: '' });
+  const [updatingId, setUpdatingId] = useState('');
+  const [passDialogOpen, setPassDialogOpen] = useState(false);
+  const [creatingPass, setCreatingPass] = useState(false);
+  const [createdPass, setCreatedPass] = useState(null);
+  const [passForm, setPassForm] = useState({
+    visitorName: '',
+    purpose: 'Guest visit',
+    phone: '',
+    vehicleNumber: '',
+    expectedAt: '',
+    notes: '',
+  });
+  const { user, logout } = useAuthContext();
   const navigate = useNavigate();
-
-  const fetchVisitors = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch('http://localhost:4000/visitors');
-      const data = await res.json();
-      setVisitors(data);
-    } catch (err) {
-      // Optionally handle error
-    }
-    setLoading(false);
-  };
+  const knownNotificationIds = useRef(new Set());
+  const notificationsInitialized = useRef(false);
 
   useEffect(() => {
-    fetchVisitors();
+    const unsubscribe = subscribeToVisitors(setVisitors);
+    return () => unsubscribe();
   }, []);
 
-  // Filter for your flat (C 218)
-  const myFlat = 'C 218';
-  const myVisitors = visitors.filter(v => v.flat && v.flat.trim().toUpperCase() === myFlat.toUpperCase());
+  useEffect(() => {
+    const unsubscribe = subscribeToNotifications(user?.uid, setNotifications);
+    return () => unsubscribe();
+  }, [user?.uid]);
 
-  // Dynamic greeting
-  function getGreeting() {
-    const hour = new Date().getHours();
-    if (hour < 12) return 'Good Morning';
-    if (hour < 18) return 'Good Afternoon';
-    return 'Good Evening';
-  }
+  useEffect(() => {
+    if (!notifications.length) return;
 
-  // Notification badge count (simulate new alerts)
-  const notificationCount = 2; // Replace with real data if available
-
-  const handleApprove = async (id) => {
-    try {
-      await fetch(`http://localhost:4000/visitors/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'approved' }),
-      });
-      fetchVisitors();
-    } catch (err) {
-      // Optionally handle error
+    if (!notificationsInitialized.current) {
+      notifications.forEach((notification) => knownNotificationIds.current.add(notification.id));
+      notificationsInitialized.current = true;
+      return;
     }
+
+    notifications.forEach((notification) => {
+      if (knownNotificationIds.current.has(notification.id)) return;
+      knownNotificationIds.current.add(notification.id);
+
+      if (
+        notification.type === 'visitor-entered'
+        && typeof Notification !== 'undefined'
+        && Notification.permission === 'granted'
+      ) {
+        new Notification(notification.title, { body: notification.message });
+      }
+    });
+  }, [notifications]);
+
+  const myFlat = normalizeFlat(user?.flat);
+  const myVisitors = useMemo(
+    () => visitors.filter((visitor) => normalizeFlat(visitor.flat) === myFlat),
+    [myFlat, visitors],
+  );
+
+  const pendingVisitors = myVisitors.filter((visitor) => visitor.status === 'pending');
+  const preApprovedVisitors = myVisitors.filter((visitor) => visitor.status === 'preapproved');
+
+  const handlePassFormChange = (event) => {
+    setPassForm((currentForm) => ({
+      ...currentForm,
+      [event.target.name]: event.target.value,
+    }));
   };
 
-  const handleDeny = async (id) => {
-    try {
-      await fetch(`http://localhost:4000/visitors/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'denied' }),
-      });
-      fetchVisitors();
-    } catch (err) {
-      // Optionally handle error
+  const handleCreatePass = async () => {
+    if (!user?.uid || !myFlat) {
+      setBanner({ type: 'error', message: 'Your resident profile needs a flat number before creating visitor passes.' });
+      return;
     }
+    if (!passForm.visitorName || !passForm.purpose || !passForm.expectedAt) {
+      setBanner({ type: 'error', message: 'Visitor name, purpose, and expected time are required.' });
+      return;
+    }
+
+    setCreatingPass(true);
+    setBanner({ type: '', message: '' });
+    try {
+      const pass = await createVisitorPass({
+        ...passForm,
+        residentId: user.uid,
+        residentName: user.name || 'Resident',
+        flat: myFlat,
+      });
+      setCreatedPass({ ...pass, visitorName: passForm.visitorName, expectedAt: passForm.expectedAt });
+      setPassDialogOpen(false);
+      setPassForm({ visitorName: '', purpose: 'Guest visit', phone: '', vehicleNumber: '', expectedAt: '', notes: '' });
+      setBanner({ type: 'success', message: `Visitor pass created for ${passForm.visitorName}. Share the OTP or QR with your guest.` });
+    } catch (error) {
+      setBanner({ type: 'error', message: error.message || 'Unable to create the visitor pass.' });
+    }
+    setCreatingPass(false);
+  };
+
+  const handleVisitorDecision = async (visitorId, status) => {
+    setUpdatingId(visitorId);
+    setBanner({ type: '', message: '' });
+    try {
+      await updateVisitorStatus(visitorId, status);
+      setBanner({ type: 'success', message: `Visitor ${status}.` });
+    } catch (error) {
+      setBanner({ type: 'error', message: error.message || 'Unable to update visitor status.' });
+    }
+    setUpdatingId('');
   };
 
   const handleLogout = () => {
@@ -85,170 +155,259 @@ const ResidentDashboard = () => {
     navigate('/login');
   };
 
+  const requestBrowserAlerts = async () => {
+    if (typeof Notification === 'undefined') {
+      setBanner({ type: 'warning', message: 'Browser notifications are not supported on this device.' });
+      return;
+    }
+
+    const permission = await Notification.requestPermission();
+    if (permission === 'granted') {
+      setBanner({ type: 'success', message: 'Browser alerts enabled for visitor entry updates.' });
+      return;
+    }
+
+    setBanner({ type: 'warning', message: 'Notification permission was not granted.' });
+  };
+
+  const handleMarkNotificationRead = async (notificationId) => {
+    try {
+      await markNotificationAsRead(notificationId);
+    } catch (error) {
+      setBanner({ type: 'error', message: error.message || 'Unable to mark the notification as read.' });
+    }
+  };
+
+  const handleCopyPassText = async (value, successMessage) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setBanner({ type: 'success', message: successMessage });
+    } catch {
+      setBanner({ type: 'warning', message: 'Clipboard access is not available in this browser.' });
+    }
+  };
+
   return (
-    <Box p={{ xs: 1, md: 3 }} bgcolor="background.default" minHeight="100vh">
-      {/* Top Bar */}
-      <Box display="flex" alignItems="center" justifyContent="space-between" mb={3}>
-        <Box display="flex" alignItems="center">
-          <Avatar src={logo} sx={{ width: 48, height: 48, mr: 2, bgcolor: 'primary.main' }}>
-            <HomeIcon fontSize="large" />
-          </Avatar>
+    <Box sx={{ minHeight: '100vh', bgcolor: 'background.default', px: 2, py: 3 }}>
+      <Box sx={{ maxWidth: 1100, mx: 'auto' }}>
+        <Box
+          sx={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: { xs: 'flex-start', md: 'center' },
+            flexDirection: { xs: 'column', md: 'row' },
+            gap: 2,
+            mb: 3,
+          }}
+        >
           <Box>
-            <Typography variant="h5" fontWeight={700} color="primary.main">
-              {getGreeting()}, Resident of {myFlat}
-            </Typography>
-            <Typography variant="subtitle2" color="text.secondary">
-              Soulvest Commune
+            <Typography variant="h4">Resident Dashboard</Typography>
+            <Typography color="text.secondary">
+              Welcome {user?.name || 'Resident'}{myFlat ? ` • Flat ${myFlat}` : ''}
             </Typography>
           </Box>
-          <ChatbotWidget />
+          <Button variant="outlined" color="secondary" startIcon={<LogoutIcon />} onClick={handleLogout}>
+            Logout
+          </Button>
         </Box>
-        <Button variant="outlined" color="secondary" onClick={handleLogout}>Logout</Button>
-      </Box>
-      {/* Main Grid */}
-      <Grid container columns={12} spacing={3}>
-        {/* Left: Pending Approvals */}
-        <Grid span={4}>
-          <Paper elevation={3} sx={{ p: 2, borderRadius: 3, bgcolor: '#fffbe6', boxShadow: '0 2px 12px #ffecb3' }}>
-            <Box display="flex" alignItems="center" mb={1}>
-              <Badge color="warning" variant="dot" invisible={myVisitors.filter(v => v.status === 'pending').length === 0}>
-                <HourglassEmptyIcon color="warning" sx={{ mr: 1 }} />
-              </Badge>
-              <Typography variant="h6" fontWeight={600} color="warning.main">
-                Pending Approvals
+
+        {banner.message && (
+          <Alert severity={banner.type} sx={{ mb: 3 }}>
+            {banner.message}
+          </Alert>
+        )}
+
+        {!myFlat && (
+          <Alert severity="warning" sx={{ mb: 3 }}>
+            Your profile does not have a flat number yet. Add one in Firestore to receive visitor approvals.
+          </Alert>
+        )}
+
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: { xs: '1fr', xl: '1.05fr 1fr 0.95fr' },
+            gap: 2,
+          }}
+        >
+          <Paper elevation={2} sx={{ p: 2.5, borderRadius: 3 }}>
+            <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+              <Stack direction="row" spacing={1} alignItems="center">
+                <QrCode2Icon color="primary" />
+                <Typography variant="h6">Pre-Approve Visitor</Typography>
+              </Stack>
+              <Button variant="contained" onClick={() => setPassDialogOpen(true)}>
+                Create Pass
+              </Button>
+            </Stack>
+            <Stack spacing={1.5} sx={{ mb: 3 }}>
+              <Typography color="text.secondary">
+                Generate a QR pass or OTP before your guest arrives. Guard can verify either one at the gate.
               </Typography>
-            </Box>
-            {loading ? (
-              <Typography>Loading...</Typography>
-            ) : (
-              <List>
-                {myVisitors.filter(v => v.status === 'pending').length === 0 && (
-                  <ListItem>
-                    <ListItemText primary="No pending approvals for your flat." />
-                  </ListItem>
-                )}
-                {myVisitors.filter(v => v.status === 'pending').map((v) => (
-                  <ListItem key={v.id} divider alignItems="flex-start">
-                    <Avatar sx={{ bgcolor: getVisitorColor(v.purpose), mr: 2 }}>
-                      {getVisitorIcon(v.purpose)}
-                    </Avatar>
-                    <ListItemText
-                      primary={<Typography fontWeight={600}>{v.name} ({getVisitorType(v.purpose)})</Typography>}
-                      secondary={<>
-                        <Typography variant="caption" color="text.secondary">Time: {v.time}</Typography>
-                      </>}
-                    />
-                    <IconButton color="success" onClick={() => handleApprove(v.id)}><CheckCircleIcon /></IconButton>
-                    <IconButton color="error" onClick={() => handleDeny(v.id)}><CancelIcon /></IconButton>
-                  </ListItem>
-                ))}
-              </List>
-            )}
-          </Paper>
-        </Grid>
-        {/* Center: Recent Activity Timeline */}
-        <Grid span={5}>
-          <Paper elevation={3} sx={{ p: 2, borderRadius: 3, bgcolor: '#e3f2fd', boxShadow: '0 2px 12px #90caf9' }}>
-            <Box display="flex" alignItems="center" mb={1}>
-              <PersonIcon color="primary" sx={{ mr: 1 }} />
-              <Typography variant="h6" fontWeight={600} color="primary.main">
-                Activity Timeline
-              </Typography>
-            </Box>
-            <Box sx={{ maxHeight: 320, overflowY: 'auto' }}>
-              {myVisitors.length === 0 ? (
-                <Typography color="text.secondary">No visitor activity for your flat yet.</Typography>
-              ) : (
-                <List>
-                  {myVisitors.map((v, idx) => (
-                    <Box key={v.id + '-activity'}>
-                      <ListItem alignItems="flex-start" disableGutters>
-                        <Avatar sx={{ bgcolor: getVisitorColor(v.purpose), mr: 2 }}>
-                          {getVisitorIcon(v.purpose)}
-                        </Avatar>
-                        <ListItemText
-                          primary={<Typography fontWeight={600}>{v.name} ({getVisitorType(v.purpose)})</Typography>}
-                          secondary={<>
-                            <Typography variant="caption" color="text.secondary">Time: {v.time}</Typography>
-                            <Divider orientation="vertical" flexItem sx={{ mx: 1, display: 'inline-block' }} />
-                            <Typography variant="caption" color={getStatusColor(v.status)} fontWeight={600}>{v.status}</Typography>
-                          </>}
-                        />
-                      </ListItem>
-                      {idx < myVisitors.length - 1 && <Divider sx={{ my: 0.5 }} />}
-                    </Box>
-                  ))}
-                </List>
+              <Chip label={`${preApprovedVisitors.length} active pre-approved pass${preApprovedVisitors.length === 1 ? '' : 'es'}`} color="info" variant="outlined" />
+            </Stack>
+
+            <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
+              <PersonAddAlt1Icon color="warning" />
+              <Typography variant="h6">Pending Approvals</Typography>
+            </Stack>
+            <Stack spacing={1.5}>
+              {pendingVisitors.length === 0 && (
+                <Typography color="text.secondary">No visitors are waiting for approval.</Typography>
               )}
-            </Box>
+              {pendingVisitors.map((visitor) => (
+                <Paper key={visitor.id} variant="outlined" sx={{ p: 2, borderRadius: 3 }}>
+                  <Typography variant="subtitle1">{visitor.name}</Typography>
+                  <Typography color="text.secondary">{visitor.purpose}</Typography>
+                  <Typography color="text.secondary" sx={{ mb: 1.5 }}>
+                    Arrival: {visitor.time}
+                  </Typography>
+                  <Stack direction="row" spacing={1}>
+                    <Button
+                      variant="contained"
+                      color="success"
+                      disabled={updatingId === visitor.id}
+                      onClick={() => handleVisitorDecision(visitor.id, 'approved')}
+                    >
+                      Approve
+                    </Button>
+                    <Button
+                      variant="outlined"
+                      color="error"
+                      disabled={updatingId === visitor.id}
+                      onClick={() => handleVisitorDecision(visitor.id, 'denied')}
+                    >
+                      Deny
+                    </Button>
+                  </Stack>
+                </Paper>
+              ))}
+            </Stack>
           </Paper>
-        </Grid>
-        {/* Right: Notifications */}
-        <Grid span={3}>
-          <Paper elevation={3} sx={{ p: 2, borderRadius: 3, bgcolor: '#f5f5f5', boxShadow: '0 2px 12px #bdbdbd' }}>
-            <Box display="flex" alignItems="center" mb={1}>
-              <Badge badgeContent={notificationCount} color="error" max={9} sx={{ mr: 1 }}>
-                <NotificationsIcon color={notificationCount > 0 ? 'error' : 'action'} />
-              </Badge>
-              <Typography variant="h6" fontWeight={600} color="text.primary">
-                Notifications
-              </Typography>
-            </Box>
-            {/* Notifications will be listed here */}
-            <Typography color="text.secondary">No new notifications.</Typography>
+
+          <Paper elevation={2} sx={{ p: 2.5, borderRadius: 3 }}>
+            <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
+              <HomeIcon color="primary" />
+              <Typography variant="h6">Visitor Passes & Timeline</Typography>
+            </Stack>
+            <Stack spacing={1.5}>
+              {myVisitors.length === 0 && (
+                <Typography color="text.secondary">No visitor activity for your flat yet.</Typography>
+              )}
+              {myVisitors.map((visitor) => (
+                <Paper key={visitor.id} variant="outlined" sx={{ p: 2, borderRadius: 3 }}>
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      gap: 1,
+                      flexDirection: { xs: 'column', md: 'row' },
+                    }}
+                  >
+                    <Box>
+                      <Typography variant="subtitle1">{visitor.name}</Typography>
+                      <Typography color="text.secondary">{visitor.purpose}</Typography>
+                      <Typography color="text.secondary">
+                        {visitor.expectedAt ? `Expected: ${new Date(visitor.expectedAt).toLocaleString()}` : `Arrival: ${visitor.time}`}
+                      </Typography>
+                      {visitor.otp && (
+                        <Typography color="text.secondary">OTP: {visitor.otp}</Typography>
+                      )}
+                    </Box>
+                    <Chip label={visitor.status || 'pending'} color={statusColorMap[visitor.status] || 'default'} />
+                  </Box>
+                </Paper>
+              ))}
+            </Stack>
           </Paper>
-        </Grid>
-      </Grid>
-      {/* Optional: Bottom Nav */}
-      {/* <Box position="fixed" bottom={0} left={0} width="100%" bgcolor="#fff" boxShadow="0 -2px 8px #e0e0e0" display="flex" justifyContent="space-around" py={1}>
-        <IconButton color="primary"><HomeIcon /></IconButton>
-        <IconButton color="primary"><PersonIcon /></IconButton>
-        <IconButton color="primary"><NotificationsIcon /></IconButton>
-        <IconButton color="primary"><HandymanIcon /></IconButton>
-      </Box> */}
+
+          <Paper elevation={2} sx={{ p: 2.5, borderRadius: 3 }}>
+            <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+              <Stack direction="row" spacing={1} alignItems="center">
+                <NotificationsActiveIcon color="secondary" />
+                <Typography variant="h6">Notifications</Typography>
+              </Stack>
+              <Button variant="text" onClick={requestBrowserAlerts}>
+                Enable Alerts
+              </Button>
+            </Stack>
+            <Stack spacing={1.5}>
+              {notifications.length === 0 && (
+                <Typography color="text.secondary">No notifications yet.</Typography>
+              )}
+              {notifications.slice(0, 6).map((notification) => (
+                <Paper key={notification.id} variant="outlined" sx={{ p: 2, borderRadius: 3 }}>
+                  <Typography variant="subtitle2">{notification.title}</Typography>
+                  <Typography color="text.secondary" sx={{ mb: 1 }}>
+                    {notification.message}
+                  </Typography>
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    {!notification.read && <Chip size="small" color="warning" label="New" />}
+                    <Button size="small" onClick={() => handleMarkNotificationRead(notification.id)}>
+                      Mark Read
+                    </Button>
+                  </Stack>
+                </Paper>
+              ))}
+            </Stack>
+          </Paper>
+        </Box>
+      </Box>
+
+      <Dialog open={passDialogOpen} onClose={() => !creatingPass && setPassDialogOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle>Create Visitor Pass</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ pt: 1 }}>
+            <TextField label="Visitor name" name="visitorName" value={passForm.visitorName} onChange={handlePassFormChange} fullWidth />
+            <TextField label="Purpose" name="purpose" value={passForm.purpose} onChange={handlePassFormChange} fullWidth />
+            <TextField label="Phone" name="phone" value={passForm.phone} onChange={handlePassFormChange} fullWidth />
+            <TextField label="Vehicle number" name="vehicleNumber" value={passForm.vehicleNumber} onChange={handlePassFormChange} fullWidth />
+            <TextField
+              label="Expected arrival"
+              name="expectedAt"
+              type="datetime-local"
+              value={passForm.expectedAt}
+              onChange={handlePassFormChange}
+              InputLabelProps={{ shrink: true }}
+              fullWidth
+            />
+            <TextField label="Notes" name="notes" value={passForm.notes} onChange={handlePassFormChange} fullWidth multiline minRows={2} />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPassDialogOpen(false)} disabled={creatingPass}>Cancel</Button>
+          <Button variant="contained" onClick={handleCreatePass} disabled={creatingPass}>
+            {creatingPass ? 'Creating...' : 'Generate Pass'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={Boolean(createdPass)} onClose={() => setCreatedPass(null)} fullWidth maxWidth="sm">
+        <DialogTitle>Visitor Pass Ready</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ pt: 1, alignItems: 'center', textAlign: 'center' }}>
+            <Typography variant="h6">{createdPass?.visitorName}</Typography>
+            <Typography color="text.secondary">
+              Expected at {createdPass?.expectedAt ? new Date(createdPass.expectedAt).toLocaleString() : 'the scheduled time'}
+            </Typography>
+            {createdPass?.qrPayload && (
+              <Box sx={{ bgcolor: '#fff', p: 2, borderRadius: 2 }}>
+                <QRCode value={createdPass.qrPayload} size={180} />
+              </Box>
+            )}
+            <Chip color="primary" label={`OTP ${createdPass?.otp || ''}`} />
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+              <Button onClick={() => handleCopyPassText(createdPass?.otp || '', 'OTP copied to clipboard.')}>Copy OTP</Button>
+              <Button onClick={() => handleCopyPassText(createdPass?.qrPayload || '', 'QR payload copied to clipboard.')}>Copy QR Payload</Button>
+            </Stack>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCreatedPass(null)}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      <ChatbotWidget />
     </Box>
   );
-
-// Helper to classify visitor type
-function getVisitorType(purpose) {
-  if (!purpose) return 'Visitor';
-  const p = purpose.toLowerCase();
-  if (p.includes('delivery')) return 'Delivery';
-  if (p.includes('maid') || p.includes('help') || p.includes('staff')) return 'Staff/Maid';
-  return 'Visitor';
 }
-
-// Helper to get icon for visitor type
-function getVisitorIcon(purpose) {
-  const p = (purpose || '').toLowerCase();
-  if (p.includes('delivery')) return <LocalShippingIcon />;
-  if (p.includes('maid') || p.includes('help') || p.includes('staff')) return <HandymanIcon />;
-  return <PersonIcon />;
-}
-
-// Helper to get color for visitor type
-function getVisitorColor(purpose) {
-  const p = (purpose || '').toLowerCase();
-  if (p.includes('delivery')) return 'info.main';
-  if (p.includes('maid') || p.includes('help') || p.includes('staff')) return 'success.main';
-  return 'primary.main';
-}
-
-// Helper to get color for status
-function getStatusColor(status) {
-  if (status === 'approved') return 'success.main';
-  if (status === 'denied') return 'error.main';
-  if (status === 'pending') return 'warning.main';
-  return 'text.secondary';
-}
-// Helper to classify visitor type
-function getVisitorType(purpose) {
-  if (!purpose) return 'Visitor';
-  const p = purpose.toLowerCase();
-  if (p.includes('delivery')) return 'Delivery';
-  if (p.includes('maid') || p.includes('help') || p.includes('staff')) return 'Staff/Maid';
-  return 'Visitor';
-}
-};
-
-export default ResidentDashboard;

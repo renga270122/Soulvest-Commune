@@ -1,32 +1,128 @@
-
-
 import React, { useState } from "react";
 
 import { auth, db } from "../firebase";
-import { signInWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
+import {
+  GoogleAuthProvider,
+  sendPasswordResetEmail,
+  signInWithEmailAndPassword,
+  signInWithPopup,
+} from "firebase/auth";
 import { useNavigate } from "react-router-dom";
-import { collection, query, where, getDocs } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, query, setDoc, where } from "firebase/firestore";
 import styles from "./LoginPage.module.css";
 import { useAuthContext } from "../components/AuthContext";
 
-import topIllustration from "../assets/top-illustration.png";
-import bottomIllustration from "../assets/bottom-illustration.png";
-import logo from "../assets/logo.png";
 import phoneIcon from "../assets/phone.svg";
 import lockIcon from "../assets/lock.svg";
 import googleIcon from "../assets/google-icon.svg";
-import facebookIcon from "../assets/facebook-icon.svg";
 
+const buildSessionUser = (firebaseUser, profile, emailOrMobile) => ({
+  uid: firebaseUser.uid,
+  email: firebaseUser.email,
+  mobile: profile?.mobile || (emailOrMobile.includes('@') ? '' : emailOrMobile.trim()),
+  role: profile?.role || "resident",
+  name: profile?.name || firebaseUser.displayName || "Resident",
+  flat: profile?.flat || "",
+});
+
+const roles = [
+  { value: "resident", label: "Resident", icon: "🏠" },
+  { value: "guard", label: "Guard", icon: "💂" },
+  { value: "admin", label: "Admin", icon: "⚙️" },
+];
+
+const featureCards = [
+  { title: "Visitor OTP Passes", tag: "Live", text: "Residents pre-approve guests with OTP and QR passes before they reach the gate." },
+  { title: "Guard PWA Flow", tag: "Realtime", text: "Guards verify visitors in seconds and log every entry directly into Firestore." },
+  { title: "Resident Alerts", tag: "AI Ready", text: "Residents see live entry notifications and approval history on one screen." },
+  { title: "Announcements", tag: "Admin", text: "Society notices travel from admin to residents without WhatsApp chaos." },
+  { title: "Maintenance Dues", tag: "Finance", text: "Residents view dues, payment history, and upcoming fee cycles clearly." },
+  { title: "Complaint Desk", tag: "Next", text: "Track service requests with statuses the whole committee can actually follow." },
+  { title: "AI Concierge", tag: "Gemini", text: "Ask about dues, visitors, and complaint status from a single assistant." },
+  { title: "Demo Dashboard", tag: "Boardroom", text: "Show committees a full-day story with residents, guards, admins, and AI in one demo." },
+];
+
+function PalaceIllustration() {
+  return (
+    <svg viewBox="0 0 720 520" className={styles.palaceArt} role="img" aria-label="Royal palace illustration inspired by Vidhana Soudha">
+      <defs>
+        <linearGradient id="skyGradient" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0%" stopColor="#f5d98e" />
+          <stop offset="45%" stopColor="#d97a52" />
+          <stop offset="100%" stopColor="#5f1f2c" />
+        </linearGradient>
+        <linearGradient id="waterGradient" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0%" stopColor="#1a6874" />
+          <stop offset="100%" stopColor="#0d3340" />
+        </linearGradient>
+        <linearGradient id="palaceGradient" x1="0" x2="1" y1="0" y2="1">
+          <stop offset="0%" stopColor="#fff2cf" />
+          <stop offset="100%" stopColor="#d4aa63" />
+        </linearGradient>
+      </defs>
+      <rect width="720" height="520" fill="url(#skyGradient)" rx="28" />
+      <circle cx="565" cy="112" r="44" fill="#ffd96b" opacity="0.85" />
+      <path d="M0 250 L110 175 L205 246 L314 168 L430 244 L552 155 L720 250 L720 340 L0 340 Z" fill="#864150" opacity="0.35" />
+      <path d="M0 290 L120 220 L225 280 L320 208 L420 283 L560 198 L720 292 L720 360 L0 360 Z" fill="#5e2c3b" opacity="0.5" />
+      <rect x="0" y="360" width="720" height="160" fill="url(#waterGradient)" />
+      <g opacity="0.16" transform="translate(0 362) scale(1 -1)">
+        <rect x="136" y="140" width="448" height="128" fill="#fff3d9" rx="8" />
+        <rect x="168" y="176" width="384" height="92" fill="#f4d8a8" />
+        <rect x="198" y="216" width="324" height="52" fill="#e2c081" />
+      </g>
+      <g fill="url(#palaceGradient)" stroke="#8e5c24" strokeWidth="4">
+        <rect x="136" y="206" width="448" height="126" rx="7" />
+        <rect x="170" y="168" width="380" height="52" rx="5" />
+        <rect x="207" y="132" width="306" height="50" rx="5" />
+        <rect x="326" y="92" width="68" height="65" rx="8" />
+        <path d="M360 56 C385 56 401 72 401 92 H319 C319 72 335 56 360 56 Z" />
+        <path d="M344 56 L376 56 L371 34 L349 34 Z" fill="#d6a143" />
+        <path d="M235 118 C255 118 269 131 269 149 H201 C201 131 215 118 235 118 Z" />
+        <path d="M485 118 C505 118 519 131 519 149 H451 C451 131 465 118 485 118 Z" />
+        <rect x="189" y="116" width="92" height="16" rx="4" fill="#e1b162" />
+        <rect x="439" y="116" width="92" height="16" rx="4" fill="#e1b162" />
+      </g>
+      <g fill="#8d5b2a">
+        {Array.from({ length: 14 }).map((_, index) => (
+          <rect key={`col-${index}`} x={160 + index * 28} y={220} width="12" height="110" rx="4" />
+        ))}
+        <rect x="338" y="236" width="44" height="96" rx="14" fill="#71391f" />
+      </g>
+      <g fill="#fff0cb" opacity="0.8">
+        {Array.from({ length: 10 }).map((_, index) => (
+          <rect key={`window-${index}`} x={198 + index * 34} y={184} width="16" height="18" rx="4" />
+        ))}
+        {Array.from({ length: 8 }).map((_, index) => (
+          <rect key={`window-lower-${index}`} x={214 + index * 36} y={248} width="18" height="26" rx="5" />
+        ))}
+      </g>
+      <path d="M82 102 C96 93 105 95 118 106" stroke="#43232b" strokeWidth="4" fill="none" strokeLinecap="round" />
+      <path d="M108 96 C120 87 132 89 145 100" stroke="#43232b" strokeWidth="4" fill="none" strokeLinecap="round" />
+      <path d="M590 136 C604 128 613 129 624 140" stroke="#43232b" strokeWidth="4" fill="none" strokeLinecap="round" />
+      <path d="M616 130 C627 122 639 124 651 135" stroke="#43232b" strokeWidth="4" fill="none" strokeLinecap="round" />
+    </svg>
+  );
+}
 
 export default function LoginPage() {
+  const [activeTab, setActiveTab] = useState("signin");
+  const [selectedRole, setSelectedRole] = useState("resident");
   const [emailOrMobile, setEmailOrMobile] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [resetSent, setResetSent] = useState(false);
   const [resendDisabled, setResendDisabled] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const navigate = useNavigate();
   const { login } = useAuthContext();
+
+  const redirectForRole = (role) => {
+    if (role === "admin") return "/admin";
+    if (role === "guard") return "/guard";
+    if (role === "resident") return "/resident";
+    return "/dashboard";
+  };
 
   // Helper: check if input is mobile number (10+ digits)
   const isMobile = (input) => /^\d{10,}$/.test(input.trim());
@@ -51,20 +147,80 @@ export default function LoginPage() {
         const snap = await getDocs(q);
         if (!snap.empty) userDoc = snap.docs[0].data();
       }
-      await signInWithEmailAndPassword(auth, emailToUse, password);
-      // Get user role for redirection
-      const role = userDoc?.role || "user";
-      login(emailOrMobile, role);
+      const credentials = await signInWithEmailAndPassword(auth, emailToUse, password);
+      const role = userDoc?.role || "resident";
+      if (selectedRole && selectedRole !== role) {
+        throw new Error(`This account is registered as ${role}, not ${selectedRole}.`);
+      }
+      login(buildSessionUser(credentials.user, userDoc, emailOrMobile));
       setSuccess("Login successful! Redirecting...");
-      // Redirect to role-based dashboard
-      let redirectPath = "/dashboard";
-      if (role === "admin") redirectPath = "/admin";
-      else if (role === "guard") redirectPath = "/guard";
-      else if (role === "resident") redirectPath = "/resident";
-      setTimeout(() => navigate(redirectPath), 1000);
+      setTimeout(() => navigate(redirectForRole(role)), 1000);
     } catch (err) {
       setError(err.message);
     }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setError("");
+    setSuccess("");
+    setGoogleLoading(true);
+
+    try {
+      const provider = new GoogleAuthProvider();
+      const result = await signInWithPopup(auth, provider);
+      const firebaseUser = result.user;
+      const userRef = doc(db, "users", firebaseUser.uid);
+      const profileSnapshot = await getDoc(userRef);
+
+      let profile = profileSnapshot.exists() ? profileSnapshot.data() : null;
+
+      if (!profile && selectedRole !== "resident") {
+        throw new Error("Google sign-in is currently enabled for resident onboarding only. Use a registered account for guard or admin access.");
+      }
+
+      if (!profile) {
+        profile = {
+          name: firebaseUser.displayName || "Resident",
+          email: firebaseUser.email || "",
+          mobile: firebaseUser.phoneNumber || "",
+          flat: "",
+          role: "resident",
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+
+        await setDoc(userRef, profile, { merge: true });
+      } else {
+        profile = {
+          ...profile,
+          email: profile.email || firebaseUser.email || "",
+          name: profile.name || firebaseUser.displayName || "Resident",
+          mobile: profile.mobile || firebaseUser.phoneNumber || "",
+          updatedAt: new Date().toISOString(),
+        };
+
+        await setDoc(userRef, profile, { merge: true });
+      }
+
+      const role = profile.role || "resident";
+      if (selectedRole && selectedRole !== role) {
+        throw new Error(`This Google account is registered as ${role}, not ${selectedRole}.`);
+      }
+
+      login(buildSessionUser(firebaseUser, profile, profile.email || firebaseUser.email || "google"));
+      setSuccess("Google sign-in successful! Redirecting...");
+      setTimeout(() => navigate(redirectForRole(role)), 1000);
+    } catch (err) {
+      if (err.code === "auth/popup-closed-by-user") {
+        setError("Google sign-in was closed before completion.");
+      } else if (err.code === "auth/account-exists-with-different-credential") {
+        setError("This email already exists with a different sign-in method.");
+      } else {
+        setError(err.message || "Unable to complete Google sign-in.");
+      }
+    }
+
+    setGoogleLoading(false);
   };
 
   // Forgot Password
@@ -112,96 +268,178 @@ export default function LoginPage() {
     setTimeout(() => setResendDisabled(false), 30000); // 30 seconds cooldown
   };
 
+  const handleTabChange = (nextTab) => {
+    setActiveTab(nextTab);
+    if (nextTab === "register") {
+      navigate("/signup");
+    }
+  };
+
   return (
     <div className={styles.landingBg}>
-      {/* Top Illustration */}
-      <img src={topIllustration} alt="Top" className={styles.illustration} />
+      <div className={styles.aurora} />
+      <div className={styles.pageShell}>
+        <section className={styles.heroColumn}>
+          <p className={styles.greeting}>ನಮಸ್ಕಾರ · Namaskara</p>
+          <h1 className={styles.heroTitle}>Run Your Commune Like A Royal Court, Not A Chaotic Chat Group.</h1>
+          <p className={styles.heroCopy}>
+            Soulvest Commune brings guest approvals, guard verification, resident dues, AI assistance, and society operations into one elegant Karnataka-first platform.
+          </p>
 
-      {/* Header with logo and title */}
-      <div className={styles.header}>
-        <div className={styles.title}>Welcome Back!</div>
-        <div style={{ color: '#5a3a0a', fontSize: '1.1rem', marginTop: '0.3rem' }}>to Soulvest Commune</div>
+          <div className={styles.statsBar}>
+            <div>
+              <strong>50%</strong>
+              <span>Cheaper Ops</span>
+            </div>
+            <div>
+              <strong>AI</strong>
+              <span>Assistant Layer</span>
+            </div>
+            <div>
+              <strong>5G</strong>
+              <span>Realtime Updates</span>
+            </div>
+            <div>
+              <strong>IoT</strong>
+              <span>Ready For Gates</span>
+            </div>
+          </div>
+
+          <div className={styles.bannerCard}>
+            <span className={styles.bannerEyebrow}>AI Banner</span>
+            <h2>India&apos;s First AI-Powered Society App</h2>
+            <p>From visitor flow to dues and complaints, every screen is built for a 10-minute committee demo that feels live, modern, and believable.</p>
+          </div>
+
+          <PalaceIllustration />
+
+          <section className={styles.featuresSection}>
+            <div className={styles.sectionHeader}>
+              <span>Feature Estate</span>
+              <h2>Eight demo-ready stories in one platform.</h2>
+            </div>
+            <div className={styles.featureGrid}>
+              {featureCards.map((feature) => (
+                <article key={feature.title} className={styles.featureCard}>
+                  <span className={styles.featureBadge}>{feature.tag}</span>
+                  <h3>{feature.title}</h3>
+                  <p>{feature.text}</p>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <footer className={styles.footerLine}>Made with love in Bengaluru, India.</footer>
+        </section>
+
+        <section className={styles.loginColumn}>
+          <div className={styles.loginCard}>
+            <div className={styles.tabRow}>
+              <button
+                type="button"
+                className={activeTab === "signin" ? styles.activeTab : styles.tabButton}
+                onClick={() => handleTabChange("signin")}
+              >
+                Sign In
+              </button>
+              <button
+                type="button"
+                className={styles.tabButton}
+                onClick={() => handleTabChange("register")}
+              >
+                Register Society
+              </button>
+            </div>
+
+            <div className={styles.cardIntro}>
+              <span className={styles.kicker}>Royal Access</span>
+              <h2>Enter Commune</h2>
+              <p>Choose your role, sign in with your registered account, and walk into the live demo story.</p>
+            </div>
+
+            <div className={styles.roleSelector}>
+              {roles.map((role) => (
+                <button
+                  key={role.value}
+                  type="button"
+                  className={selectedRole === role.value ? styles.roleOptionActive : styles.roleOption}
+                  onClick={() => setSelectedRole(role.value)}
+                >
+                  <span>{role.icon}</span>
+                  <span>{role.label}</span>
+                </button>
+              ))}
+            </div>
+
+            <form onSubmit={handleLogin} className={styles.formStack}>
+              {error && <div className={styles.errorBanner}>{error}</div>}
+              {success && <div className={styles.successBanner}>{success}</div>}
+
+              <div>
+                <label className={styles.label}>Mobile Number / Email</label>
+                <div className={styles.inputGroup}>
+                  <img src={phoneIcon} alt="Phone" className={styles.inputIcon} />
+                  <input
+                    type="text"
+                    value={emailOrMobile}
+                    onChange={(e) => setEmailOrMobile(e.target.value)}
+                    placeholder="Enter your mobile number or email"
+                    className={styles.inputField}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className={styles.label}>Password</label>
+                <div className={styles.inputGroup}>
+                  <img src={lockIcon} alt="Lock" className={styles.inputIcon} />
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Enter your password"
+                    className={styles.inputField}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className={styles.forgot}>
+                <button
+                  type="button"
+                  className={styles.forgotLink}
+                  onClick={handleForgotPassword}
+                  disabled={resendDisabled}
+                >
+                  Forgot Password?
+                </button>
+                {resetSent && (
+                  <button
+                    type="button"
+                    className={styles.forgotLink}
+                    onClick={handleResendReset}
+                    disabled={resendDisabled}
+                  >
+                    Resend Reset Mail
+                  </button>
+                )}
+              </div>
+
+              <button type="submit" className={styles.loginBtn}>
+                Enter Commune
+              </button>
+
+              <div className={styles.divider}><span>or continue with</span></div>
+
+              <button type="button" className={styles.googleBtn} onClick={handleGoogleSignIn} disabled={googleLoading}>
+                <img src={googleIcon} alt="Google" height={20} />
+                {googleLoading ? "Connecting Google..." : "Google Sign-in"}
+              </button>
+            </form>
+          </div>
+        </section>
       </div>
-
-      {/* Login Card */}
-      <form onSubmit={handleLogin} className={styles.loginCard}>
-        {error && <div style={{ color: 'red', marginBottom: 8 }}>{error}</div>}
-        {success && <div style={{ color: 'green', marginBottom: 8 }}>{success}</div>}
-        <div className={styles.label}>Mobile Number / Email</div>
-        <div className={styles.inputGroup}>
-          <img src={phoneIcon} alt="Phone" className={styles.inputIcon} />
-          <input
-            type="text"
-            value={emailOrMobile}
-            onChange={(e) => setEmailOrMobile(e.target.value)}
-            placeholder="Enter your mobile number or email"
-            className={styles.inputField}
-            required
-          />
-        </div>
-
-        <div className={styles.label} style={{ marginTop: "0.5rem" }}>Password</div>
-        <div className={styles.inputGroup}>
-          <img src={lockIcon} alt="Lock" className={styles.inputIcon} />
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Enter your password"
-            className={styles.inputField}
-            required
-          />
-        </div>
-
-        <div className={styles.forgot}>
-          <button
-            type="button"
-            className={styles.forgotLink}
-            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
-            onClick={handleForgotPassword}
-            disabled={resendDisabled}
-          >
-            Forgot Password?
-          </button>
-          {resetSent && (
-            <button
-              type="button"
-              className={styles.forgotLink}
-              style={{ background: 'none', border: 'none', padding: 0, marginLeft: 12, color: '#007bff', cursor: resendDisabled ? 'not-allowed' : 'pointer', textDecoration: 'underline' }}
-              onClick={handleResendReset}
-              disabled={resendDisabled}
-            >
-              Resend password reset email
-            </button>
-          )}
-        </div>
-
-        <button type="submit" className={styles.loginBtn}>
-          Login
-        </button>
-
-        <div className={styles.or}>or</div>
-
-        {/* Social Login Buttons */}
-        <button type="button" className={`${styles.socialBtn} ${styles.googleBtn}`}> 
-          <img src={googleIcon} alt="Google" height={20} />
-          Continue with Google
-        </button>
-        <button type="button" className={`${styles.socialBtn} ${styles.facebookBtn}`}> 
-          <img src={facebookIcon} alt="Facebook" height={20} />
-          Continue with Facebook
-        </button>
-
-        <div className={styles.signup}>
-          New to Soulvest Commune?
-          <a href="/signup" className={styles.signupLink}>
-            Sign Up
-          </a>
-        </div>
-      </form>
-
-      {/* Bottom Illustration */}
-      <img src={bottomIllustration} alt="Bottom" className={styles.footerIllus} />
     </div>
   );
 }

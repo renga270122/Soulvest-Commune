@@ -9,9 +9,10 @@ import { doc, setDoc } from "firebase/firestore";
 export default function SignupPage() {
   const [form, setForm] = useState({
     name: "",
+    flat: "",
     mobile: "",
     email: "",
-    password: ""
+    password: "",
   });
 
   const handleChange = (e) => {
@@ -35,12 +36,14 @@ export default function SignupPage() {
       // Store user info in Firestore for mobile lookup
       await setDoc(doc(db, "users", userCredential.user.uid), {
         name: form.name,
+        flat: form.flat.trim().toUpperCase(),
         mobile: form.mobile,
         email: form.email,
+        role: "resident",
         createdAt: new Date().toISOString(),
       });
       setSuccess("Signup successful! You can now log in.");
-      setForm({ name: "", mobile: "", email: "", password: "" });
+      setForm({ name: "", flat: "", mobile: "", email: "", password: "" });
     } catch (err) {
       setError(err.message);
     }
@@ -78,6 +81,18 @@ export default function SignupPage() {
             value={form.mobile}
             onChange={handleChange}
             placeholder="Enter your mobile number"
+            className={styles.inputField}
+            required
+          />
+        </div>
+        <div className={styles.label}>Flat Number</div>
+        <div className={styles.inputGroup}>
+          <input
+            type="text"
+            name="flat"
+            value={form.flat}
+            onChange={handleChange}
+            placeholder="Enter your flat number"
             className={styles.inputField}
             required
           />

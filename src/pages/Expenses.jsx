@@ -1,21 +1,213 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  Alert,
+  Box,
+  Button,
+  Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  Divider,
+  MenuItem,
+  Paper,
+  Stack,
+  TextField,
+  Typography,
+} from '@mui/material';
 import Navbar from '../components/Navbar';
+import { useAuthContext } from '../components/AuthContext';
+import {
+  markPaymentAsPaid,
+  seedResidentPaymentIfMissing,
+  subscribeToResidentPayments,
+} from '../services/communityData';
+
+const formatAmount = (amount) => `₹${Number(amount || 0).toLocaleString('en-IN')}`;
+const formatDate = (value) => {
+  if (!value) return 'No due date';
+  if (typeof value === 'string') return new Date(value).toLocaleDateString();
+  if (value?.toDate) return value.toDate().toLocaleDateString();
+  return 'No due date';
+};
 
 export default function Expenses() {
+  const { user } = useAuthContext();
+  const [payments, setPayments] = useState([]);
+  const [selectedPayment, setSelectedPayment] = useState(null);
+  const [paymentMethod, setPaymentMethod] = useState('upi');
+  const [submitting, setSubmitting] = useState(false);
+  const [banner, setBanner] = useState({ type: '', message: '' });
+
+  useEffect(() => {
+    if (!user?.uid) return undefined;
+
+    seedResidentPaymentIfMissing(user);
+    const unsubscribe = subscribeToResidentPayments(user.uid, setPayments);
+    return () => unsubscribe();
+  }, [user]);
+
+  const summary = useMemo(() => {
+    const duePayments = payments.filter((payment) => payment.status !== 'paid');
+    const paidPayments = payments.filter((payment) => payment.status === 'paid');
+
+    return {
+      outstandingAmount: duePayments.reduce((total, payment) => total + Number(payment.amount || 0), 0),
+      totalPaid: paidPayments.reduce((total, payment) => total + Number(payment.amount || 0), 0),
+      dueCount: duePayments.length,
+    };
+  }, [payments]);
+
+  const handlePayNow = async () => {
+    if (!selectedPayment) return;
+
+    setSubmitting(true);
+    setBanner({ type: '', message: '' });
+    try {
+      await markPaymentAsPaid(selectedPayment.id, {
+        method: paymentMethod,
+        paymentReference: `SV-${Date.now()}`,
+      });
+      setBanner({ type: 'success', message: 'Payment recorded successfully.' });
+      setSelectedPayment(null);
+      setPaymentMethod('upi');
+    } catch (error) {
+      setBanner({ type: 'error', message: error.message || 'Unable to record payment.' });
+    }
+    setSubmitting(false);
+  };
+
   return (
-    <div className="p-4 pb-20">
-      <h2 className="text-xl font-bold mb-4">Expenses</h2>
-      <div className="bg-white shadow p-4 rounded mb-4">
-        <p>Maintenance Due: ₹3,500</p>
-        <p>Due by: Nov 30</p>
-      </div>
-      <div className="bg-orange-100 p-4 rounded">
-        <p>Security: 40%</p>
-        <p>Housekeeping: 25%</p>
-        <p>Utilities: 20%</p>
-        <p>Other: 15%</p>
-      </div>
+    <Box sx={{ minHeight: '100vh', bgcolor: 'background.default', px: 2, py: 3, pb: 11 }}>
+      <Box sx={{ maxWidth: 1000, mx: 'auto' }}>
+        <Typography variant="h4" sx={{ mb: 1 }}>
+          Expenses & Payments
+        </Typography>
+        <Typography color="text.secondary" sx={{ mb: 3 }}>
+          Track maintenance dues, view the split, and record resident payments.
+        </Typography>
+
+        {banner.message && (
+          <Alert severity={banner.type} sx={{ mb: 3 }}>
+            {banner.message}
+          </Alert>
+        )}
+
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' },
+            gap: 2,
+            mb: 3,
+          }}
+        >
+          <Paper elevation={1} sx={{ p: 2.5, borderRadius: 3 }}>
+            <Typography color="text.secondary">Outstanding</Typography>
+            <Typography variant="h4">{formatAmount(summary.outstandingAmount)}</Typography>
+          </Paper>
+          <Paper elevation={1} sx={{ p: 2.5, borderRadius: 3 }}>
+            <Typography color="text.secondary">Paid So Far</Typography>
+            <Typography variant="h4">{formatAmount(summary.totalPaid)}</Typography>
+          </Paper>
+          <Paper elevation={1} sx={{ p: 2.5, borderRadius: 3 }}>
+            <Typography color="text.secondary">Open Bills</Typography>
+            <Typography variant="h4">{summary.dueCount}</Typography>
+          </Paper>
+        </Box>
+
+        <Stack spacing={2}>
+          {payments.length === 0 && (
+            <Paper elevation={1} sx={{ p: 3, borderRadius: 3 }}>
+              <Typography variant="h6">No payment records yet</Typography>
+              <Typography color="text.secondary">
+                A starter maintenance bill will appear automatically for signed-in residents.
+              </Typography>
+            </Paper>
+          )}
+
+          {payments.map((payment) => (
+            <Paper key={payment.id} elevation={2} sx={{ p: 2.5, borderRadius: 3 }}>
+              <Box
+                sx={{
+                  display: 'flex',
+                  flexDirection: { xs: 'column', md: 'row' },
+                  justifyContent: 'space-between',
+                  gap: 2,
+                }}
+              >
+                <Box>
+                  <Typography variant="h6">{payment.title || 'Maintenance Bill'}</Typography>
+                  <Typography color="text.secondary">
+                    Due on {formatDate(payment.dueDate)}
+                  </Typography>
+                  <Typography sx={{ mt: 1 }}>Flat: {payment.flat || user?.flat || 'Not assigned'}</Typography>
+                </Box>
+
+                <Stack alignItems={{ xs: 'flex-start', md: 'flex-end' }} spacing={1}>
+                  <Typography variant="h5">{formatAmount(payment.amount)}</Typography>
+                  <Chip
+                    label={payment.status === 'paid' ? 'Paid' : 'Due'}
+                    color={payment.status === 'paid' ? 'success' : 'warning'}
+                  />
+                  {payment.status !== 'paid' && (
+                    <Button variant="contained" onClick={() => setSelectedPayment(payment)}>
+                      Pay Now
+                    </Button>
+                  )}
+                </Stack>
+              </Box>
+
+              <Divider sx={{ my: 2 }} />
+
+              <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                Expense Split
+              </Typography>
+              <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+                {Object.entries(payment.breakdown || {}).map(([label, value]) => (
+                  <Chip key={label} label={`${label}: ${value}%`} variant="outlined" />
+                ))}
+              </Stack>
+
+              {payment.status === 'paid' && (
+                <Typography color="text.secondary" sx={{ mt: 2 }}>
+                  Paid via {payment.method || 'manual'} {payment.paymentReference ? `(${payment.paymentReference})` : ''}
+                </Typography>
+              )}
+            </Paper>
+          ))}
+        </Stack>
+      </Box>
+
+      <Dialog open={Boolean(selectedPayment)} onClose={() => !submitting && setSelectedPayment(null)} fullWidth maxWidth="sm">
+        <DialogTitle>Confirm Payment</DialogTitle>
+        <DialogContent>
+          <Typography sx={{ mb: 2 }}>
+            Record payment for {selectedPayment?.title} of {formatAmount(selectedPayment?.amount)}.
+          </Typography>
+          <TextField
+            select
+            fullWidth
+            label="Payment method"
+            value={paymentMethod}
+            onChange={(event) => setPaymentMethod(event.target.value)}
+          >
+            <MenuItem value="upi">UPI</MenuItem>
+            <MenuItem value="card">Card</MenuItem>
+            <MenuItem value="netbanking">Net Banking</MenuItem>
+            <MenuItem value="cash">Cash</MenuItem>
+          </TextField>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setSelectedPayment(null)} disabled={submitting}>
+            Cancel
+          </Button>
+          <Button variant="contained" onClick={handlePayNow} disabled={submitting}>
+            {submitting ? 'Recording...' : 'Confirm Payment'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       <Navbar />
-    </div>
+    </Box>
   );
 }
