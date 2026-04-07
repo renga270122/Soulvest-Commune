@@ -47,6 +47,7 @@ const GuardDashboard = lazyWithRetry(() => import('../pages/GuardDashboard'), 'g
 const AdminDashboard = lazyWithRetry(() => import('../pages/AdminDashboard'), 'admin');
 const ResidentDirectory = lazyWithRetry(() => import('../pages/ResidentDirectory'), 'directory');
 const Announcements = lazyWithRetry(() => import('../pages/Announcements'), 'announcements');
+const FeedbackForm = lazyWithRetry(() => import('../pages/FeedbackForm'), 'feedback');
 
 
 const ProtectedRoute = ({ children, role, roles }) => {
@@ -83,6 +84,7 @@ const AppRoutes = () => (
         <Route path="/" element={<Navigate to="/login" />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
+        <Route path="/feedback" element={<FeedbackForm />} />
         <Route path="/home" element={<ProtectedRoute><Home /></ProtectedRoute>} />
         <Route path="/dashboard" element={<ProtectedRoute><UserDashboard /></ProtectedRoute>} />
         <Route path="/complaints" element={<ProtectedRoute><FeatureRoute feature="COMPLAINTS"><Complaints /></FeatureRoute></ProtectedRoute>} />

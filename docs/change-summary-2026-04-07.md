@@ -139,3 +139,18 @@ The following are still operational tasks rather than code gaps:
 - set `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET` in the hosted backend
 - set frontend `VITE_API_BASE_URL` to the deployed backend URL and redeploy the frontend
 - run one live or sandbox Razorpay payment test after backend deployment
+
+## 8. Public Feedback Collection Form
+
+To support lightweight resident outreach in WhatsApp groups, a public feedback flow was added.
+
+Implemented changes:
+
+- Added [src/pages/FeedbackForm.jsx](src/pages/FeedbackForm.jsx) as a public page that does not require sign-in.
+- Added [src/services/feedback.js](src/services/feedback.js) to submit feedback to the backend API.
+- Updated [src/routes/AppRoutes.jsx](src/routes/AppRoutes.jsx) to expose the public `/feedback` route.
+- Added `POST /feedback` in [backend/index.js](backend/index.js) to store responses in Firestore under `residentFeedback`.
+
+Outcome:
+
+- You can now share a simple public URL such as `https://commune.soulvest.ai/feedback` in a residents WhatsApp group and collect feedback centrally.

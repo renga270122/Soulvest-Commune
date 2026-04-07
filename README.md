@@ -14,6 +14,7 @@ Soulvest Commune is a resident-community app with resident, guard, and admin flo
 ## Main App Areas
 
 - Resident flows: announcements, expenses, complaints, directory, profile, bookings.
+- Public resident feedback: a shareable `/feedback` form for WhatsApp group collection.
 - Guard flows: visitor approvals and security operations.
 - Admin flows: charges, announcements, facility oversight, demo reset controls.
 - Backend flows: chatbot, notification dispatch, visitor endpoints, Razorpay order and verification endpoints.
@@ -70,3 +71,13 @@ The frontend host `https://commune.soulvest.ai` is static-only. Live payments re
 - Consolidated implementation summary: [docs/change-summary-2026-04-07.md](docs/change-summary-2026-04-07.md)
 - Firebase to PostgreSQL mapping: [docs/firebase-to-postgres-mapping.md](docs/firebase-to-postgres-mapping.md)
 - PostgreSQL starter schema: [docs/postgresql-init.sql](docs/postgresql-init.sql)
+
+## Public Feedback Link
+
+Residents can submit community feedback without logging in through:
+
+`/feedback`
+
+Example production URL:
+
+`https://commune.soulvest.ai/feedback`

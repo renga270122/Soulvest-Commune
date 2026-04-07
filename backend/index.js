@@ -89,6 +89,48 @@ function ensureRazorpayConfigured(res) {
   return false;
 }
 
+app.post('/feedback', async (req, res) => {
+  const {
+    name,
+    flat,
+    phone = '',
+    rating,
+    category = 'general',
+    message,
+    source = 'public-feedback-form',
+  } = req.body;
+
+  const normalizedRating = Number(rating);
+  if (!name || !flat || !message) {
+    return res.status(400).json({ error: 'name, flat, and message are required.' });
+  }
+
+  if (!Number.isInteger(normalizedRating) || normalizedRating < 1 || normalizedRating > 5) {
+    return res.status(400).json({ error: 'rating must be an integer between 1 and 5.' });
+  }
+
+  try {
+    const created = await db.collection('residentFeedback').add({
+      name: String(name).trim(),
+      flat: String(flat).trim().toUpperCase(),
+      phone: String(phone).trim(),
+      rating: normalizedRating,
+      category: String(category).trim() || 'general',
+      message: String(message).trim(),
+      source,
+      createdAt: new Date().toISOString(),
+    });
+
+    res.status(201).json({
+      ok: true,
+      id: created.id,
+      message: 'Feedback submitted successfully.',
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to submit feedback', details: err.message });
+  }
+});
+
 app.post('/notifications/dispatch', async (req, res) => {
   const { userId, societyId = 'brigade-metropolis', title, message, channels = {}, meta = {} } = req.body;
   if (!userId || !title || !message) {
