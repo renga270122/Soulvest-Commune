@@ -18,6 +18,9 @@ import HomeIcon from '@mui/icons-material/Home';
 import PersonAddAlt1Icon from '@mui/icons-material/PersonAddAlt1';
 import QrCode2Icon from '@mui/icons-material/QrCode2';
 import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
+import CampaignIcon from '@mui/icons-material/Campaign';
+import BugReportIcon from '@mui/icons-material/BugReport';
+import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import { useNavigate } from 'react-router-dom';
 import QRCode from 'react-qr-code';
 import { useAuthContext } from '../components/AuthContext';
@@ -228,6 +231,18 @@ export default function ResidentDashboard() {
             {banner.message}
           </Alert>
         )}
+
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ mb: 3 }}>
+          <Button variant="outlined" startIcon={<CampaignIcon />} onClick={() => navigate('/announcements')}>
+            Announcements
+          </Button>
+          <Button variant="outlined" startIcon={<AccountBalanceWalletIcon />} onClick={() => navigate('/expenses')}>
+            Maintenance Dues
+          </Button>
+          <Button variant="outlined" startIcon={<BugReportIcon />} onClick={() => navigate('/complaints')}>
+            Complaint Desk
+          </Button>
+        </Stack>
 
         {!myFlat && (
           <Alert severity="warning" sx={{ mb: 3 }}>

@@ -1,18 +1,27 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import HomeIcon from '@mui/icons-material/Home';
 import ReportIcon from '@mui/icons-material/Report';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import PollIcon from '@mui/icons-material/Poll';
 import PersonIcon from '@mui/icons-material/Person';
+import CampaignIcon from '@mui/icons-material/Campaign';
+import DashboardIcon from '@mui/icons-material/Dashboard';
+import { useAuthContext } from '../components/AuthContext';
 import { useFeatureFlags } from '../hooks/useFeatureFlags';
 
 export default function Navbar() {
+  const { user } = useAuthContext();
   const featureFlags = useFeatureFlags();
+  const dashboardRoute = user?.role === 'admin'
+    ? '/admin'
+    : user?.role === 'guard'
+      ? '/guard'
+      : '/resident';
   const tabs = [
-    { label: 'Home', to: '/home', icon: <HomeIcon /> },
+    { label: 'Dashboard', to: dashboardRoute, icon: <DashboardIcon /> },
+    ...(featureFlags.ANNOUNCEMENTS ? [{ label: 'Notices', to: '/announcements', icon: <CampaignIcon /> }] : []),
     ...(featureFlags.COMPLAINTS ? [{ label: 'Complaints', to: '/complaints', icon: <ReportIcon /> }] : []),
-    { label: 'Expenses', to: '/expenses', icon: <AccountBalanceWalletIcon /> },
+    { label: 'Dues', to: '/expenses', icon: <AccountBalanceWalletIcon /> },
     { label: 'Polls', to: '/polls', icon: <PollIcon /> },
     { label: 'Profile', to: '/profile', icon: <PersonIcon /> },
   ];

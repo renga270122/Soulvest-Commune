@@ -8,7 +8,7 @@ export const FEATURES = Object.freeze({
   PAYMENTS_RAZORPAY: true,
   FCM_NOTIFICATIONS: true,
   WHATSAPP_ALERTS: true,
-  AI_CHATBOT: false,
+  AI_CHATBOT: true,
   AI_RISK_SCORE: false,
   AI_ANNOUNCEMENTS: false,
   IOT_GATE: false,

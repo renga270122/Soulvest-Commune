@@ -15,6 +15,8 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import AddCardIcon from '@mui/icons-material/AddCard';
 import DownloadIcon from '@mui/icons-material/Download';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import CampaignIcon from '@mui/icons-material/Campaign';
+import BugReportIcon from '@mui/icons-material/BugReport';
 import { useNavigate } from 'react-router-dom';
 import { useAuthContext } from '../components/AuthContext';
 import ChatbotWidget from '../components/ChatbotWidget';
@@ -228,6 +230,12 @@ export default function AdminDashboard() {
         </Box>
 
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} sx={{ mb: 3 }}>
+          <Button variant="outlined" startIcon={<CampaignIcon />} onClick={() => navigate('/announcements')}>
+            Manage Announcements
+          </Button>
+          <Button variant="outlined" startIcon={<BugReportIcon />} onClick={() => navigate('/complaints')}>
+            Review Complaints
+          </Button>
           <Button variant="outlined" startIcon={<DownloadIcon />} onClick={handleExportDues}>
             Export Dues CSV
           </Button>
