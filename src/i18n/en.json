@@ -11,9 +11,9 @@
     },
     "bannerEyebrow": "AI Banner",
     "bannerTitle": "India's First AI-Powered Society App",
-    "bannerCopy": "From visitor flow to dues and complaints, every screen is built for a 10-minute committee demo that feels live, modern, and believable.",
+    "bannerCopy": "From visitor flow to dues and complaints, every screen is built to feel fast, modern, and dependable for everyday community operations.",
     "featureEstate": "Feature Estate",
-    "featureTitle": "Eight demo-ready stories in one platform.",
+    "featureTitle": "Eight essential workflows in one platform.",
     "footer": "Copyright {{year}} Soulvest Commune. All rights reserved. Made with love in Bengaluru, India."
   },
   "auth": {
@@ -21,7 +21,7 @@
     "registerSociety": "Register Society",
     "royalAccess": "Royal Access",
     "enterCommune": "Enter Commune",
-    "loginDescription": "Choose your role, sign in with your registered account, and walk into the live demo story.",
+    "loginDescription": "Choose your role, sign in with your registered account, and access your community workspace.",
     "mobileEmail": "Mobile Number / Email",
     "mobileEmailPlaceholder": "Enter your mobile number or email",
     "password": "Password",

@@ -43,9 +43,9 @@ const featureCards = [
   { title: "Resident Alerts", tag: "AI Ready", text: "Residents see live entry notifications and approval history on one screen." },
   { title: "Announcements", tag: "Admin", text: "Society notices travel from admin to residents without WhatsApp chaos." },
   { title: "Maintenance Dues", tag: "Finance", text: "Residents view dues, payment history, and upcoming fee cycles clearly." },
-  { title: "Complaint Desk", tag: "Next", text: "Track service requests with statuses the whole committee can actually follow." },
+  { title: "Complaint Desk", tag: "Next", text: "Track service requests with clear statuses residents and admins can follow easily." },
   { title: "AI Concierge", tag: "Gemini", text: "Ask about dues, visitors, and complaint status from a single assistant." },
-  { title: "Demo Dashboard", tag: "Boardroom", text: "Show committees a full-day story with residents, guards, admins, and AI in one demo." },
+  { title: "Unified Dashboard", tag: "Operations", text: "Bring residents, guards, admins, and AI workflows together in one connected platform." },
 ];
 
 function PalaceIllustration() {
@@ -314,7 +314,6 @@ export default function LoginPage() {
           </div>
 
           <div className={styles.bannerCard}>
-            <span className={styles.bannerEyebrow}>{t("landing.bannerEyebrow")}</span>
             <h2>{t("landing.bannerTitle")}</h2>
             <p>{t("landing.bannerCopy")}</p>
           </div>
