@@ -324,7 +324,6 @@ export async function createVisitorPass(pass) {
     name: pass.visitorName,
     purpose: pass.purpose,
     phone: pass.phone || '',
-    vehicleNumber: pass.vehicleNumber || '',
     notes: pass.notes || '',
     societyId,
     flat: normalizeFlat(pass.flat),
