@@ -16,6 +16,7 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import LogoutIcon from '@mui/icons-material/Logout';
 import QrCode2Icon from '@mui/icons-material/QrCode2';
+import ShieldIcon from '@mui/icons-material/Shield';
 import { useNavigate } from 'react-router-dom';
 import { useAuthContext } from '../components/AuthContext';
 import ChatbotWidget from '../components/ChatbotWidget';
@@ -168,6 +169,9 @@ export default function GuardDashboard() {
           <Stack direction="row" spacing={1}>
             <Button variant="contained" startIcon={<QrCode2Icon />} onClick={() => setVerifyDialogOpen(true)}>
               Verify Pass
+            </Button>
+            <Button variant="outlined" startIcon={<ShieldIcon />} onClick={() => navigate('/security')}>
+              Security Logs
             </Button>
             <Button variant="outlined" startIcon={<AddIcon />} onClick={() => setDialogOpen(true)}>
               Log Walk-in

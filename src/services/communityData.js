@@ -28,11 +28,13 @@ const getPaymentsCollection = (context) => getSocietyCollectionRef('payments', g
 const getAnnouncementsCollection = (context) => getSocietyCollectionRef('announcements', getSocietyId(context));
 const getComplaintsCollection = (context) => getSocietyCollectionRef('complaints', getSocietyId(context));
 const getFacilityBookingsCollection = (context) => getSocietyCollectionRef('facilityBookings', getSocietyId(context));
+const getStaffAttendanceCollection = (context) => getSocietyCollectionRef('staffAttendance', getSocietyId(context));
 const getVisitorDoc = (visitorId, context) => getSocietyDocRef('visitors', visitorId, getSocietyId(context));
 const getPaymentDoc = (paymentId, context) => getSocietyDocRef('payments', paymentId, getSocietyId(context));
 const getAnnouncementDoc = (announcementId, context) => getSocietyDocRef('announcements', announcementId, getSocietyId(context));
 const getComplaintDoc = (complaintId, context) => getSocietyDocRef('complaints', complaintId, getSocietyId(context));
 const getFacilityBookingDoc = (bookingId, context) => getSocietyDocRef('facilityBookings', bookingId, getSocietyId(context));
+const getStaffAttendanceDoc = (attendanceId, context) => getSocietyDocRef('staffAttendance', attendanceId, getSocietyId(context));
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'https://commune.soulvest.ai').replace(/\/$/, '');
 const PASS_EXPIRY_GRACE_MS = 2 * 60 * 60 * 1000;
 
@@ -206,6 +208,25 @@ export function subscribeToResidentFacilityBookings(userId, callback, context = 
   return onSnapshot(bookingsQuery, (snapshot) => {
     callback(
       mapSnapshot(snapshot).sort((left, right) => getComparableTime(left.bookingDate) - getComparableTime(right.bookingDate)),
+    );
+  });
+}
+
+export function subscribeToStaffAttendance(callback, context = DEFAULT_SOCIETY_ID) {
+  const attendanceQuery = query(getStaffAttendanceCollection(context));
+  return onSnapshot(attendanceQuery, (snapshot) => {
+    callback(
+      mapSnapshot(snapshot).sort((left, right) => getComparableTime(right.clockInAt || right.createdAt) - getComparableTime(left.clockInAt || left.createdAt)),
+    );
+  });
+}
+
+export function subscribeToMyAttendance(userId, callback, context = DEFAULT_SOCIETY_ID) {
+  if (!userId) return () => {};
+  const attendanceQuery = query(getStaffAttendanceCollection(context), where('userId', '==', userId));
+  return onSnapshot(attendanceQuery, (snapshot) => {
+    callback(
+      mapSnapshot(snapshot).sort((left, right) => getComparableTime(right.clockInAt || right.createdAt) - getComparableTime(left.clockInAt || left.createdAt)),
     );
   });
 }
@@ -664,6 +685,62 @@ export async function createPaymentRecord(payment) {
     year: payment.year || billingCycle.year,
     status: payment.status === 'paid' ? 'paid' : (payment.status || 'pending'),
     createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function clockInStaff(actor = {}, extra = {}) {
+  const societyId = getSocietyId(actor);
+  if (!actor.uid) {
+    throw new Error('Only signed-in staff can clock in.');
+  }
+
+  const openShiftSnapshot = await getDocs(
+    query(getStaffAttendanceCollection(societyId), where('userId', '==', actor.uid), where('status', '==', 'clocked_in')),
+  );
+
+  if (!openShiftSnapshot.empty) {
+    return { id: openShiftSnapshot.docs[0].id, ...openShiftSnapshot.docs[0].data() };
+  }
+
+  const docRef = await addDoc(getStaffAttendanceCollection(societyId), {
+    userId: actor.uid,
+    name: actor.name || 'Staff',
+    role: actor.role || 'guard',
+    shift: extra.shift || 'general',
+    notes: extra.notes || '',
+    societyId,
+    status: 'clocked_in',
+    clockInAt: serverTimestamp(),
+    clockOutAt: null,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+
+  return { id: docRef.id, status: 'clocked_in' };
+}
+
+export async function clockOutStaff(attendanceId, actor = {}, extra = {}) {
+  const societyId = getSocietyId(actor);
+  const targetAttendanceId = attendanceId || null;
+
+  let attendanceRef;
+  if (targetAttendanceId) {
+    attendanceRef = getStaffAttendanceDoc(targetAttendanceId, societyId);
+  } else {
+    const openShiftSnapshot = await getDocs(
+      query(getStaffAttendanceCollection(societyId), where('userId', '==', actor.uid), where('status', '==', 'clocked_in')),
+    );
+    if (openShiftSnapshot.empty) {
+      throw new Error('No active shift found to clock out.');
+    }
+    attendanceRef = getStaffAttendanceDoc(openShiftSnapshot.docs[0].id, societyId);
+  }
+
+  await updateDoc(attendanceRef, {
+    status: 'clocked_out',
+    clockOutAt: serverTimestamp(),
+    notes: extra.notes || '',
     updatedAt: serverTimestamp(),
   });
 }

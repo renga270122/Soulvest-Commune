@@ -10,6 +10,7 @@ import Expenses from '../pages/Expenses';
 import Polls from '../pages/Polls';
 import Profile from '../pages/Profile';
 import FacilityBookings from '../pages/FacilityBookings';
+import SecurityLogs from '../pages/SecurityLogs';
 import GuardDashboard from '../pages/GuardDashboard';
 import ResidentDashboard from '../pages/ResidentDashboard';
 import AdminDashboard from '../pages/AdminDashboard';
@@ -21,10 +22,11 @@ import ResidentDirectory from '../pages/ResidentDirectory';
 import Announcements from '../pages/Announcements';
 
 
-const ProtectedRoute = ({ children, role }) => {
+const ProtectedRoute = ({ children, role, roles }) => {
   const { user } = useAuthContext();
   if (!user) return <Navigate to="/login" />;
   if (role && user.role !== role) return <Navigate to={`/${user.role}`} />;
+  if (roles && !roles.includes(user.role)) return <Navigate to={`/${user.role}`} />;
   return children;
 };
 
@@ -50,6 +52,7 @@ const AppRoutes = () => (
       <Route path="/guard" element={<ProtectedRoute role="guard"><GuardDashboard /></ProtectedRoute>} />
       <Route path="/resident" element={<ProtectedRoute role="resident"><ResidentDashboard /></ProtectedRoute>} />
       <Route path="/admin" element={<ProtectedRoute role="admin"><AdminDashboard /></ProtectedRoute>} />
+      <Route path="/security" element={<ProtectedRoute roles={['admin', 'guard']}><FeatureRoute feature="SECURITY_LOGS"><SecurityLogs /></FeatureRoute></ProtectedRoute>} />
       <Route path="/directory" element={<ProtectedRoute><ResidentDirectory /></ProtectedRoute>} />
       <Route path="/announcements" element={<ProtectedRoute><FeatureRoute feature="ANNOUNCEMENTS"><Announcements /></FeatureRoute></ProtectedRoute>} />
     </Routes>

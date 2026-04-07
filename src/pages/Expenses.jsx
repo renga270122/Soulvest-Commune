@@ -23,8 +23,11 @@ import {
   seedResidentPaymentIfMissing,
   subscribeToResidentPayments,
 } from '../services/communityData';
+import QRCode from 'react-qr-code';
 
 const formatAmount = (amount) => `₹${Number(amount || 0).toLocaleString('en-IN')}`;
+const upiId = import.meta.env.VITE_UPI_ID || 'payments@soulvest';
+const upiPayee = import.meta.env.VITE_UPI_PAYEE_NAME || 'Soulvest Commune';
 const formatDate = (value) => {
   if (!value) return 'No due date';
   if (typeof value === 'string') return new Date(value).toLocaleDateString();
@@ -40,6 +43,22 @@ export default function Expenses() {
   const [submitting, setSubmitting] = useState(false);
   const [banner, setBanner] = useState({ type: '', message: '' });
   const [activeReceipt, setActiveReceipt] = useState(null);
+
+  const buildUpiUri = (payment) => {
+    const params = new URLSearchParams({
+      pa: upiId,
+      pn: upiPayee,
+      tn: payment.title || 'Soulvest resident payment',
+      am: String(payment.amount || 0),
+      cu: 'INR',
+      tr: payment.paymentReference || `SV-${payment.id}`,
+    });
+    return `upi://pay?${params.toString()}`;
+  };
+
+  const handleOpenUpi = (payment) => {
+    window.location.href = buildUpiUri(payment);
+  };
 
   const buildReceiptText = (payment) => {
     const receiptNumber = payment.receiptNumber || `RCP-PENDING-${payment.id}`;
@@ -266,6 +285,19 @@ export default function Expenses() {
             <MenuItem value="netbanking">Net Banking</MenuItem>
             <MenuItem value="cash">Cash</MenuItem>
           </TextField>
+          {paymentMethod === 'upi' && selectedPayment && (
+            <Stack spacing={1.5} sx={{ mt: 2, alignItems: 'center' }}>
+              <Typography color="text.secondary">
+                Scan the UPI QR or open your UPI app directly to complete payment.
+              </Typography>
+              <Box sx={{ bgcolor: '#fff', p: 2, borderRadius: 2 }}>
+                <QRCode value={buildUpiUri(selectedPayment)} size={168} />
+              </Box>
+              <Button variant="outlined" onClick={() => handleOpenUpi(selectedPayment)}>
+                Open UPI App
+              </Button>
+            </Stack>
+          )}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setSelectedPayment(null)} disabled={submitting}>
