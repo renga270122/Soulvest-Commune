@@ -77,9 +77,6 @@ export default function FeedbackForm() {
             <Typography variant="h4" sx={{ mt: 1, fontWeight: 800 }}>
               Resident Feedback Form
             </Typography>
-            <Typography sx={{ mt: 1.5, color: 'rgba(255, 247, 239, 0.84)' }}>
-              Share this link in the residents WhatsApp group so neighbors can submit quick feedback without signing in or sharing personal details.
-            </Typography>
           </Box>
 
           <Box component="form" onSubmit={handleSubmit} sx={{ p: 3.5 }}>
@@ -129,10 +126,6 @@ export default function FeedbackForm() {
               <Button type="submit" variant="contained" size="large" disabled={submitting} sx={{ py: 1.4 }}>
                 {submitting ? 'Submitting...' : 'Submit feedback'}
               </Button>
-
-              <Typography variant="body2" color="text.secondary">
-                Tip: Share the public page URL ending in /feedback in your residents WhatsApp group.
-              </Typography>
             </Stack>
           </Box>
         </Paper>
