@@ -47,7 +47,8 @@
   letter-spacing: 0.18em;
   font-family: 'Cinzel', serif;
   font-size: 0.8rem;
-  color: #ffe7b0;
+  color: #fff0ca;
+  font-weight: 700;
 }
 
 .heroTitle {
@@ -56,8 +57,9 @@
   font-family: 'Cinzel', serif;
   font-size: clamp(3rem, 5.7vw, 5.8rem);
   line-height: 0.98;
-  color: #fff5df;
+  color: #fffaf0;
   text-wrap: balance;
+  text-shadow: 0 2px 10px rgba(20, 5, 10, 0.2);
 }
 
 .heroCopy {
@@ -66,7 +68,8 @@
   font-family: 'Cormorant Garamond', serif;
   font-size: clamp(1.3rem, 2vw, 1.7rem);
   line-height: 1.32;
-  color: rgba(255, 242, 216, 0.9);
+  color: #fff4db;
+  font-weight: 700;
 }
 
 .statsBar {
@@ -83,7 +86,7 @@
 
 .statsBar div {
   padding: 1rem 1.15rem;
-  background: rgba(92, 12, 37, 0.38);
+  background: rgba(70, 10, 28, 0.6);
   display: grid;
   gap: 0.15rem;
 }
@@ -91,22 +94,24 @@
 .statsBar strong {
   font-family: 'Cinzel', serif;
   font-size: 1.2rem;
-  color: #fff0cd;
+  color: #fff7e1;
+  font-weight: 700;
 }
 
 .statsBar span {
   font-size: 0.88rem;
-  color: rgba(255, 239, 213, 0.75);
+  color: rgba(255, 239, 213, 0.94);
+  font-weight: 700;
 }
 
 .bannerCard {
   margin-top: 1.8rem;
   padding: 1.35rem 1.5rem;
   max-width: 700px;
-  background: linear-gradient(135deg, rgba(20, 96, 104, 0.94), rgba(17, 65, 78, 0.94));
-  border: 1px solid rgba(182, 255, 237, 0.18);
+  background: linear-gradient(135deg, rgba(11, 78, 88, 0.98), rgba(10, 48, 61, 0.98));
+  border: 1px solid rgba(214, 255, 242, 0.28);
   border-radius: 26px;
-  box-shadow: 0 30px 80px rgba(16, 24, 40, 0.16);
+  box-shadow: 0 30px 80px rgba(16, 24, 40, 0.22);
 }
 
 .bannerEyebrow,
@@ -118,7 +123,7 @@
   letter-spacing: 0.18em;
   font-size: 0.75rem;
   font-family: 'Cinzel', serif;
-  color: #b6f0de;
+  color: #d8fff2;
 }
 
 .bannerCard h2,
@@ -128,6 +133,11 @@
   font-family: 'Cinzel', serif;
 }
 
+.bannerCard h2 {
+  color: #fff8e8;
+  font-weight: 700;
+}
+
 .bannerCard p,
 .featureCard p,
 .cardIntro p {
@@ -135,6 +145,13 @@
   font-family: 'Cormorant Garamond', serif;
   font-size: 1.22rem;
   line-height: 1.35;
+  font-weight: 600;
+}
+
+.bannerCard p {
+  color: #fff8eb;
+  font-weight: 700;
+  text-shadow: 0 1px 1px rgba(7, 22, 28, 0.34);
 }
 
 .palaceArt {
@@ -152,6 +169,8 @@
 .sectionHeader h2 {
   font-size: clamp(1.8rem, 3vw, 2.6rem);
   line-height: 1.05;
+  color: #fff6e3;
+  font-weight: 700;
 }
 
 .featureGrid {
@@ -165,34 +184,43 @@
   padding: 1.15rem;
   min-height: 168px;
   border-radius: 22px;
-  background: rgba(248, 236, 214, 0.12);
-  border: 1px solid rgba(255, 228, 182, 0.18);
-  box-shadow: inset 0 1px 0 rgba(255, 245, 223, 0.06);
+  background: rgba(72, 17, 35, 0.54);
+  border: 1px solid rgba(255, 228, 182, 0.28);
+  box-shadow: inset 0 1px 0 rgba(255, 245, 223, 0.08);
 }
 
 .featureCard h3 {
   margin: 0.3rem 0 0;
   font-size: 1.02rem;
   font-family: 'Cinzel', serif;
-  color: #fff3d3;
+  color: #fff6df;
+  font-weight: 700;
+}
+
+.featureCard p {
+  color: #fff4e1;
+  font-weight: 700;
+  text-shadow: 0 1px 1px rgba(24, 7, 14, 0.28);
 }
 
 .featureBadge {
   display: inline-flex;
   padding: 0.28rem 0.62rem;
   border-radius: 999px;
-  background: rgba(27, 116, 122, 0.9);
-  color: #def8ec;
+  background: rgba(244, 211, 141, 0.94);
+  color: #4b1822;
   font-size: 0.72rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+  font-weight: 700;
 }
 
 .footerLine {
   margin-top: 1.5rem;
   font-family: 'Cormorant Garamond', serif;
   font-size: 1.15rem;
-  color: rgba(255, 242, 216, 0.85);
+  color: #fff0d1;
+  font-weight: 700;
 }
 
 .loginColumn {
@@ -232,7 +260,8 @@
   font-family: 'Cinzel', serif;
   font-size: 0.88rem;
   cursor: pointer;
-  color: #6b3140;
+  color: #4c1222;
+  font-weight: 700;
 }
 
 .activeTab {
@@ -246,7 +275,8 @@
 }
 
 .cardIntro p {
-  color: rgba(46, 22, 32, 0.72);
+  color: rgba(46, 22, 32, 0.9);
+  font-weight: 700;
 }
 
 .roleSelector {
@@ -267,8 +297,9 @@
   gap: 0.3rem;
   justify-items: center;
   cursor: pointer;
-  color: #6c3741;
+  color: #4d1824;
   font-family: 'Cinzel', serif;
+  font-weight: 700;
 }
 
 .roleOptionActive {
@@ -286,7 +317,8 @@
   margin-bottom: 0.35rem;
   font-family: 'Cinzel', serif;
   font-size: 0.86rem;
-  color: #683240;
+  color: #4c1222;
+  font-weight: 700;
 }
 
 .inputGroup {
@@ -315,6 +347,7 @@
   flex: 1;
   padding: 0.9rem 0;
   color: var(--ink);
+  font-weight: 700;
 }
 
 .forgot {
@@ -332,7 +365,7 @@
   padding: 0;
   cursor: pointer;
   color: #8c4e2d;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .loginBtn,
@@ -344,6 +377,7 @@
   font-family: 'Cinzel', serif;
   font-size: 0.96rem;
   cursor: pointer;
+  font-weight: 700;
 }
 
 .loginBtn {
@@ -356,7 +390,8 @@
   position: relative;
   margin: 1.1rem 0;
   text-align: center;
-  color: rgba(78, 37, 47, 0.6);
+  color: rgba(78, 37, 47, 0.85);
+  font-weight: 700;
 }
 
 .divider::before {
@@ -389,6 +424,7 @@
   padding: 0.8rem 0.95rem;
   border-radius: 16px;
   font-size: 0.95rem;
+  font-weight: 700;
 }
 
 .errorBanner {
@@ -434,7 +470,8 @@
 .signup {
   margin-top: 1rem;
   text-align: center;
-  color: rgba(46, 22, 32, 0.78);
+  color: rgba(46, 22, 32, 0.92);
+  font-weight: 600;
 }
 
 .signupLink {
@@ -479,10 +516,43 @@
     max-width: none;
   }
 
+  .heroColumn {
+    padding-top: 0.5rem;
+  }
+
+  .greeting {
+    color: #fff4d4;
+  }
+
+  .heroCopy {
+    color: #fff8ec;
+  }
+
   .statsBar,
   .roleSelector,
   .featureGrid {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .featureCard {
+    background: rgba(67, 15, 31, 0.72);
+  }
+
+  .statsBar {
+    border-color: rgba(255, 228, 182, 0.34);
+  }
+
+  .statsBar div {
+    background: rgba(58, 7, 22, 0.76);
+  }
+
+  .sectionHeader h2 {
+    color: #fff9ef;
+  }
+
+  .featureCard p {
+    font-size: 1.08rem;
+    line-height: 1.42;
   }
 }
 
@@ -492,6 +562,95 @@
   .featureGrid,
   .tabRow {
     grid-template-columns: 1fr;
+  }
+
+  .statsBar div {
+    background: rgba(51, 5, 18, 0.84);
+  }
+
+  .statsBar strong {
+    color: #fff9eb;
+  }
+
+  .statsBar span {
+    color: #fff5dc;
+  }
+
+  .heroTitle,
+  .sectionHeader h2 {
+    color: #fffaf2;
+  }
+
+  .heroCopy {
+    color: #fff9ef;
+    font-size: 1.18rem;
+    line-height: 1.4;
+  }
+
+  .greeting,
+  .bannerEyebrow,
+  .sectionHeader span,
+  .kicker,
+  .label,
+  .tabButton,
+  .activeTab,
+  .featureBadge {
+    font-weight: 700;
+  }
+
+  .heroCopy,
+  .bannerCard p,
+  .featureCard p,
+  .cardIntro p,
+  .footerLine,
+  .signup {
+    font-weight: 700;
+  }
+
+  .inputField,
+  .loginBtn,
+  .googleBtn,
+  .forgotLink,
+  .roleOption,
+  .roleOptionActive {
+    font-weight: 700;
+  }
+
+  .featureCard {
+    padding: 1.1rem;
+    background: rgba(58, 11, 26, 0.82);
+    border-color: rgba(255, 228, 182, 0.34);
+  }
+
+  .featureCard h3 {
+    font-size: 1rem;
+    color: #fff8ea;
+  }
+
+  .featureCard p {
+    color: #fff6e8;
+    font-size: 1rem;
+    line-height: 1.45;
+  }
+
+  .featureBadge {
+    background: #f3cf8a;
+    color: #481522;
+  }
+
+  .bannerCard {
+    background: linear-gradient(135deg, rgba(9, 66, 76, 0.99), rgba(8, 39, 50, 0.99));
+    border-color: rgba(222, 255, 247, 0.34);
+  }
+
+  .bannerCard h2 {
+    color: #fffaf0;
+  }
+
+  .bannerCard p {
+    color: #fffaf0;
+    font-size: 1.08rem;
+    line-height: 1.42;
   }
 
   .forgot {

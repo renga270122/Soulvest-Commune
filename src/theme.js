@@ -15,7 +15,7 @@ const theme = createTheme({
     },
     text: {
       primary: '#3B2E1A', // Deep brown for headings
-      secondary: '#7B6A4D', // Muted brown for subtext
+      secondary: '#5E4B2B', // Darker brown for better mobile contrast
     },
     success: {
       main: '#4B9B3E', // Green for status
@@ -31,9 +31,16 @@ const theme = createTheme({
   typography: {
     fontFamily: 'Nunito, Arial, sans-serif',
     h1: { fontWeight: 700, letterSpacing: 0.5 },
-    h2: { fontWeight: 600, letterSpacing: 0.3 },
-    h3: { fontWeight: 500 },
-    button: { textTransform: 'none', fontWeight: 600 },
+    h2: { fontWeight: 700, letterSpacing: 0.3 },
+    h3: { fontWeight: 700 },
+    h4: { fontWeight: 700 },
+    h5: { fontWeight: 700 },
+    h6: { fontWeight: 700 },
+    body1: { fontWeight: 600, lineHeight: 1.55 },
+    body2: { fontWeight: 600, lineHeight: 1.5 },
+    subtitle1: { fontWeight: 700 },
+    subtitle2: { fontWeight: 700 },
+    button: { textTransform: 'none', fontWeight: 700 },
   },
   shape: {
     borderRadius: 16,
@@ -44,7 +51,31 @@ const theme = createTheme({
         root: {
           borderRadius: 12,
           boxShadow: '0 2px 8px #e0c9a6',
+          fontWeight: 700,
+          letterSpacing: 0.15,
+        },
+      },
+    },
+    MuiChip: {
+      styleOverrides: {
+        label: {
+          fontWeight: 700,
+        },
+      },
+    },
+    MuiInputBase: {
+      styleOverrides: {
+        input: {
+          color: '#2F2210',
           fontWeight: 600,
+        },
+      },
+    },
+    MuiFormLabel: {
+      styleOverrides: {
+        root: {
+          color: '#4D3B20',
+          fontWeight: 700,
         },
       },
     },
