@@ -38,6 +38,13 @@ const razorpay = process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET
     })
   : null;
 
+function getRazorpayMode() {
+  if (!process.env.RAZORPAY_KEY_ID) return 'unconfigured';
+  if (process.env.RAZORPAY_KEY_ID.startsWith('rzp_test_')) return 'test';
+  if (process.env.RAZORPAY_KEY_ID.startsWith('rzp_live_')) return 'live';
+  return 'unknown';
+}
+
 // LLM Chatbot route
 const chatbotLLM = require('./chatbot-llm');
 app.use(chatbotLLM);
@@ -48,6 +55,7 @@ app.get('/', (req, res) => {
     ok: true,
     service: 'soulvest-commune-backend',
     razorpayConfigured: Boolean(razorpay),
+    razorpayMode: getRazorpayMode(),
     allowedOrigins,
   });
 });
@@ -57,6 +65,7 @@ app.get('/health', (req, res) => {
     ok: true,
     service: 'soulvest-commune-backend',
     razorpayConfigured: Boolean(razorpay),
+    razorpayMode: getRazorpayMode(),
   });
 });
 
@@ -209,6 +218,7 @@ app.post('/payments/razorpay/order', async (req, res) => {
       currency: order.currency,
       receipt: order.receipt,
       keyId: process.env.RAZORPAY_KEY_ID,
+      mode: getRazorpayMode(),
       name: process.env.RAZORPAY_BUSINESS_NAME || 'Soulvest Commune',
       description: title,
       notes: order.notes || {},

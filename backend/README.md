@@ -29,6 +29,8 @@ Why this path:
 - `RAZORPAY_KEY_ID`
 - `RAZORPAY_KEY_SECRET`
 
+For Razorpay sandbox testing, use your `rzp_test_...` key pair here. You do not need live Razorpay keys for integration testing.
+
 5. Set these if you want the existing chatbot and notification channels live:
 
 - `OPENAI_API_KEY`
@@ -86,6 +88,23 @@ These endpoints should respond after deploy:
 4. `FRONTEND_URL` and `ALLOWED_ORIGINS` include the exact production frontend origins.
 5. Frontend rebuilt with `VITE_API_BASE_URL` pointing to the Render service URL.
 6. Test `POST /payments/razorpay/order` from the deployed frontend.
+
+## Razorpay Test Mode
+
+Use Razorpay test keys first.
+
+In Render:
+
+- `RAZORPAY_KEY_ID=rzp_test_...`
+- `RAZORPAY_KEY_SECRET=...` for the matching test account
+
+Expected behavior:
+
+- `GET /health` returns `"razorpayMode":"test"`
+- `POST /payments/razorpay/order` includes `"mode":"test"` in the response
+- the frontend can exercise checkout and verification without switching code paths later
+
+Move to live mode only when you want to accept real payments.
 
 ## Manual Render Alternative
 
