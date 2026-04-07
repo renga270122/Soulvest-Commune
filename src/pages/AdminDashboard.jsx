@@ -17,6 +17,7 @@ import DownloadIcon from '@mui/icons-material/Download';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import CampaignIcon from '@mui/icons-material/Campaign';
 import BugReportIcon from '@mui/icons-material/BugReport';
+import InboxIcon from '@mui/icons-material/Inbox';
 import ShieldIcon from '@mui/icons-material/Shield';
 import { useNavigate } from 'react-router-dom';
 import { useAuthContext } from '../components/AuthContext';
@@ -253,6 +254,9 @@ export default function AdminDashboard() {
         </Box>
 
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} sx={{ mb: 3 }}>
+          <Button variant="outlined" startIcon={<InboxIcon />} onClick={() => navigate('/admin/feedback')}>
+            View Feedback Inbox
+          </Button>
           <Button variant="outlined" startIcon={<CampaignIcon />} onClick={() => navigate('/announcements')}>
             Manage Announcements
           </Button>

@@ -41,6 +41,8 @@ export default function FeedbackForm() {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+    if (submitting) return;
+
     setSubmitting(true);
     setBanner({ type: '', message: '' });
     setReferenceId('');
@@ -56,9 +58,9 @@ export default function FeedbackForm() {
       setForm(initialForm);
     } catch (error) {
       setBanner({ type: 'error', message: error.message || 'Unable to submit your feedback right now.' });
+    } finally {
+      setSubmitting(false);
     }
-
-    setSubmitting(false);
   };
 
   return (
@@ -129,6 +131,10 @@ export default function FeedbackForm() {
               <Button type="submit" variant="contained" size="large" disabled={submitting} sx={{ py: 1.4 }}>
                 {submitting ? 'Submitting...' : 'Submit feedback'}
               </Button>
+
+              <Typography variant="body2" color="text.secondary">
+                If the submit button stays busy for more than a few seconds, the backend may be waking up. You can retry safely.
+              </Typography>
             </Stack>
           </Box>
         </Paper>

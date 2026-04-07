@@ -89,6 +89,42 @@ function ensureRazorpayConfigured(res) {
   return false;
 }
 
+function withTimeout(promise, timeoutMs, errorMessage) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error(errorMessage)), timeoutMs);
+    }),
+  ]);
+}
+
+function mapFeedbackDocument(doc) {
+  return {
+    id: doc.id,
+    ...doc.data(),
+  };
+}
+
+app.get('/feedback', async (req, res) => {
+  const limit = Math.min(Math.max(Number(req.query.limit || 100), 1), 200);
+
+  try {
+    const snapshot = await withTimeout(
+      db.collection('residentFeedback').orderBy('createdAt', 'desc').limit(limit).get(),
+      15000,
+      'Timed out while loading feedback.',
+    );
+
+    res.json({
+      ok: true,
+      feedback: snapshot.docs.map(mapFeedbackDocument),
+    });
+  } catch (err) {
+    const statusCode = /Timed out/i.test(err.message) ? 504 : 500;
+    res.status(statusCode).json({ error: 'Failed to load feedback', details: err.message });
+  }
+});
+
 app.post('/feedback', async (req, res) => {
   const {
     name = '',
@@ -109,15 +145,19 @@ app.post('/feedback', async (req, res) => {
   }
 
   try {
-    const created = await db.collection('residentFeedback').add({
-      name: String(name).trim(),
-      flat: String(flat).trim(),
-      rating: normalizedRating,
-      category: String(category).trim() || 'general',
-      message: String(message).trim(),
-      source,
-      createdAt: new Date().toISOString(),
-    });
+    const created = await withTimeout(
+      db.collection('residentFeedback').add({
+        name: String(name).trim(),
+        flat: String(flat).trim(),
+        rating: normalizedRating,
+        category: String(category).trim() || 'general',
+        message: String(message).trim(),
+        source,
+        createdAt: new Date().toISOString(),
+      }),
+      15000,
+      'Timed out while saving feedback.',
+    );
 
     res.status(201).json({
       ok: true,
@@ -125,7 +165,8 @@ app.post('/feedback', async (req, res) => {
       message: 'Feedback submitted successfully.',
     });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to submit feedback', details: err.message });
+    const statusCode = /Timed out/i.test(err.message) ? 504 : 500;
+    res.status(statusCode).json({ error: 'Failed to submit feedback', details: err.message });
   }
 });
 

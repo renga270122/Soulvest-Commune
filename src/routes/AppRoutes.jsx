@@ -45,6 +45,7 @@ const FacilityBookings = lazyWithRetry(() => import('../pages/FacilityBookings')
 const SecurityLogs = lazyWithRetry(() => import('../pages/SecurityLogs'), 'security');
 const GuardDashboard = lazyWithRetry(() => import('../pages/GuardDashboard'), 'guard');
 const AdminDashboard = lazyWithRetry(() => import('../pages/AdminDashboard'), 'admin');
+const FeedbackInbox = lazyWithRetry(() => import('../pages/FeedbackInbox'), 'feedback-inbox');
 const ResidentDirectory = lazyWithRetry(() => import('../pages/ResidentDirectory'), 'directory');
 const Announcements = lazyWithRetry(() => import('../pages/Announcements'), 'announcements');
 const FeedbackForm = lazyWithRetry(() => import('../pages/FeedbackForm'), 'feedback');
@@ -95,6 +96,7 @@ const AppRoutes = () => (
         <Route path="/guard" element={<ProtectedRoute role="guard"><GuardDashboard /></ProtectedRoute>} />
         <Route path="/resident" element={<ProtectedRoute role="resident"><ResidentDashboard /></ProtectedRoute>} />
         <Route path="/admin" element={<ProtectedRoute role="admin"><AdminDashboard /></ProtectedRoute>} />
+        <Route path="/admin/feedback" element={<ProtectedRoute role="admin"><FeedbackInbox /></ProtectedRoute>} />
         <Route path="/security" element={<ProtectedRoute roles={['admin', 'guard']}><FeatureRoute feature="SECURITY_LOGS"><SecurityLogs /></FeatureRoute></ProtectedRoute>} />
         <Route path="/directory" element={<ProtectedRoute><ResidentDirectory /></ProtectedRoute>} />
         <Route path="/announcements" element={<ProtectedRoute><FeatureRoute feature="ANNOUNCEMENTS"><Announcements /></FeatureRoute></ProtectedRoute>} />
