@@ -5,14 +5,23 @@ import { VitePWA } from 'vite-plugin-pwa';
 // https://vite.dev/config/
 export default defineConfig({
   base: '/',
+  define: {
+    'import.meta.env.VITE_APP_VERSION': JSON.stringify(`${Date.now()}`),
+  },
   plugins: [
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      injectRegister: false,
       outDir: 'dist',
       filename: 'sw.js',
       scope: '/',
       base: '/',
+      workbox: {
+        cleanupOutdatedCaches: true,
+        clientsClaim: true,
+        skipWaiting: true,
+      },
       manifest: {
         name: 'Soulvest Commune',
         short_name: 'Soulvest',
