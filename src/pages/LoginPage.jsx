@@ -105,6 +105,7 @@ function PalaceIllustration() {
 }
 
 export default function LoginPage() {
+  const currentYear = new Date().getFullYear();
   const [activeTab, setActiveTab] = useState("signin");
   const [selectedRole, setSelectedRole] = useState("resident");
   const [emailOrMobile, setEmailOrMobile] = useState("");
@@ -329,7 +330,9 @@ export default function LoginPage() {
             </div>
           </section>
 
-          <footer className={styles.footerLine}>Made with love in Bengaluru, India.</footer>
+          <footer className={styles.footerLine}>
+            {`Copyright ${currentYear} Soulvest Commune. All rights reserved. Made with love in Bengaluru, India.`}
+          </footer>
         </section>
 
         <section className={styles.loginColumn}>
