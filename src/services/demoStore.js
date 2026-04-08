@@ -21,6 +21,9 @@ const buildResidentStaffSeed = ({ residentId, societyId, createdAt }) => ([
     roleLabel: 'Maid',
     phone: '9876501001',
     autoApproved: true,
+    accessStartTime: '06:30',
+    accessEndTime: '12:30',
+    active: true,
     createdAt,
     updatedAt: createdAt,
   },
@@ -32,6 +35,9 @@ const buildResidentStaffSeed = ({ residentId, societyId, createdAt }) => ([
     roleLabel: 'Driver',
     phone: '9876501002',
     autoApproved: true,
+    accessStartTime: '07:30',
+    accessEndTime: '10:30',
+    active: true,
     createdAt,
     updatedAt: createdAt,
   },
@@ -42,7 +48,10 @@ const buildResidentStaffSeed = ({ residentId, societyId, createdAt }) => ([
     name: 'Rekha',
     roleLabel: 'Cook',
     phone: '9876501003',
-    autoApproved: true,
+    autoApproved: false,
+    accessStartTime: '09:00',
+    accessEndTime: '13:30',
+    active: true,
     createdAt,
     updatedAt: createdAt,
   },
@@ -116,9 +125,15 @@ const ensureResidentDemoExtensions = (state) => {
   state.residentStaffAttendance = Array.isArray(state.residentStaffAttendance) ? state.residentStaffAttendance : [];
 
   seededStaff.forEach((staff) => {
-    if (!state.residentStaff.some((entry) => entry.id === staff.id)) {
+    const existingStaff = state.residentStaff.find((entry) => entry.id === staff.id);
+    if (!existingStaff) {
       state.residentStaff.push(staff);
+      return;
     }
+
+    existingStaff.autoApproved = existingStaff.autoApproved ?? staff.autoApproved;
+    existingStaff.accessStartTime = existingStaff.accessStartTime || staff.accessStartTime;
+    existingStaff.accessEndTime = existingStaff.accessEndTime || staff.accessEndTime;
   });
 
   seededAttendance.forEach((entry) => {
@@ -133,11 +148,14 @@ const ensureResidentDemoExtensions = (state) => {
       name: 'QuickDrop Courier',
       phone: '9876500014',
       purpose: 'Delivery',
+      vendorName: 'Amazon',
       flat: 'A-101',
       residentId,
       residentName: resident?.name || 'Resident',
       societyId,
       status: 'approved',
+      deliveryStatus: 'pending_pickup',
+      collectedBy: 'Guard Mahesh',
       time: 'Today 5:40 PM',
       entryMethod: 'walk-in',
       history: [{ type: 'approved', actor: 'Priya Nair', at: createdAt }],
@@ -146,9 +164,49 @@ const ensureResidentDemoExtensions = (state) => {
     });
   }
 
+  if (!state.visitors.some((visitor) => visitor.id === 'visitor_staff_pending_demo')) {
+    state.visitors.push({
+      id: 'visitor_staff_pending_demo',
+      name: 'Rekha',
+      phone: '9876501003',
+      purpose: 'Cook shift',
+      flat: 'A-101',
+      residentId,
+      residentName: resident?.name || 'Resident',
+      societyId,
+      status: 'pending',
+      time: 'Today 9:05 AM',
+      entryMethod: 'walk-in',
+      history: [{ type: 'pending', actor: 'Mahesh Kumar', at: createdAt }],
+      createdAt,
+      updatedAt: createdAt,
+    });
+  }
+
+  if (!state.visitors.some((visitor) => visitor.id === 'visitor_delivery_pending_demo')) {
+    state.visitors.push({
+      id: 'visitor_delivery_pending_demo',
+      name: 'Swiggy Rider',
+      phone: '9876500015',
+      purpose: 'Delivery',
+      vendorName: 'Swiggy',
+      flat: 'A-101',
+      residentId,
+      residentName: resident?.name || 'Resident',
+      societyId,
+      status: 'pending',
+      deliveryStatus: 'awaiting_instruction',
+      time: 'Today 7:15 PM',
+      entryMethod: 'walk-in',
+      history: [{ type: 'pending', actor: 'Mahesh Kumar', at: createdAt }],
+      createdAt,
+      updatedAt: createdAt,
+    });
+  }
+
   state.meta = {
     ...state.meta,
-    version: Math.max(Number(state.meta?.version || 1), 2),
+    version: Math.max(Number(state.meta?.version || 1), 3),
   };
 
   return state;
@@ -173,7 +231,7 @@ const createSeedState = () => {
 
   return {
     meta: {
-      version: 2,
+      version: 3,
       initializedAt: createdAt,
     },
     users: [
@@ -266,6 +324,22 @@ const createSeedState = () => {
         updatedAt: createdAt,
       },
       {
+        id: 'visitor_staff_pending_demo',
+        name: 'Rekha',
+        phone: '9876501003',
+        purpose: 'Cook shift',
+        flat: 'A-101',
+        residentId: residentOneId,
+        residentName: 'Priya Nair',
+        societyId,
+        status: 'pending',
+        time: 'Today 9:05 AM',
+        entryMethod: 'walk-in',
+        history: [{ type: 'pending', actor: 'Mahesh Kumar', at: createdAt }],
+        createdAt,
+        updatedAt: createdAt,
+      },
+      {
         id: 'visitor_preapproved_demo',
         name: 'Anita Rao',
         visitorName: 'Anita Rao',
@@ -309,17 +383,42 @@ const createSeedState = () => {
       },
       {
         id: 'visitor_delivery_demo',
-        name: 'QuickDrop Courier',
+        name: 'Amazon Delivery',
         phone: '9876500014',
         purpose: 'Delivery',
+        vendorName: 'Amazon',
         flat: 'A-101',
         residentId: residentOneId,
         residentName: 'Priya Nair',
         societyId,
         status: 'approved',
+        deliveryStatus: 'pending_pickup',
+        collectedBy: 'Guard Mahesh',
         time: 'Today 5:40 PM',
         entryMethod: 'walk-in',
-        history: [{ type: 'approved', actor: 'Priya Nair', at: createdAt }],
+        history: [
+          { type: 'pending', actor: 'Mahesh Kumar', at: new Date(Date.now() - 60 * 60 * 1000).toISOString() },
+          { type: 'deliver_to_security', actor: 'Priya Nair', at: new Date(Date.now() - 50 * 60 * 1000).toISOString() },
+          { type: 'security_received', actor: 'Guard Mahesh', at: new Date(Date.now() - 48 * 60 * 1000).toISOString() },
+        ],
+        createdAt,
+        updatedAt: createdAt,
+      },
+      {
+        id: 'visitor_delivery_pending_demo',
+        name: 'Swiggy Rider',
+        phone: '9876500015',
+        purpose: 'Delivery',
+        vendorName: 'Swiggy',
+        flat: 'A-101',
+        residentId: residentOneId,
+        residentName: 'Priya Nair',
+        societyId,
+        status: 'pending',
+        deliveryStatus: 'awaiting_instruction',
+        time: 'Today 7:15 PM',
+        entryMethod: 'walk-in',
+        history: [{ type: 'pending', actor: 'Mahesh Kumar', at: createdAt }],
         createdAt,
         updatedAt: createdAt,
       },
@@ -475,6 +574,19 @@ const createSeedState = () => {
         message: 'Your clubhouse amenity charge receipt is ready.',
         type: 'payment-receipt',
         read: true,
+        societyId,
+        createdAt,
+        updatedAt: createdAt,
+      },
+      {
+        id: 'notification_demo_3',
+        userId: residentOneId,
+        title: 'Delivery waiting at Gate 2',
+        message: 'Swiggy delivery for Priya Nair is waiting for instructions at Gate 2.',
+        type: 'delivery-awaiting-instruction',
+        read: false,
+        visitorId: 'visitor_delivery_pending_demo',
+        flat: 'A-101',
         societyId,
         createdAt,
         updatedAt: createdAt,

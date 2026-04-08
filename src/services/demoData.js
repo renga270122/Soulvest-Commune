@@ -94,6 +94,8 @@ const appendVisitorHistory = (visitor, type, actor) => {
   });
 };
 
+const findPrimaryGuard = (state, societyId) => state.users.find((user) => user.role === 'guard' && user.societyId === societyId) || null;
+
 const findResidentByFlat = (state, flat, societyId) => state.users.find((user) => (
   user.role === 'resident' && user.societyId === societyId && normalizeFlat(user.flat) === normalizeFlat(flat)
 )) || null;
@@ -207,7 +209,7 @@ export function subscribeToResidentStaff(userId, callback, context = DEFAULT_SOC
   const societyId = resolveSocietyId(context);
   return subscribeDemoState(
     (state) => (state.residentStaff || [])
-      .filter((entry) => entry.societyId === societyId && entry.residentId === userId)
+      .filter((entry) => entry.societyId === societyId && entry.residentId === userId && entry.active !== false)
       .sort((left, right) => `${left.roleLabel || ''}-${left.name || ''}`.localeCompare(`${right.roleLabel || ''}-${right.name || ''}`)),
     callback,
   );
@@ -381,6 +383,19 @@ export async function updateVisitorStatus(id, status, actor = {}) {
     visitor.status = status;
     visitor.updatedAt = nowIso();
     appendVisitorHistory(visitor, status, actor);
+
+    if (visitor.residentId && ['approved', 'denied'].includes(status)) {
+      appendNotification(state, {
+        userId: visitor.residentId,
+        title: status === 'approved' ? 'Visitor approved' : 'Visitor denied',
+        message: `${visitor.name} was ${status} for Flat ${visitor.flat}.`,
+        type: `visitor-${status}`,
+        visitorId: visitor.id,
+        flat: visitor.flat,
+        societyId: visitor.societyId,
+      });
+    }
+
     return state;
   });
 }
@@ -461,6 +476,9 @@ export async function createResidentStaff(staff) {
       roleLabel: staff.roleLabel || staff.role || 'Helper',
       phone: staff.phone || '',
       autoApproved: staff.autoApproved !== false,
+      accessStartTime: staff.accessStartTime || '',
+      accessEndTime: staff.accessEndTime || '',
+      active: true,
       notes: staff.notes || '',
       createdAt: nowIso(),
       updatedAt: nowIso(),
@@ -471,6 +489,103 @@ export async function createResidentStaff(staff) {
   });
 
   return clone(created);
+}
+
+export async function updateResidentStaff(staffId, updates = {}) {
+  let updated = null;
+  mutateDemoState((state) => {
+    const staff = (state.residentStaff || []).find((entry) => entry.id === staffId);
+    if (!staff) throw new Error('Staff member not found.');
+
+    Object.assign(staff, {
+      ...updates,
+      updatedAt: nowIso(),
+    });
+
+    updated = clone(staff);
+    return state;
+  });
+
+  return updated;
+}
+
+export async function deleteResidentStaff(staffId) {
+  mutateDemoState((state) => {
+    const staff = (state.residentStaff || []).find((entry) => entry.id === staffId);
+    if (!staff) throw new Error('Staff member not found.');
+
+    staff.active = false;
+    staff.autoApproved = false;
+    staff.updatedAt = nowIso();
+    return state;
+  });
+}
+
+export async function routeDelivery(visitorId, resolution, actor = {}) {
+  let updated = null;
+  mutateDemoState((state) => {
+    const visitor = state.visitors.find((entry) => entry.id === visitorId);
+    if (!visitor) throw new Error('Delivery not found.');
+
+    const guard = findPrimaryGuard(state, visitor.societyId);
+    const actorName = actor?.name || 'Resident';
+
+    if (resolution === 'doorstep') {
+      visitor.status = 'approved';
+      visitor.deliveryStatus = 'doorstep';
+      visitor.updatedAt = nowIso();
+      appendVisitorHistory(visitor, 'deliver_to_doorstep', actor);
+
+      if (visitor.residentId) {
+        appendNotification(state, {
+          userId: visitor.residentId,
+          title: 'Delivery approved to doorstep',
+          message: `${visitor.vendorName || visitor.name} will be sent to your doorstep.`,
+          type: 'delivery-doorstep-approved',
+          visitorId: visitor.id,
+          flat: visitor.flat,
+          societyId: visitor.societyId,
+        });
+      }
+    } else if (resolution === 'security') {
+      visitor.status = 'approved';
+      visitor.deliveryStatus = 'security_hold_requested';
+      visitor.collectedBy = '';
+      visitor.updatedAt = nowIso();
+      appendVisitorHistory(visitor, 'deliver_to_security', { name: actorName });
+
+      if (guard?.id) {
+        appendNotification(state, {
+          userId: guard.id,
+          title: 'Parcel assigned to security desk',
+          message: `${visitor.vendorName || visitor.name} for Flat ${visitor.flat} should be held at the security desk.`,
+          type: 'delivery-security-hold',
+          visitorId: visitor.id,
+          flat: visitor.flat,
+          societyId: visitor.societyId,
+        });
+      }
+
+      if (visitor.residentId) {
+        appendNotification(state, {
+          userId: visitor.residentId,
+          title: 'Parcel will be held at security',
+          message: `${visitor.vendorName || visitor.name} will be held at the security desk until collection.`,
+          type: 'delivery-security-requested',
+          visitorId: visitor.id,
+          flat: visitor.flat,
+          societyId: visitor.societyId,
+        });
+      }
+    } else {
+      throw new Error('Unsupported delivery resolution.');
+    }
+
+    updated = clone(visitor);
+    return state;
+  });
+
+  return updated;
 }
 
 export async function clockInStaff(actor = {}, extra = {}) {

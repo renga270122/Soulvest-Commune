@@ -40,8 +40,10 @@ import ChatbotWidget from '../components/ChatbotWidget';
 import {
   createResidentStaff,
   createVisitorPass,
+  deleteResidentStaff,
   markNotificationAsRead,
   normalizeFlat,
+  routeDelivery,
   seedResidentPaymentIfMissing,
   subscribeToNotifications,
   subscribeToResidentPayments,
@@ -53,13 +55,29 @@ import {
 
 const statusColorMap = {
   approved: 'success',
+  awaiting_instruction: 'warning',
   checked_in: 'success',
   checked_out: 'default',
   denied: 'error',
+  doorstep: 'success',
   expired: 'error',
   pending: 'warning',
+  pending_pickup: 'info',
+  security_hold_requested: 'info',
   preapproved: 'info',
+  security_received: 'info',
 };
+
+const vendorStyleMap = {
+  amazon: { label: 'Amazon', bg: 'rgba(17, 24, 39, 0.08)', color: '#111827' },
+  swiggy: { label: 'Swiggy', bg: 'rgba(255, 112, 67, 0.14)', color: '#f97316' },
+  zomato: { label: 'Zomato', bg: 'rgba(239, 68, 68, 0.14)', color: '#dc2626' },
+  dunzo: { label: 'Dunzo', bg: 'rgba(37, 99, 235, 0.14)', color: '#2563eb' },
+  blinkit: { label: 'Blinkit', bg: 'rgba(234, 179, 8, 0.18)', color: '#a16207' },
+  zepto: { label: 'Zepto', bg: 'rgba(99, 102, 241, 0.16)', color: '#4338ca' },
+};
+
+const staffRolePattern = /(maid|driver|cook|nanny|caretaker|cleaner|staff|helper)/i;
 
 const formatTextValue = (value, fallback = 'Not available') => {
   if (typeof value === 'string') {
@@ -122,6 +140,66 @@ const formatTimeValue = (value, fallback = '—') => {
 };
 
 const formatCurrency = (amount) => `₹${Number(amount || 0).toLocaleString('en-IN')}`;
+
+const formatAccessWindow = (start, end) => {
+  if (!start && !end) return 'All day';
+  if (!start || !end) return 'Flexible timing';
+  const baseDate = '2026-01-01';
+  const startLabel = formatTimeValue(`${baseDate}T${start}:00`, start);
+  const endLabel = formatTimeValue(`${baseDate}T${end}:00`, end);
+  return `${startLabel} - ${endLabel}`;
+};
+
+const getVendorMeta = (visitor) => {
+  const source = `${visitor?.vendorName || ''} ${visitor?.name || ''}`.toLowerCase();
+  const key = Object.keys(vendorStyleMap).find((entry) => source.includes(entry));
+  return vendorStyleMap[key] || {
+    label: formatTextValue(visitor?.vendorName || visitor?.name, 'Delivery'),
+    bg: 'rgba(36, 86, 166, 0.12)',
+    color: '#2456A6',
+  };
+};
+
+const getDeliveryStatusLabel = (visitor) => {
+  if (visitor.deliveryStatus === 'security_received') return 'Delivered to Security';
+  if (visitor.deliveryStatus === 'security_hold_requested') return 'Hold at Security';
+  if (visitor.deliveryStatus === 'doorstep') return 'Doorstep';
+  if (visitor.deliveryStatus === 'pending_pickup') return 'Awaiting pickup';
+  if (visitor.deliveryStatus === 'awaiting_instruction') return 'Waiting';
+  return formatTextValue(visitor.status, 'Pending');
+};
+
+const matchesStaffMember = (visitor, staffMember) => {
+  const visitorName = formatTextValue(visitor?.name, '').toLowerCase();
+  const visitorPhone = formatTextValue(visitor?.phone, '');
+  const visitorPurpose = formatTextValue(visitor?.purpose, '').toLowerCase();
+  const staffName = formatTextValue(staffMember?.name, '').toLowerCase();
+  const staffPhone = formatTextValue(staffMember?.phone, '');
+  const staffRole = formatTextValue(staffMember?.roleLabel, '').toLowerCase();
+
+  return Boolean(
+    (staffName && visitorName && staffName === visitorName)
+    || (staffPhone && visitorPhone && staffPhone === visitorPhone)
+    || (staffRole && visitorPurpose.includes(staffRole)),
+  );
+};
+
+const isDeliveryVisitor = (visitor) => /delivery|courier|parcel|amazon|swiggy|zomato|dunzo|blinkit|zepto/i.test(`${visitor?.purpose || ''} ${visitor?.name || ''} ${visitor?.vendorName || ''}`);
+
+const isWithinStaffWindow = (staffMember) => {
+  if (!staffMember?.autoApproved) return false;
+  if (!staffMember.accessStartTime || !staffMember.accessEndTime) return true;
+
+  const now = new Date();
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  const [startHours, startMinutes] = staffMember.accessStartTime.split(':').map(Number);
+  const [endHours, endMinutes] = staffMember.accessEndTime.split(':').map(Number);
+  const startTotal = startHours * 60 + startMinutes;
+  const endTotal = endHours * 60 + endMinutes;
+
+  if (Number.isNaN(startTotal) || Number.isNaN(endTotal)) return true;
+  return currentMinutes >= startTotal && currentMinutes <= endTotal;
+};
 
 const dashboardShellSx = {
   minHeight: '100vh',
@@ -186,6 +264,9 @@ export default function ResidentDashboard() {
     name: '',
     roleLabel: 'Maid',
     phone: '',
+    autoApproved: true,
+    accessStartTime: '07:00',
+    accessEndTime: '12:00',
     notes: '',
   });
   const [notedStaffAlertIds, setNotedStaffAlertIds] = useState([]);
@@ -199,6 +280,7 @@ export default function ResidentDashboard() {
   const staffSectionRef = useRef(null);
   const duesSectionRef = useRef(null);
   const swipeStartRef = useRef({});
+  const autoApprovedStaffVisitorIds = useRef(new Set());
 
   useEffect(() => {
     const unsubscribe = subscribeToVisitors(setVisitors, user);
@@ -262,6 +344,22 @@ export default function ResidentDashboard() {
     () => myVisitors.filter((visitor) => visitor.status === 'pending'),
     [myVisitors],
   );
+  const guestVisitors = useMemo(
+    () => myVisitors.filter((visitor) => !isDeliveryVisitor(visitor) && !staffMembers.some((staffMember) => matchesStaffMember(visitor, staffMember)) && !staffRolePattern.test(`${visitor.purpose || ''} ${visitor.name || ''}`)),
+    [myVisitors, staffMembers],
+  );
+  const staffVisitors = useMemo(
+    () => myVisitors.filter((visitor) => !isDeliveryVisitor(visitor) && (staffMembers.some((staffMember) => matchesStaffMember(visitor, staffMember)) || staffRolePattern.test(`${visitor.purpose || ''} ${visitor.name || ''}`))),
+    [myVisitors, staffMembers],
+  );
+  const pendingGuestVisitors = useMemo(
+    () => guestVisitors.filter((visitor) => visitor.status === 'pending'),
+    [guestVisitors],
+  );
+  const pendingStaffVisitors = useMemo(
+    () => staffVisitors.filter((visitor) => visitor.status === 'pending'),
+    [staffVisitors],
+  );
   const preApprovedVisitors = useMemo(
     () => myVisitors.filter((visitor) => visitor.status === 'preapproved'),
     [myVisitors],
@@ -273,6 +371,14 @@ export default function ResidentDashboard() {
   const deliveryVisitors = useMemo(
     () => myVisitors.filter((visitor) => /delivery/i.test(`${visitor.purpose || ''} ${visitor.name || ''}`)),
     [myVisitors],
+  );
+  const pendingDeliveryVisitors = useMemo(
+    () => deliveryVisitors.filter((visitor) => visitor.status === 'pending' || visitor.deliveryStatus === 'awaiting_instruction'),
+    [deliveryVisitors],
+  );
+  const deliveryHistory = useMemo(
+    () => deliveryVisitors.filter((visitor) => visitor.deliveryStatus || visitor.status !== 'pending'),
+    [deliveryVisitors],
   );
 
   const dueSummary = useMemo(() => {
@@ -302,6 +408,14 @@ export default function ResidentDashboard() {
     () => staffAttendance.find((entry) => entry.alertType && !notedStaffAlertIds.includes(entry.id)) || null,
     [notedStaffAlertIds, staffAttendance],
   );
+  const approvalOverview = useMemo(
+    () => ({
+      guests: pendingGuestVisitors.length,
+      staff: pendingStaffVisitors.length,
+      delivery: pendingDeliveryVisitors.length,
+    }),
+    [pendingDeliveryVisitors.length, pendingGuestVisitors.length, pendingStaffVisitors.length],
+  );
 
   const handlePassFormChange = (event) => {
     setPassForm((currentForm) => ({
@@ -313,7 +427,7 @@ export default function ResidentDashboard() {
   const handleStaffFormChange = (event) => {
     setStaffForm((currentForm) => ({
       ...currentForm,
-      [event.target.name]: event.target.value,
+      [event.target.name]: event.target.name === 'autoApproved' ? event.target.value === 'true' : event.target.value,
     }));
   };
 
@@ -375,12 +489,29 @@ export default function ResidentDashboard() {
         societyId: user.societyId,
       });
       setStaffDialogOpen(false);
-      setStaffForm({ name: '', roleLabel: 'Maid', phone: '', notes: '' });
+      setStaffForm({
+        name: '',
+        roleLabel: 'Maid',
+        phone: '',
+        autoApproved: true,
+        accessStartTime: '07:00',
+        accessEndTime: '12:00',
+        notes: '',
+      });
       setBanner({ type: 'success', message: `${staffForm.name.trim()} added to verified staff.` });
     } catch (error) {
       setBanner({ type: 'error', message: error.message || 'Unable to add this staff member.' });
     }
     setCreatingStaff(false);
+  };
+
+  const handleDeleteStaff = async (staffId, staffName) => {
+    try {
+      await deleteResidentStaff(staffId);
+      setBanner({ type: 'success', message: `${staffName} archived from verified staff. Attendance history is preserved.` });
+    } catch (error) {
+      setBanner({ type: 'error', message: error.message || 'Unable to remove this staff member.' });
+    }
   };
 
   const handleVisitorDecision = async (visitorId, status) => {
@@ -455,6 +586,25 @@ export default function ResidentDashboard() {
     }
   };
 
+  const handleDeliveryRouting = async (visitorId, resolution) => {
+    setUpdatingId(visitorId);
+    setBanner({ type: '', message: '' });
+    try {
+      const updatedVisitor = await routeDelivery(visitorId, resolution, {
+        uid: user?.uid || '',
+        name: user?.name || 'Resident',
+        societyId: user?.societyId,
+      });
+      const successMessage = resolution === 'security'
+        ? `${updatedVisitor.vendorName || updatedVisitor.name} will be held at security.`
+        : `${updatedVisitor.vendorName || updatedVisitor.name} approved for doorstep delivery.`;
+      setBanner({ type: 'success', message: successMessage });
+    } catch (error) {
+      setBanner({ type: 'error', message: error.message || 'Unable to update the delivery instructions.' });
+    }
+    setUpdatingId('');
+  };
+
   const scrollToSection = (sectionRef) => {
     sectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
@@ -516,6 +666,25 @@ export default function ResidentDashboard() {
 
     void handleVisitorDecision(visitor.id, 'denied');
   };
+
+  useEffect(() => {
+    pendingStaffVisitors.forEach((visitor) => {
+      if (autoApprovedStaffVisitorIds.current.has(visitor.id)) return;
+      const matchedStaff = staffMembers.find((staffMember) => matchesStaffMember(visitor, staffMember));
+      if (!matchedStaff || !isWithinStaffWindow(matchedStaff)) return;
+
+      autoApprovedStaffVisitorIds.current.add(visitor.id);
+      void updateVisitorStatus(visitor.id, 'approved', {
+        uid: user?.uid || '',
+        name: user?.name || 'Resident',
+        societyId: user?.societyId,
+      }).then(() => {
+        setBanner({ type: 'success', message: `${matchedStaff.name} auto-approved for the configured access window.` });
+      }).catch(() => {
+        autoApprovedStaffVisitorIds.current.delete(visitor.id);
+      });
+    });
+  }, [pendingStaffVisitors, staffMembers, user?.name, user?.societyId, user?.uid]);
 
   return (
     <Box sx={{ ...dashboardShellSx, pb: { xs: 16, md: 3.5 } }}>
@@ -652,13 +821,16 @@ export default function ResidentDashboard() {
           {activeMobileTab === 'visitors' && (
             <>
               <Paper ref={visitorsSectionRef} elevation={0} sx={compactCardSx}>
-                <Typography variant="h5" sx={{ fontSize: 24, mb: 1.5 }}>Pending Approval</Typography>
+                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.5 }}>
+                  <Typography variant="h5" sx={{ fontSize: 24 }}>Guest Approvals</Typography>
+                  <Chip label={`${approvalOverview.guests} waiting`} color={approvalOverview.guests ? 'warning' : 'default'} sx={{ borderRadius: 999 }} />
+                </Stack>
 
-                {pendingVisitors[0] ? (
+                {pendingGuestVisitors[0] ? (
                   <Paper
                     variant="outlined"
-                    onTouchStart={(event) => handleSwipeStart(pendingVisitors[0].id, event)}
-                    onTouchEnd={(event) => handleSwipeEnd(pendingVisitors[0], event)}
+                    onTouchStart={(event) => handleSwipeStart(pendingGuestVisitors[0].id, event)}
+                    onTouchEnd={(event) => handleSwipeEnd(pendingGuestVisitors[0], event)}
                     sx={{
                       p: 2,
                       borderRadius: 4,
@@ -683,12 +855,12 @@ export default function ResidentDashboard() {
                         <QrCode2Icon fontSize="small" />
                       </Box>
                       <Box sx={{ minWidth: 0 }}>
-                        <Typography variant="h6">{formatTextValue(pendingVisitors[0].name, 'Visitor')}</Typography>
-                        <Typography color="text.secondary">{formatTextValue(pendingVisitors[0].purpose, 'Guest visit')}</Typography>
+                        <Typography variant="h6">{formatTextValue(pendingGuestVisitors[0].name, 'Visitor')}</Typography>
+                        <Typography color="text.secondary">{formatTextValue(pendingGuestVisitors[0].purpose, 'Guest visit')}</Typography>
                         <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mt: 1 }}>
                           <AccessTimeIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
                           <Typography color="text.secondary">
-                            Arriving, {formatTextValue(pendingVisitors[0].time, formatDateTimeValue(pendingVisitors[0].expectedAt, 'Not specified'))}
+                            Arriving, {formatTextValue(pendingGuestVisitors[0].time, formatDateTimeValue(pendingGuestVisitors[0].expectedAt, 'Not specified'))}
                           </Typography>
                         </Stack>
                       </Box>
@@ -699,8 +871,8 @@ export default function ResidentDashboard() {
                         fullWidth
                         variant="contained"
                         color="success"
-                        disabled={updatingId === pendingVisitors[0].id}
-                        onClick={() => handleVisitorDecision(pendingVisitors[0].id, 'approved')}
+                        disabled={updatingId === pendingGuestVisitors[0].id}
+                        onClick={() => handleVisitorDecision(pendingGuestVisitors[0].id, 'approved')}
                         sx={{ minHeight: 52, fontSize: 18, borderRadius: 2.75 }}
                       >
                         Approve
@@ -709,8 +881,8 @@ export default function ResidentDashboard() {
                         fullWidth
                         variant="contained"
                         color="error"
-                        disabled={updatingId === pendingVisitors[0].id}
-                        onClick={() => handleVisitorDecision(pendingVisitors[0].id, 'denied')}
+                        disabled={updatingId === pendingGuestVisitors[0].id}
+                        onClick={() => handleVisitorDecision(pendingGuestVisitors[0].id, 'denied')}
                         sx={{ minHeight: 52, fontSize: 18, borderRadius: 2.75 }}
                       >
                         Deny
@@ -781,6 +953,12 @@ export default function ResidentDashboard() {
                     <Typography color="text.secondary">Resident notifications will appear here when guards or admins trigger them.</Typography>
                   </Paper>
                 )}
+
+                <Stack direction="row" spacing={1} sx={{ mt: 1.5, flexWrap: 'wrap' }}>
+                  <Chip label={`Guests ${approvalOverview.guests}`} color={approvalOverview.guests ? 'warning' : 'default'} sx={{ borderRadius: 999 }} />
+                  <Chip label={`Staff ${approvalOverview.staff}`} color={approvalOverview.staff ? 'warning' : 'default'} sx={{ borderRadius: 999 }} />
+                  <Chip label={`Delivery ${approvalOverview.delivery}`} color={approvalOverview.delivery ? 'warning' : 'default'} sx={{ borderRadius: 999 }} />
+                </Stack>
               </Paper>
 
               <Paper
@@ -833,12 +1011,59 @@ export default function ResidentDashboard() {
                           <Box>
                             <Typography variant="h6">{staffMember.name}</Typography>
                             <Typography color="text.secondary">{staffMember.roleLabel}</Typography>
+                            <Typography color="text.secondary">{formatAccessWindow(staffMember.accessStartTime, staffMember.accessEndTime)}</Typography>
                           </Box>
                         </Stack>
-                        <Chip label={staffMember.autoApproved ? 'Auto-Approved' : 'Pending'} color={staffMember.autoApproved ? 'success' : 'default'} sx={{ borderRadius: 999 }} />
+                        <Stack spacing={0.75} alignItems="flex-end">
+                          <Chip label={staffMember.autoApproved ? 'Auto-Entry' : 'Manual Review'} color={staffMember.autoApproved ? 'success' : 'default'} sx={{ borderRadius: 999 }} />
+                          <Button size="small" color="error" onClick={() => handleDeleteStaff(staffMember.id, staffMember.name)}>
+                            Remove
+                          </Button>
+                        </Stack>
                       </Stack>
                     </Paper>
                   ))}
+                </Stack>
+              </Paper>
+
+              <Paper elevation={0} sx={compactCardSx}>
+                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.5 }}>
+                  <Typography variant="h5" sx={{ fontSize: 24 }}>Pending Staff Entry</Typography>
+                  <Chip label={`${approvalOverview.staff} waiting`} color={approvalOverview.staff ? 'warning' : 'default'} sx={{ borderRadius: 999 }} />
+                </Stack>
+                <Stack spacing={1.1}>
+                  {pendingStaffVisitors.length === 0 && (
+                    <Paper variant="outlined" sx={{ p: 1.75, borderRadius: 4, bgcolor: 'rgba(255,255,255,0.84)' }}>
+                      <Typography variant="subtitle1">No staff pending</Typography>
+                      <Typography color="text.secondary">Recurring staff approvals will appear here when someone reaches the gate.</Typography>
+                    </Paper>
+                  )}
+                  {pendingStaffVisitors.map((visitor) => {
+                    const matchedStaff = staffMembers.find((staffMember) => matchesStaffMember(visitor, staffMember));
+                    return (
+                      <Paper key={visitor.id} variant="outlined" sx={{ p: 1.5, borderRadius: 4, bgcolor: 'rgba(255,255,255,0.84)' }}>
+                        <Stack direction="row" justifyContent="space-between" spacing={1.25}>
+                          <Box>
+                            <Typography variant="h6">{formatTextValue(visitor.name, 'Staff')}</Typography>
+                            <Typography color="text.secondary">{formatTextValue(visitor.purpose, matchedStaff?.roleLabel || 'Staff visit')}</Typography>
+                            <Typography color="text.secondary">{formatTextValue(visitor.time, 'Arriving now')}</Typography>
+                            {matchedStaff && (
+                              <Typography color="text.secondary">{matchedStaff.autoApproved ? `Trusted window: ${formatAccessWindow(matchedStaff.accessStartTime, matchedStaff.accessEndTime)}` : 'Manual approval required'}</Typography>
+                            )}
+                          </Box>
+                          <Chip label={matchedStaff?.autoApproved ? 'Trusted' : 'Verify'} color={matchedStaff?.autoApproved ? 'success' : 'warning'} sx={{ borderRadius: 999, height: 'fit-content' }} />
+                        </Stack>
+                        <Stack direction="row" spacing={1} sx={{ mt: 1.5 }}>
+                          <Button fullWidth variant="contained" color="success" disabled={updatingId === visitor.id} onClick={() => handleVisitorDecision(visitor.id, 'approved')} sx={{ borderRadius: 2.5 }}>
+                            Approve
+                          </Button>
+                          <Button fullWidth variant="outlined" color="error" disabled={updatingId === visitor.id} onClick={() => handleVisitorDecision(visitor.id, 'denied')} sx={{ borderRadius: 2.5 }}>
+                            Deny
+                          </Button>
+                        </Stack>
+                      </Paper>
+                    );
+                  })}
                 </Stack>
               </Paper>
 
@@ -891,41 +1116,89 @@ export default function ResidentDashboard() {
             <>
               <Paper ref={visitorsSectionRef} elevation={0} sx={compactCardSx}>
                 <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.5 }}>
-                  <Typography variant="h5" sx={{ fontSize: 24 }}>Delivery Access</Typography>
+                  <Typography variant="h5" sx={{ fontSize: 24 }}>Delivery Approvals</Typography>
                   <Button variant="outlined" onClick={() => openPassDialog('Delivery')} sx={{ borderRadius: 999 }}>
                     Add Delivery
                   </Button>
                 </Stack>
                 <Stack spacing={1.2}>
-                  {deliveryVisitors.length === 0 && (
+                  {pendingDeliveryVisitors.length === 0 && (
                     <Paper variant="outlined" sx={{ p: 1.75, borderRadius: 4, bgcolor: 'rgba(255,255,255,0.84)' }}>
-                      <Typography variant="subtitle1">No deliveries queued</Typography>
-                      <Typography color="text.secondary">Pre-approve a delivery to make gate access faster.</Typography>
+                      <Typography variant="subtitle1">No deliveries waiting</Typography>
+                      <Typography color="text.secondary">New delivery arrivals will show up here with doorstep or security actions.</Typography>
                     </Paper>
                   )}
-                  {deliveryVisitors.map((visitor) => (
-                    <Paper key={visitor.id} variant="outlined" sx={{ p: 1.75, borderRadius: 4, bgcolor: 'rgba(255,255,255,0.84)' }}>
-                      <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1.2}>
-                        <Box>
-                          <Typography variant="h6">{formatTextValue(visitor.name, 'Delivery')}</Typography>
-                          <Typography color="text.secondary">{formatTextValue(visitor.time, formatDateTimeValue(visitor.expectedAt, 'Not scheduled'))}</Typography>
-                        </Box>
-                        <Chip label={visitor.status || 'pending'} color={statusColorMap[visitor.status] || 'default'} sx={{ borderRadius: 999 }} />
-                      </Stack>
-                    </Paper>
-                  ))}
+                  {pendingDeliveryVisitors.map((visitor) => {
+                    const vendorMeta = getVendorMeta(visitor);
+                    return (
+                      <Paper key={visitor.id} variant="outlined" sx={{ p: 1.75, borderRadius: 4, bgcolor: 'rgba(255,255,255,0.84)' }}>
+                        <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1.2}>
+                          <Box>
+                            <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.6 }}>
+                              <Typography variant="h6">{formatTextValue(visitor.name, 'Delivery')}</Typography>
+                              <Chip label={vendorMeta.label} size="small" sx={{ borderRadius: 999, bgcolor: vendorMeta.bg, color: vendorMeta.color }} />
+                            </Stack>
+                            <Typography color="text.secondary">{formatTextValue(visitor.time, formatDateTimeValue(visitor.expectedAt, 'Not scheduled'))}</Typography>
+                            <Typography color="text.secondary">{formatTextValue(visitor.purpose, 'Delivery')}</Typography>
+                          </Box>
+                          <Chip label={getDeliveryStatusLabel(visitor)} color={statusColorMap[visitor.deliveryStatus || visitor.status] || 'default'} sx={{ borderRadius: 999 }} />
+                        </Stack>
+                        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 1.5 }}>
+                          <Button fullWidth variant="contained" disabled={updatingId === visitor.id} onClick={() => handleDeliveryRouting(visitor.id, 'doorstep')} sx={{ borderRadius: 2.5 }}>
+                            Deliver to Doorstep
+                          </Button>
+                          <Button fullWidth variant="outlined" disabled={updatingId === visitor.id} onClick={() => handleDeliveryRouting(visitor.id, 'security')} sx={{ borderRadius: 2.5 }}>
+                            Deliver to Security
+                          </Button>
+                        </Stack>
+                      </Paper>
+                    );
+                  })}
                 </Stack>
               </Paper>
 
               <Paper elevation={0} sx={compactCardSx}>
-                <Typography variant="h5" sx={{ fontSize: 24, mb: 1.25 }}>Recent Delivery Alert</Typography>
+                <Typography variant="h5" sx={{ fontSize: 24, mb: 1.25 }}>AI Concierge Suggestion</Typography>
                 <Paper variant="outlined" sx={{ p: 1.75, borderRadius: 4, bgcolor: 'rgba(255,255,255,0.84)' }}>
                   <Typography sx={{ fontSize: 17 }}>
-                    {deliveryVisitors[0]
-                      ? `${formatTextValue(deliveryVisitors[0].name, 'Delivery')} is ${deliveryVisitors[0].status || 'pending'} for Flat ${myFlat || 'your unit'}.`
-                      : 'The concierge will flag missed or delayed deliveries here.'}
+                    {pendingDeliveryVisitors[0]
+                      ? `Would you like me to approve ${getVendorMeta(pendingDeliveryVisitors[0]).label} for doorstep delivery or send it to security?`
+                      : deliveryHistory[0]
+                        ? `${getVendorMeta(deliveryHistory[0]).label} was last marked ${getDeliveryStatusLabel(deliveryHistory[0]).toLowerCase()}.`
+                        : 'The concierge will flag missed or delayed deliveries here.'}
                   </Typography>
                 </Paper>
+              </Paper>
+
+              <Paper elevation={0} sx={compactCardSx}>
+                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.25 }}>
+                  <Typography variant="h5" sx={{ fontSize: 24 }}>Delivery History</Typography>
+                  <Chip label={`${deliveryHistory.length} items`} sx={{ borderRadius: 999 }} />
+                </Stack>
+                <Stack spacing={1}>
+                  {deliveryHistory.map((visitor) => {
+                    const vendorMeta = getVendorMeta(visitor);
+                    return (
+                      <Paper key={visitor.id} variant="outlined" sx={{ p: 1.35, borderRadius: 4, bgcolor: 'rgba(255,255,255,0.84)' }}>
+                        <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1.2}>
+                          <Box>
+                            <Stack direction="row" spacing={1} alignItems="center">
+                              <Typography variant="subtitle1">{vendorMeta.label}</Typography>
+                              <Chip label={getDeliveryStatusLabel(visitor)} size="small" color={statusColorMap[visitor.deliveryStatus || visitor.status] || 'default'} sx={{ borderRadius: 999 }} />
+                            </Stack>
+                            <Typography color="text.secondary">{formatDateValue(visitor.updatedAt || visitor.createdAt)}</Typography>
+                            <Typography color="text.secondary">
+                              {visitor.deliveryStatus === 'security_hold_requested'
+                                ? 'Awaiting guard acknowledgement'
+                                : `Collected by ${formatTextValue(visitor.collectedBy, visitor.deliveryStatus === 'security_received' ? 'Security desk' : 'Resident')}`}
+                            </Typography>
+                          </Box>
+                          <Typography color="text.secondary">{formatTextValue(visitor.name, 'Delivery')}</Typography>
+                        </Stack>
+                      </Paper>
+                    );
+                  })}
+                </Stack>
               </Paper>
             </>
           )}
@@ -976,8 +1249,14 @@ export default function ResidentDashboard() {
             <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
               <PersonAddAlt1Icon color="secondary" />
               <Typography variant="h5" sx={{ fontSize: 24 }}>
-                Pending Approvals
+                Unified Approvals
               </Typography>
+            </Stack>
+
+            <Stack direction="row" spacing={1} sx={{ mb: 2, flexWrap: 'wrap' }}>
+              <Chip label={`Guests ${approvalOverview.guests}`} color={approvalOverview.guests ? 'warning' : 'default'} sx={{ borderRadius: 999 }} />
+              <Chip label={`Staff ${approvalOverview.staff}`} color={approvalOverview.staff ? 'warning' : 'default'} sx={{ borderRadius: 999 }} />
+              <Chip label={`Delivery ${approvalOverview.delivery}`} color={approvalOverview.delivery ? 'warning' : 'default'} sx={{ borderRadius: 999 }} />
             </Stack>
 
             <Stack spacing={1.5}>
@@ -1332,17 +1611,17 @@ export default function ResidentDashboard() {
 
             <Box />
 
+            <ButtonBase onClick={() => handleMobileTabChange('delivery')} sx={{ borderRadius: 3, py: 0.5 }}>
+              <Stack spacing={0.35} alignItems="center">
+                <BoltIcon sx={{ color: activeMobileTab === 'delivery' ? 'primary.main' : 'text.secondary' }} />
+                <Typography variant="caption" sx={{ fontSize: 12.5, color: activeMobileTab === 'delivery' ? 'primary.main' : 'text.secondary' }}>Delivery</Typography>
+              </Stack>
+            </ButtonBase>
+
             <ButtonBase onClick={() => scrollToSection(duesSectionRef)} sx={{ borderRadius: 3, py: 0.5 }}>
               <Stack spacing={0.35} alignItems="center">
                 <AccountBalanceWalletIcon sx={{ color: 'primary.main' }} />
                 <Typography variant="caption" sx={{ fontSize: 12.5 }}>Dues</Typography>
-              </Stack>
-            </ButtonBase>
-
-            <ButtonBase onClick={() => navigate('/directory')} sx={{ borderRadius: 3, py: 0.5 }}>
-              <Stack spacing={0.35} alignItems="center">
-                <GroupsIcon sx={{ color: 'text.secondary' }} />
-                <Typography variant="caption" sx={{ fontSize: 12.5 }}>Directory</Typography>
               </Stack>
             </ButtonBase>
           </Paper>
@@ -1380,6 +1659,14 @@ export default function ResidentDashboard() {
               <MenuItem value="Caretaker">Caretaker</MenuItem>
             </TextField>
             <TextField label="Phone" name="phone" value={staffForm.phone} onChange={handleStaffFormChange} fullWidth />
+            <TextField select label="Access mode" name="autoApproved" value={String(staffForm.autoApproved)} onChange={handleStaffFormChange} fullWidth>
+              <MenuItem value="true">Auto-approve in access window</MenuItem>
+              <MenuItem value="false">Manual approval every time</MenuItem>
+            </TextField>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+              <TextField label="Allowed from" name="accessStartTime" type="time" value={staffForm.accessStartTime} onChange={handleStaffFormChange} InputLabelProps={{ shrink: true }} fullWidth />
+              <TextField label="Allowed until" name="accessEndTime" type="time" value={staffForm.accessEndTime} onChange={handleStaffFormChange} InputLabelProps={{ shrink: true }} fullWidth />
+            </Stack>
             <TextField label="Notes" name="notes" value={staffForm.notes} onChange={handleStaffFormChange} fullWidth multiline minRows={2} />
           </Stack>
         </DialogContent>
