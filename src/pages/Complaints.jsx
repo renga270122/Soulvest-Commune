@@ -22,6 +22,20 @@ import {
   subscribeToResidentComplaints,
   updateComplaintStatus,
 } from '../services/communityData';
+import { useLocation } from 'react-router-dom';
+
+const complaintCategories = [
+  { value: 'plumbing', label: 'Plumbing' },
+  { value: 'electrical', label: 'Electrical' },
+  { value: 'lift', label: 'Lift' },
+  { value: 'security', label: 'Security' },
+  { value: 'housekeeping', label: 'Housekeeping' },
+  { value: 'delivery', label: 'Delivery' },
+  { value: 'staff-access', label: 'Staff Access' },
+  { value: 'general', label: 'General' },
+];
+
+const getCategoryLabel = (value) => complaintCategories.find((entry) => entry.value === value)?.label || value;
 
 const priorityColor = {
   high: 'error',
@@ -45,12 +59,14 @@ const formatTimestamp = (value) => {
 
 export default function Complaints() {
   const { user } = useAuthContext();
+  const location = useLocation();
   const isAdmin = user?.role === 'admin';
   const [complaints, setComplaints] = useState([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [banner, setBanner] = useState({ type: '', message: '' });
   const [form, setForm] = useState({ category: 'plumbing', description: '' });
+  const [statusFilter, setStatusFilter] = useState('all');
 
   useEffect(() => {
     const unsubscribe = isAdmin
@@ -59,11 +75,43 @@ export default function Complaints() {
     return () => unsubscribe();
   }, [isAdmin, user?.uid]);
 
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const category = params.get('category');
+    const source = params.get('source');
+
+    if (!category) return;
+
+    setForm((current) => ({
+      ...current,
+      category,
+      description: current.description || (source ? `Issue noticed in ${source.replace('-', ' ')} flow.` : ''),
+    }));
+
+    if (!isAdmin) {
+      setDialogOpen(true);
+    }
+  }, [isAdmin, location.search]);
+
   const summary = useMemo(() => ({
     total: complaints.length,
     open: complaints.filter((item) => item.status === 'open').length,
+    inprogress: complaints.filter((item) => item.status === 'inprogress').length,
     resolved: complaints.filter((item) => item.status === 'resolved').length,
   }), [complaints]);
+
+  const filteredComplaints = useMemo(
+    () => (statusFilter === 'all' ? complaints : complaints.filter((item) => item.status === statusFilter)),
+    [complaints, statusFilter],
+  );
+
+  const handleOpenComplaintDialog = (category = 'plumbing') => {
+    setForm((current) => ({
+      ...current,
+      category,
+    }));
+    setDialogOpen(true);
+  };
 
   const handleCreateComplaint = async () => {
     if (!form.description) {
@@ -113,12 +161,33 @@ export default function Complaints() {
               Residents can raise issues with categories and admins can move them transparently from open to resolved.
             </Typography>
           </Box>
-          {!isAdmin && <Button variant="contained" onClick={() => setDialogOpen(true)}>Raise Complaint</Button>}
+          {!isAdmin && <Button variant="contained" onClick={() => handleOpenComplaintDialog(form.category)}>Raise Complaint</Button>}
         </Stack>
 
         {banner.message && <Alert severity={banner.type} sx={{ mb: 3 }}>{banner.message}</Alert>}
 
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' }, gap: 2, mb: 3 }}>
+        {!isAdmin && (
+          <Paper elevation={1} sx={{ p: 2, borderRadius: 3, mb: 3, display: { xs: 'block', md: 'none' } }}>
+            <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.25 }}>
+              <Typography variant="h6">Quick Report</Typography>
+              <Chip label="Mobile" size="small" color="primary" sx={{ borderRadius: 999 }} />
+            </Stack>
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 1 }}>
+              {['security', 'staff-access', 'delivery', 'housekeeping'].map((category) => (
+                <Button
+                  key={category}
+                  variant="outlined"
+                  onClick={() => handleOpenComplaintDialog(category)}
+                  sx={{ minHeight: 58, borderRadius: 3 }}
+                >
+                  {getCategoryLabel(category)}
+                </Button>
+              ))}
+            </Box>
+          </Paper>
+        )}
+
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }, gap: 2, mb: 3 }}>
           <Paper elevation={1} sx={{ p: 2.5, borderRadius: 3 }}>
             <Typography color="text.secondary">Total Complaints</Typography>
             <Typography variant="h4">{summary.total}</Typography>
@@ -128,25 +197,47 @@ export default function Complaints() {
             <Typography variant="h4">{summary.open}</Typography>
           </Paper>
           <Paper elevation={1} sx={{ p: 2.5, borderRadius: 3 }}>
+            <Typography color="text.secondary">In Progress</Typography>
+            <Typography variant="h4">{summary.inprogress}</Typography>
+          </Paper>
+          <Paper elevation={1} sx={{ p: 2.5, borderRadius: 3 }}>
             <Typography color="text.secondary">Resolved</Typography>
             <Typography variant="h4">{summary.resolved}</Typography>
           </Paper>
         </Box>
 
+        <Stack direction="row" spacing={1} sx={{ mb: 2, overflowX: 'auto', pb: 0.5 }}>
+          {[
+            { value: 'all', label: 'All' },
+            { value: 'open', label: 'Open' },
+            { value: 'inprogress', label: 'In Progress' },
+            { value: 'resolved', label: 'Resolved' },
+          ].map((entry) => (
+            <Chip
+              key={entry.value}
+              label={entry.label}
+              color={statusFilter === entry.value ? 'primary' : 'default'}
+              variant={statusFilter === entry.value ? 'filled' : 'outlined'}
+              onClick={() => setStatusFilter(entry.value)}
+              sx={{ borderRadius: 999 }}
+            />
+          ))}
+        </Stack>
+
         <Stack spacing={2}>
-          {complaints.length === 0 && (
+          {filteredComplaints.length === 0 && (
             <Paper elevation={2} sx={{ p: 3, borderRadius: 3 }}>
-              <Typography variant="h6">No complaints yet</Typography>
-              <Typography color="text.secondary">Once residents start logging issues, they will appear here with clear status tracking.</Typography>
+              <Typography variant="h6">No complaints in this view</Typography>
+              <Typography color="text.secondary">Switch filters or raise a new issue to start tracking it here.</Typography>
             </Paper>
           )}
 
-          {complaints.map((complaint) => (
+          {filteredComplaints.map((complaint) => (
             <Paper key={complaint.id} elevation={2} sx={{ p: 2.5, borderRadius: 3 }}>
               <Stack spacing={1.5}>
                 <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={1}>
                   <Box>
-                    <Typography variant="h6">{complaint.category}</Typography>
+                    <Typography variant="h6">{getCategoryLabel(complaint.category)}</Typography>
                     <Typography color="text.secondary">
                       {complaint.residentName || 'Resident'}{complaint.flat ? ` • Flat ${complaint.flat}` : ''}
                     </Typography>
@@ -159,6 +250,7 @@ export default function Complaints() {
                 <Typography>{complaint.description}</Typography>
                 <Typography color="text.secondary">Opened {formatTimestamp(complaint.createdAt)}</Typography>
                 {complaint.adminNotes && <Typography color="text.secondary">Admin note: {complaint.adminNotes}</Typography>}
+                {complaint.resolutionNote && <Typography color="text.secondary">Resolution: {complaint.resolutionNote}</Typography>}
                 {isAdmin && complaint.status !== 'resolved' && (
                   <Stack direction={{ xs: 'column', md: 'row' }} spacing={1}>
                     {complaint.status === 'open' && (
@@ -182,11 +274,9 @@ export default function Complaints() {
         <DialogContent>
           <Stack spacing={2} sx={{ pt: 1 }}>
             <TextField select label="Category" value={form.category} onChange={(event) => setForm((current) => ({ ...current, category: event.target.value }))}>
-              <MenuItem value="plumbing">Plumbing</MenuItem>
-              <MenuItem value="electrical">Electrical</MenuItem>
-              <MenuItem value="lift">Lift</MenuItem>
-              <MenuItem value="security">Security</MenuItem>
-              <MenuItem value="housekeeping">Housekeeping</MenuItem>
+              {complaintCategories.map((category) => (
+                <MenuItem key={category.value} value={category.value}>{category.label}</MenuItem>
+              ))}
             </TextField>
             <TextField
               label="Describe the issue"

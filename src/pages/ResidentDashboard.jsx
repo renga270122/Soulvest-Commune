@@ -1205,7 +1205,7 @@ export default function ResidentDashboard() {
                     </Box>
                   ))}
                 </Stack>
-                <Button variant="outlined" fullWidth onClick={() => navigate('/complaints')} sx={{ mt: 2, borderRadius: 999 }}>
+                <Button variant="outlined" fullWidth onClick={() => navigate('/complaints?category=staff-access&source=staff')} sx={{ mt: 2, borderRadius: 999 }}>
                   Report an Issue
                 </Button>
               </Paper>
@@ -1329,6 +1329,9 @@ export default function ResidentDashboard() {
                     );
                   })}
                 </Stack>
+                <Button variant="outlined" fullWidth onClick={() => navigate('/complaints?category=delivery&source=delivery')} sx={{ mt: 2, borderRadius: 999 }}>
+                  Report Delivery Issue
+                </Button>
               </Paper>
             </>
           )}
