@@ -10,6 +10,8 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  IconButton,
+  MenuItem,
   Paper,
   Stack,
   TextField,
@@ -36,12 +38,15 @@ import QRCode from 'react-qr-code';
 import { useAuthContext } from '../components/AuthContext';
 import ChatbotWidget from '../components/ChatbotWidget';
 import {
+  createResidentStaff,
   createVisitorPass,
   markNotificationAsRead,
   normalizeFlat,
   seedResidentPaymentIfMissing,
   subscribeToNotifications,
   subscribeToResidentPayments,
+  subscribeToResidentStaff,
+  subscribeToResidentStaffAttendance,
   subscribeToVisitors,
   updateVisitorStatus,
 } from '../services/communityData';
@@ -107,6 +112,15 @@ const formatDateValue = (value, fallback = 'No due date') => {
   });
 };
 
+const formatTimeValue = (value, fallback = '—') => {
+  if (!value) return fallback;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? fallback : date.toLocaleTimeString('en-IN', {
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+};
+
 const formatCurrency = (amount) => `₹${Number(amount || 0).toLocaleString('en-IN')}`;
 
 const dashboardShellSx = {
@@ -151,10 +165,15 @@ export default function ResidentDashboard() {
   const [visitors, setVisitors] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [payments, setPayments] = useState([]);
+  const [staffMembers, setStaffMembers] = useState([]);
+  const [staffAttendance, setStaffAttendance] = useState([]);
   const [banner, setBanner] = useState({ type: '', message: '' });
   const [updatingId, setUpdatingId] = useState('');
+  const [activeMobileTab, setActiveMobileTab] = useState('visitors');
   const [passDialogOpen, setPassDialogOpen] = useState(false);
+  const [staffDialogOpen, setStaffDialogOpen] = useState(false);
   const [creatingPass, setCreatingPass] = useState(false);
+  const [creatingStaff, setCreatingStaff] = useState(false);
   const [createdPass, setCreatedPass] = useState(null);
   const [passForm, setPassForm] = useState({
     visitorName: '',
@@ -163,12 +182,21 @@ export default function ResidentDashboard() {
     expectedAt: '',
     notes: '',
   });
+  const [staffForm, setStaffForm] = useState({
+    name: '',
+    roleLabel: 'Maid',
+    phone: '',
+    notes: '',
+  });
+  const [notedStaffAlertIds, setNotedStaffAlertIds] = useState([]);
+  const [attendanceHistoryOpen, setAttendanceHistoryOpen] = useState(false);
   const { user, logout } = useAuthContext();
   const navigate = useNavigate();
   const knownNotificationIds = useRef(new Set());
   const notificationsInitialized = useRef(false);
   const topSectionRef = useRef(null);
   const visitorsSectionRef = useRef(null);
+  const staffSectionRef = useRef(null);
   const duesSectionRef = useRef(null);
   const swipeStartRef = useRef({});
 
@@ -188,6 +216,17 @@ export default function ResidentDashboard() {
     void seedResidentPaymentIfMissing(user);
     const unsubscribe = subscribeToResidentPayments(user.uid, setPayments, user);
     return () => unsubscribe();
+  }, [user]);
+
+  useEffect(() => {
+    if (!user?.uid) return undefined;
+
+    const unsubscribeStaff = subscribeToResidentStaff(user.uid, setStaffMembers, user);
+    const unsubscribeAttendance = subscribeToResidentStaffAttendance(user.uid, setStaffAttendance, user);
+    return () => {
+      unsubscribeStaff();
+      unsubscribeAttendance();
+    };
   }, [user]);
 
   useEffect(() => {
@@ -231,6 +270,10 @@ export default function ResidentDashboard() {
     () => payments.filter((payment) => payment.derivedStatus !== 'paid'),
     [payments],
   );
+  const deliveryVisitors = useMemo(
+    () => myVisitors.filter((visitor) => /delivery/i.test(`${visitor.purpose || ''} ${visitor.name || ''}`)),
+    [myVisitors],
+  );
 
   const dueSummary = useMemo(() => {
     const outstandingAmount = duePayments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
@@ -255,12 +298,31 @@ export default function ResidentDashboard() {
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase() || '')
     .join('') || 'R';
+  const activeStaffAlert = useMemo(
+    () => staffAttendance.find((entry) => entry.alertType && !notedStaffAlertIds.includes(entry.id)) || null,
+    [notedStaffAlertIds, staffAttendance],
+  );
 
   const handlePassFormChange = (event) => {
     setPassForm((currentForm) => ({
       ...currentForm,
       [event.target.name]: event.target.value,
     }));
+  };
+
+  const handleStaffFormChange = (event) => {
+    setStaffForm((currentForm) => ({
+      ...currentForm,
+      [event.target.name]: event.target.value,
+    }));
+  };
+
+  const openPassDialog = (purpose = 'Guest visit') => {
+    setPassForm((currentForm) => ({
+      ...currentForm,
+      purpose,
+    }));
+    setPassDialogOpen(true);
   };
 
   const handleCreatePass = async () => {
@@ -295,6 +357,30 @@ export default function ResidentDashboard() {
       setBanner({ type: 'error', message: error.message || 'Unable to create the visitor pass.' });
     }
     setCreatingPass(false);
+  };
+
+  const handleCreateStaff = async () => {
+    if (!user?.uid || !staffForm.name.trim()) {
+      setBanner({ type: 'error', message: 'Staff name is required.' });
+      return;
+    }
+
+    setCreatingStaff(true);
+    setBanner({ type: '', message: '' });
+    try {
+      await createResidentStaff({
+        ...staffForm,
+        residentId: user.uid,
+        residentName: residentName,
+        societyId: user.societyId,
+      });
+      setStaffDialogOpen(false);
+      setStaffForm({ name: '', roleLabel: 'Maid', phone: '', notes: '' });
+      setBanner({ type: 'success', message: `${staffForm.name.trim()} added to verified staff.` });
+    } catch (error) {
+      setBanner({ type: 'error', message: error.message || 'Unable to add this staff member.' });
+    }
+    setCreatingStaff(false);
   };
 
   const handleVisitorDecision = async (visitorId, status) => {
@@ -350,8 +436,59 @@ export default function ResidentDashboard() {
     }
   };
 
+  const handleMarkStaffAlertNoted = (attendanceId) => {
+    setNotedStaffAlertIds((currentIds) => (currentIds.includes(attendanceId) ? currentIds : [...currentIds, attendanceId]));
+    setBanner({ type: 'success', message: 'Staff alert marked as noted.' });
+  };
+
+  const handleContactStaff = async (staffPhone) => {
+    if (!staffPhone) {
+      setBanner({ type: 'warning', message: 'No phone number is available for this staff member.' });
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(staffPhone);
+      setBanner({ type: 'success', message: `Copied ${staffPhone} to clipboard.` });
+    } catch {
+      setBanner({ type: 'warning', message: 'Clipboard access is not available in this browser.' });
+    }
+  };
+
   const scrollToSection = (sectionRef) => {
     sectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const handleMobileTabChange = (tabKey) => {
+    setActiveMobileTab(tabKey);
+
+    if (tabKey === 'visitors') {
+      scrollToSection(visitorsSectionRef);
+      return;
+    }
+
+    if (tabKey === 'staff') {
+      scrollToSection(staffSectionRef);
+      return;
+    }
+
+    if (tabKey === 'delivery') {
+      scrollToSection(visitorsSectionRef);
+    }
+  };
+
+  const handlePrimaryFab = () => {
+    if (activeMobileTab === 'staff') {
+      setStaffDialogOpen(true);
+      return;
+    }
+
+    if (activeMobileTab === 'delivery') {
+      openPassDialog('Delivery');
+      return;
+    }
+
+    openPassDialog('Guest visit');
   };
 
   const handleSwipeStart = (visitorId, event) => {
@@ -431,14 +568,26 @@ export default function ResidentDashboard() {
           </Stack>
 
           <Stack direction="row" spacing={1} sx={{ mt: 1.75 }}>
-            <Button variant="contained" sx={{ flex: 1, borderRadius: 2.5 }}>
+            <Button
+              variant={activeMobileTab === 'visitors' ? 'contained' : 'outlined'}
+              onClick={() => handleMobileTabChange('visitors')}
+              sx={{ flex: 1, borderRadius: 2.5 }}
+            >
               Visitors
             </Button>
-            <Button variant="outlined" onClick={() => navigate('/expenses')} sx={{ flex: 1, borderRadius: 2.5 }}>
-              Dues
+            <Button
+              variant={activeMobileTab === 'staff' ? 'contained' : 'outlined'}
+              onClick={() => handleMobileTabChange('staff')}
+              sx={{ flex: 1, borderRadius: 2.5 }}
+            >
+              Staff
             </Button>
-            <Button variant="outlined" onClick={() => navigate('/complaints')} sx={{ flex: 1, borderRadius: 2.5 }}>
-              Complaints
+            <Button
+              variant={activeMobileTab === 'delivery' ? 'contained' : 'outlined'}
+              onClick={() => handleMobileTabChange('delivery')}
+              sx={{ flex: 1, borderRadius: 2.5 }}
+            >
+              Delivery
             </Button>
           </Stack>
         </Paper>
@@ -500,165 +649,286 @@ export default function ResidentDashboard() {
         )}
 
         <Stack spacing={2} sx={{ display: { xs: 'flex', md: 'none' } }}>
-          <Paper ref={visitorsSectionRef} elevation={0} sx={compactCardSx}>
-            <Typography variant="h5" sx={{ fontSize: 24, mb: 1.5 }}>Pending Approval</Typography>
+          {activeMobileTab === 'visitors' && (
+            <>
+              <Paper ref={visitorsSectionRef} elevation={0} sx={compactCardSx}>
+                <Typography variant="h5" sx={{ fontSize: 24, mb: 1.5 }}>Pending Approval</Typography>
 
-            {pendingVisitors[0] ? (
-              <Paper
-                variant="outlined"
-                onTouchStart={(event) => handleSwipeStart(pendingVisitors[0].id, event)}
-                onTouchEnd={(event) => handleSwipeEnd(pendingVisitors[0], event)}
-                sx={{
-                  p: 2,
-                  borderRadius: 4,
-                  borderColor: 'rgba(223, 199, 165, 0.48)',
-                  bgcolor: 'rgba(255,255,255,0.84)',
-                  boxShadow: '0 12px 24px rgba(188, 155, 104, 0.1)',
-                }}
-              >
-                <Stack direction="row" spacing={1.25} alignItems="flex-start" sx={{ mb: 1.75 }}>
-                  <Box
+                {pendingVisitors[0] ? (
+                  <Paper
+                    variant="outlined"
+                    onTouchStart={(event) => handleSwipeStart(pendingVisitors[0].id, event)}
+                    onTouchEnd={(event) => handleSwipeEnd(pendingVisitors[0], event)}
                     sx={{
-                      width: 46,
-                      height: 46,
-                      borderRadius: 2.5,
-                      display: 'grid',
-                      placeItems: 'center',
-                      bgcolor: 'rgba(36, 86, 166, 0.12)',
-                      color: 'primary.main',
-                      flexShrink: 0,
+                      p: 2,
+                      borderRadius: 4,
+                      borderColor: 'rgba(223, 199, 165, 0.48)',
+                      bgcolor: 'rgba(255,255,255,0.84)',
+                      boxShadow: '0 12px 24px rgba(188, 155, 104, 0.1)',
                     }}
                   >
-                    <QrCode2Icon fontSize="small" />
-                  </Box>
-                  <Box sx={{ minWidth: 0 }}>
-                    <Typography variant="h6">{formatTextValue(pendingVisitors[0].name, 'Visitor')}</Typography>
-                    <Typography color="text.secondary">{formatTextValue(pendingVisitors[0].purpose, 'Guest visit')}</Typography>
-                    <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mt: 1 }}>
-                      <AccessTimeIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
-                      <Typography color="text.secondary">
-                        Arriving, {formatTextValue(pendingVisitors[0].time, formatDateTimeValue(pendingVisitors[0].expectedAt, 'Not specified'))}
-                      </Typography>
+                    <Stack direction="row" spacing={1.25} alignItems="flex-start" sx={{ mb: 1.75 }}>
+                      <Box
+                        sx={{
+                          width: 46,
+                          height: 46,
+                          borderRadius: 2.5,
+                          display: 'grid',
+                          placeItems: 'center',
+                          bgcolor: 'rgba(36, 86, 166, 0.12)',
+                          color: 'primary.main',
+                          flexShrink: 0,
+                        }}
+                      >
+                        <QrCode2Icon fontSize="small" />
+                      </Box>
+                      <Box sx={{ minWidth: 0 }}>
+                        <Typography variant="h6">{formatTextValue(pendingVisitors[0].name, 'Visitor')}</Typography>
+                        <Typography color="text.secondary">{formatTextValue(pendingVisitors[0].purpose, 'Guest visit')}</Typography>
+                        <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mt: 1 }}>
+                          <AccessTimeIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
+                          <Typography color="text.secondary">
+                            Arriving, {formatTextValue(pendingVisitors[0].time, formatDateTimeValue(pendingVisitors[0].expectedAt, 'Not specified'))}
+                          </Typography>
+                        </Stack>
+                      </Box>
                     </Stack>
-                  </Box>
+
+                    <Stack direction="row" spacing={1.25} sx={{ mb: 1.5 }}>
+                      <Button
+                        fullWidth
+                        variant="contained"
+                        color="success"
+                        disabled={updatingId === pendingVisitors[0].id}
+                        onClick={() => handleVisitorDecision(pendingVisitors[0].id, 'approved')}
+                        sx={{ minHeight: 52, fontSize: 18, borderRadius: 2.75 }}
+                      >
+                        Approve
+                      </Button>
+                      <Button
+                        fullWidth
+                        variant="contained"
+                        color="error"
+                        disabled={updatingId === pendingVisitors[0].id}
+                        onClick={() => handleVisitorDecision(pendingVisitors[0].id, 'denied')}
+                        sx={{ minHeight: 52, fontSize: 18, borderRadius: 2.75 }}
+                      >
+                        Deny
+                      </Button>
+                    </Stack>
+
+                    <Typography color="text.secondary" sx={{ textAlign: 'center' }}>
+                      Swipe right to approve or left to deny
+                    </Typography>
+                  </Paper>
+                ) : (
+                  <Paper
+                    variant="outlined"
+                    sx={{
+                      p: 2,
+                      borderRadius: 4,
+                      borderColor: 'rgba(223, 199, 165, 0.48)',
+                      bgcolor: 'rgba(255,255,255,0.84)',
+                    }}
+                  >
+                    <Typography variant="subtitle1">No pending approvals</Typography>
+                    <Typography color="text.secondary">Create a visitor pass with the plus button or wait for a new gate request.</Typography>
+                  </Paper>
+                )}
+              </Paper>
+
+              <Paper elevation={0} sx={compactCardSx}>
+                <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5 }}>
+                  <BoltIcon color="secondary" />
+                  <Typography variant="h5" sx={{ fontSize: 24 }}>Notifications</Typography>
                 </Stack>
 
-                <Stack direction="row" spacing={1.25} sx={{ mb: 1.5 }}>
+                {leadNotification ? (
+                  <Paper
+                    variant="outlined"
+                    sx={{
+                      p: 1.75,
+                      borderRadius: 4,
+                      borderColor: 'rgba(223, 199, 165, 0.48)',
+                      bgcolor: 'rgba(255,255,255,0.84)',
+                    }}
+                  >
+                    <Stack direction="row" spacing={1.25} alignItems="flex-start" justifyContent="space-between">
+                      <Stack direction="row" spacing={1.2} alignItems="flex-start" sx={{ minWidth: 0 }}>
+                        <Chip size="small" label={!leadNotification.read ? 'Alert' : 'Update'} color="warning" sx={{ borderRadius: 999, mt: 0.25 }} />
+                        <Typography sx={{ fontSize: 16.5 }}>
+                          {formatTextValue(leadNotification.message, 'No message available.')}
+                        </Typography>
+                      </Stack>
+                      {!leadNotification.read && (
+                        <Button size="small" onClick={() => handleMarkNotificationRead(leadNotification.id)} sx={{ flexShrink: 0 }}>
+                          Mark Read
+                        </Button>
+                      )}
+                    </Stack>
+                  </Paper>
+                ) : (
+                  <Paper
+                    variant="outlined"
+                    sx={{
+                      p: 1.75,
+                      borderRadius: 4,
+                      borderColor: 'rgba(223, 199, 165, 0.48)',
+                      bgcolor: 'rgba(255,255,255,0.84)',
+                    }}
+                  >
+                    <Typography variant="subtitle1">No alerts right now</Typography>
+                    <Typography color="text.secondary">Resident notifications will appear here when guards or admins trigger them.</Typography>
+                  </Paper>
+                )}
+              </Paper>
+
+              <Paper
+                ref={duesSectionRef}
+                elevation={0}
+                sx={{
+                  ...compactCardSx,
+                  p: 0,
+                  overflow: 'hidden',
+                  background: 'linear-gradient(135deg, rgba(187, 211, 241, 0.95) 0%, rgba(210, 228, 248, 0.92) 48%, rgba(188, 214, 239, 0.86) 100%)',
+                }}
+              >
+                <Box sx={{ p: 2.1 }}>
+                  <Typography variant="h5" sx={{ fontSize: 22, color: 'primary.main', textDecoration: 'underline', mb: 1.75 }}>
+                    Maintenance Due
+                  </Typography>
+                  <Typography sx={{ fontSize: 18, mb: 2 }}>
+                    Due: <Box component="span" sx={{ fontWeight: 800 }}>{formatCurrency(dueSummary.nextDue?.amount || dueSummary.outstandingAmount)}</Box>
+                  </Typography>
                   <Button
-                    fullWidth
                     variant="contained"
                     color="success"
-                    disabled={updatingId === pendingVisitors[0].id}
-                    onClick={() => handleVisitorDecision(pendingVisitors[0].id, 'approved')}
-                    sx={{ minHeight: 52, fontSize: 18, borderRadius: 2.75 }}
+                    onClick={() => navigate('/expenses')}
+                    sx={{ minWidth: 150, minHeight: 52, borderRadius: 2.75, fontSize: 18 }}
                   >
-                    Approve
+                    Pay Now
                   </Button>
-                  <Button
-                    fullWidth
-                    variant="contained"
-                    color="error"
-                    disabled={updatingId === pendingVisitors[0].id}
-                    onClick={() => handleVisitorDecision(pendingVisitors[0].id, 'denied')}
-                    sx={{ minHeight: 52, fontSize: 18, borderRadius: 2.75 }}
-                  >
-                    Deny
+                </Box>
+              </Paper>
+            </>
+          )}
+
+          {activeMobileTab === 'staff' && (
+            <>
+              <Paper ref={staffSectionRef} elevation={0} sx={compactCardSx}>
+                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.5 }}>
+                  <Typography variant="h5" sx={{ fontSize: 24 }}>Verified Staff</Typography>
+                  <Button variant="outlined" onClick={() => setStaffDialogOpen(true)} sx={{ borderRadius: 999 }}>
+                    Add New Staff
                   </Button>
                 </Stack>
-
-                <Typography color="text.secondary" sx={{ textAlign: 'center' }}>
-                  Swipe right to approve or left to deny
-                </Typography>
+                <Stack spacing={1.2}>
+                  {staffMembers.map((staffMember) => (
+                    <Paper key={staffMember.id} variant="outlined" sx={{ p: 1.4, borderRadius: 3.5, bgcolor: 'rgba(255,255,255,0.84)' }}>
+                      <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1.25}>
+                        <Stack direction="row" spacing={1.2} alignItems="center">
+                          <Avatar sx={{ bgcolor: 'rgba(36, 86, 166, 0.12)', color: 'primary.main' }}>
+                            {staffMember.name?.[0] || 'S'}
+                          </Avatar>
+                          <Box>
+                            <Typography variant="h6">{staffMember.name}</Typography>
+                            <Typography color="text.secondary">{staffMember.roleLabel}</Typography>
+                          </Box>
+                        </Stack>
+                        <Chip label={staffMember.autoApproved ? 'Auto-Approved' : 'Pending'} color={staffMember.autoApproved ? 'success' : 'default'} sx={{ borderRadius: 999 }} />
+                      </Stack>
+                    </Paper>
+                  ))}
+                </Stack>
               </Paper>
-            ) : (
-              <Paper
-                variant="outlined"
-                sx={{
-                  p: 2,
-                  borderRadius: 4,
-                  borderColor: 'rgba(223, 199, 165, 0.48)',
-                  bgcolor: 'rgba(255,255,255,0.84)',
-                }}
-              >
-                <Typography variant="subtitle1">No pending approvals</Typography>
-                <Typography color="text.secondary">Create a visitor pass with the plus button or wait for a new gate request.</Typography>
+
+              <Paper elevation={0} sx={compactCardSx}>
+                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.5 }}>
+                  <Typography variant="h5" sx={{ fontSize: 24 }}>Today's Attendance</Typography>
+                  <Button onClick={() => setAttendanceHistoryOpen(true)} sx={{ minWidth: 0 }}>View History</Button>
+                </Stack>
+                <Box sx={{ display: 'grid', gridTemplateColumns: '1.35fr 1fr 1fr 0.9fr', gap: 1, mb: 1.25, px: 0.5 }}>
+                  <Typography variant="body2" color="text.secondary">Name</Typography>
+                  <Typography variant="body2" color="text.secondary">Entry</Typography>
+                  <Typography variant="body2" color="text.secondary">Exit</Typography>
+                  <Typography variant="body2" color="text.secondary">Status</Typography>
+                </Box>
+                <Stack spacing={0.85}>
+                  {staffAttendance.map((entry) => (
+                    <Box key={entry.id} sx={{ display: 'grid', gridTemplateColumns: '1.35fr 1fr 1fr 0.9fr', gap: 1, alignItems: 'center', px: 0.5, py: 0.75, borderTop: '1px solid rgba(223,199,165,0.35)' }}>
+                      <Typography>{entry.name}</Typography>
+                      <Typography>{formatTimeValue(entry.clockInAt)}</Typography>
+                      <Typography>{formatTimeValue(entry.clockOutAt)}</Typography>
+                      <Chip label={entry.status === 'absent' ? 'Absent' : 'Present'} color={entry.status === 'absent' ? 'warning' : 'success'} size="small" sx={{ borderRadius: 2 }} />
+                    </Box>
+                  ))}
+                </Stack>
+                <Button variant="outlined" fullWidth onClick={() => navigate('/complaints')} sx={{ mt: 2, borderRadius: 999 }}>
+                  Report an Issue
+                </Button>
               </Paper>
-            )}
-          </Paper>
 
-          <Paper elevation={0} sx={compactCardSx}>
-            <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5 }}>
-              <BoltIcon color="secondary" />
-              <Typography variant="h5" sx={{ fontSize: 24 }}>Notifications</Typography>
-            </Stack>
-
-            {leadNotification ? (
-              <Paper
-                variant="outlined"
-                sx={{
-                  p: 1.75,
-                  borderRadius: 4,
-                  borderColor: 'rgba(223, 199, 165, 0.48)',
-                  bgcolor: 'rgba(255,255,255,0.84)',
-                }}
-              >
-                <Stack direction="row" spacing={1.25} alignItems="flex-start" justifyContent="space-between">
-                  <Stack direction="row" spacing={1.2} alignItems="flex-start" sx={{ minWidth: 0 }}>
-                    <Chip size="small" label={!leadNotification.read ? 'Alert' : 'Update'} color="warning" sx={{ borderRadius: 999, mt: 0.25 }} />
-                    <Typography sx={{ fontSize: 16.5 }}>
-                      {formatTextValue(leadNotification.message, 'No message available.')}
-                    </Typography>
+              {activeStaffAlert && (
+                <Paper elevation={0} sx={{ ...compactCardSx, position: 'relative' }}>
+                  <Stack direction="row" spacing={1} alignItems="flex-start">
+                    <Chip label="Alert" color="warning" sx={{ borderRadius: 999 }} />
+                    <Typography sx={{ fontSize: 18, fontWeight: 700 }}>{activeStaffAlert.alertMessage}</Typography>
                   </Stack>
-                  {!leadNotification.read && (
-                    <Button size="small" onClick={() => handleMarkNotificationRead(leadNotification.id)} sx={{ flexShrink: 0 }}>
-                      Mark Read
+                  <Stack direction="row" spacing={1.2} sx={{ mt: 2 }}>
+                    <Button variant="contained" onClick={() => handleMarkStaffAlertNoted(activeStaffAlert.id)} sx={{ flex: 1, borderRadius: 2.75 }}>
+                      Mark as Noted
                     </Button>
+                    <Button variant="outlined" onClick={() => handleContactStaff((staffMembers.find((entry) => entry.id === activeStaffAlert.staffId) || {}).phone)} sx={{ flex: 1, borderRadius: 2.75 }}>
+                      Contact Staff
+                    </Button>
+                  </Stack>
+                </Paper>
+              )}
+            </>
+          )}
+
+          {activeMobileTab === 'delivery' && (
+            <>
+              <Paper ref={visitorsSectionRef} elevation={0} sx={compactCardSx}>
+                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.5 }}>
+                  <Typography variant="h5" sx={{ fontSize: 24 }}>Delivery Access</Typography>
+                  <Button variant="outlined" onClick={() => openPassDialog('Delivery')} sx={{ borderRadius: 999 }}>
+                    Add Delivery
+                  </Button>
+                </Stack>
+                <Stack spacing={1.2}>
+                  {deliveryVisitors.length === 0 && (
+                    <Paper variant="outlined" sx={{ p: 1.75, borderRadius: 4, bgcolor: 'rgba(255,255,255,0.84)' }}>
+                      <Typography variant="subtitle1">No deliveries queued</Typography>
+                      <Typography color="text.secondary">Pre-approve a delivery to make gate access faster.</Typography>
+                    </Paper>
                   )}
+                  {deliveryVisitors.map((visitor) => (
+                    <Paper key={visitor.id} variant="outlined" sx={{ p: 1.75, borderRadius: 4, bgcolor: 'rgba(255,255,255,0.84)' }}>
+                      <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1.2}>
+                        <Box>
+                          <Typography variant="h6">{formatTextValue(visitor.name, 'Delivery')}</Typography>
+                          <Typography color="text.secondary">{formatTextValue(visitor.time, formatDateTimeValue(visitor.expectedAt, 'Not scheduled'))}</Typography>
+                        </Box>
+                        <Chip label={visitor.status || 'pending'} color={statusColorMap[visitor.status] || 'default'} sx={{ borderRadius: 999 }} />
+                      </Stack>
+                    </Paper>
+                  ))}
                 </Stack>
               </Paper>
-            ) : (
-              <Paper
-                variant="outlined"
-                sx={{
-                  p: 1.75,
-                  borderRadius: 4,
-                  borderColor: 'rgba(223, 199, 165, 0.48)',
-                  bgcolor: 'rgba(255,255,255,0.84)',
-                }}
-              >
-                <Typography variant="subtitle1">No alerts right now</Typography>
-                <Typography color="text.secondary">Resident notifications will appear here when guards or admins trigger them.</Typography>
-              </Paper>
-            )}
-          </Paper>
 
-          <Paper
-            ref={duesSectionRef}
-            elevation={0}
-            sx={{
-              ...compactCardSx,
-              p: 0,
-              overflow: 'hidden',
-              background: 'linear-gradient(135deg, rgba(187, 211, 241, 0.95) 0%, rgba(210, 228, 248, 0.92) 48%, rgba(188, 214, 239, 0.86) 100%)',
-            }}
-          >
-            <Box sx={{ p: 2.1 }}>
-              <Typography variant="h5" sx={{ fontSize: 22, color: 'primary.main', textDecoration: 'underline', mb: 1.75 }}>
-                Maintenance Due
-              </Typography>
-              <Typography sx={{ fontSize: 18, mb: 2 }}>
-                Due: <Box component="span" sx={{ fontWeight: 800 }}>{formatCurrency(dueSummary.nextDue?.amount || dueSummary.outstandingAmount)}</Box>
-              </Typography>
-              <Button
-                variant="contained"
-                color="success"
-                onClick={() => navigate('/expenses')}
-                sx={{ minWidth: 150, minHeight: 52, borderRadius: 2.75, fontSize: 18 }}
-              >
-                Pay Now
-              </Button>
-            </Box>
-          </Paper>
+              <Paper elevation={0} sx={compactCardSx}>
+                <Typography variant="h5" sx={{ fontSize: 24, mb: 1.25 }}>Recent Delivery Alert</Typography>
+                <Paper variant="outlined" sx={{ p: 1.75, borderRadius: 4, bgcolor: 'rgba(255,255,255,0.84)' }}>
+                  <Typography sx={{ fontSize: 17 }}>
+                    {deliveryVisitors[0]
+                      ? `${formatTextValue(deliveryVisitors[0].name, 'Delivery')} is ${deliveryVisitors[0].status || 'pending'} for Flat ${myFlat || 'your unit'}.`
+                      : 'The concierge will flag missed or delayed deliveries here.'}
+                  </Typography>
+                </Paper>
+              </Paper>
+            </>
+          )}
         </Stack>
 
         <Box
@@ -1053,10 +1323,10 @@ export default function ResidentDashboard() {
               </Stack>
             </ButtonBase>
 
-            <ButtonBase onClick={() => scrollToSection(visitorsSectionRef)} sx={{ borderRadius: 3, py: 0.5 }}>
+            <ButtonBase onClick={() => handleMobileTabChange('visitors')} sx={{ borderRadius: 3, py: 0.5 }}>
               <Stack spacing={0.35} alignItems="center">
-                <QrCode2Icon sx={{ color: 'primary.main' }} />
-                <Typography variant="caption" sx={{ fontSize: 12.5 }}>Visitors</Typography>
+                <QrCode2Icon sx={{ color: activeMobileTab === 'visitors' ? 'primary.main' : 'text.secondary' }} />
+                <Typography variant="caption" sx={{ fontSize: 12.5, color: activeMobileTab === 'visitors' ? 'primary.main' : 'text.secondary' }}>Visitors</Typography>
               </Stack>
             </ButtonBase>
 
@@ -1079,7 +1349,7 @@ export default function ResidentDashboard() {
 
           <Button
             variant="contained"
-            onClick={() => setPassDialogOpen(true)}
+            onClick={handlePrimaryFab}
             sx={{
               position: 'absolute',
               left: '50%',
@@ -1096,6 +1366,54 @@ export default function ResidentDashboard() {
           </Button>
         </Box>
       </Box>
+
+      <Dialog open={staffDialogOpen} onClose={() => !creatingStaff && setStaffDialogOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle>Add New Staff</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ pt: 1 }}>
+            <TextField label="Staff name" name="name" value={staffForm.name} onChange={handleStaffFormChange} fullWidth />
+            <TextField select label="Role" name="roleLabel" value={staffForm.roleLabel} onChange={handleStaffFormChange} fullWidth>
+              <MenuItem value="Maid">Maid</MenuItem>
+              <MenuItem value="Driver">Driver</MenuItem>
+              <MenuItem value="Cook">Cook</MenuItem>
+              <MenuItem value="Nanny">Nanny</MenuItem>
+              <MenuItem value="Caretaker">Caretaker</MenuItem>
+            </TextField>
+            <TextField label="Phone" name="phone" value={staffForm.phone} onChange={handleStaffFormChange} fullWidth />
+            <TextField label="Notes" name="notes" value={staffForm.notes} onChange={handleStaffFormChange} fullWidth multiline minRows={2} />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setStaffDialogOpen(false)} disabled={creatingStaff}>Cancel</Button>
+          <Button variant="contained" onClick={handleCreateStaff} disabled={creatingStaff}>
+            {creatingStaff ? 'Adding...' : 'Add Staff'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={attendanceHistoryOpen} onClose={() => setAttendanceHistoryOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle>Staff Attendance History</DialogTitle>
+        <DialogContent>
+          <Stack spacing={1.25} sx={{ pt: 1 }}>
+            {staffAttendance.map((entry) => (
+              <Paper key={entry.id} variant="outlined" sx={{ p: 1.5, borderRadius: 3 }}>
+                <Stack direction="row" justifyContent="space-between" spacing={1}>
+                  <Box>
+                    <Typography variant="subtitle1">{entry.name}</Typography>
+                    <Typography color="text.secondary">{entry.roleLabel}</Typography>
+                    <Typography color="text.secondary">Entry: {formatTimeValue(entry.clockInAt)}</Typography>
+                    <Typography color="text.secondary">Exit: {formatTimeValue(entry.clockOutAt)}</Typography>
+                  </Box>
+                  <Chip label={entry.status === 'absent' ? 'Absent' : 'Present'} color={entry.status === 'absent' ? 'warning' : 'success'} />
+                </Stack>
+              </Paper>
+            ))}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setAttendanceHistoryOpen(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
 
       <Dialog open={passDialogOpen} onClose={() => !creatingPass && setPassDialogOpen(false)} fullWidth maxWidth="sm">
         <DialogTitle>Create Visitor Pass</DialogTitle>

@@ -12,6 +12,148 @@ const nowIso = () => new Date().toISOString();
 const createId = (prefix) => `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
 const normalizeFlatValue = (flat) => flat?.trim().toUpperCase() || '';
 
+const buildResidentStaffSeed = ({ residentId, societyId, createdAt }) => ([
+  {
+    id: 'resident_staff_demo_1',
+    residentId,
+    societyId,
+    name: 'Lakshmi',
+    roleLabel: 'Maid',
+    phone: '9876501001',
+    autoApproved: true,
+    createdAt,
+    updatedAt: createdAt,
+  },
+  {
+    id: 'resident_staff_demo_2',
+    residentId,
+    societyId,
+    name: 'Ajay',
+    roleLabel: 'Driver',
+    phone: '9876501002',
+    autoApproved: true,
+    createdAt,
+    updatedAt: createdAt,
+  },
+  {
+    id: 'resident_staff_demo_3',
+    residentId,
+    societyId,
+    name: 'Rekha',
+    roleLabel: 'Cook',
+    phone: '9876501003',
+    autoApproved: true,
+    createdAt,
+    updatedAt: createdAt,
+  },
+]);
+
+const buildResidentStaffAttendanceSeed = ({ residentId, societyId, createdAt }) => {
+  const today = new Date();
+  const atTime = (hours, minutes) => new Date(today.getFullYear(), today.getMonth(), today.getDate(), hours, minutes).toISOString();
+
+  return [
+    {
+      id: 'resident_staff_attendance_demo_1',
+      residentId,
+      staffId: 'resident_staff_demo_1',
+      societyId,
+      name: 'Lakshmi',
+      roleLabel: 'Maid',
+      clockInAt: atTime(7, 5),
+      clockOutAt: atTime(11, 45),
+      status: 'present',
+      alertType: 'left-early',
+      alertMessage: 'Lakshmi left early today at 11:45 AM.',
+      createdAt,
+      updatedAt: createdAt,
+    },
+    {
+      id: 'resident_staff_attendance_demo_2',
+      residentId,
+      staffId: 'resident_staff_demo_2',
+      societyId,
+      name: 'Ajay',
+      roleLabel: 'Driver',
+      clockInAt: atTime(8, 10),
+      clockOutAt: null,
+      status: 'present',
+      createdAt,
+      updatedAt: createdAt,
+    },
+    {
+      id: 'resident_staff_attendance_demo_3',
+      residentId,
+      staffId: null,
+      societyId,
+      name: 'Ramesh',
+      roleLabel: 'Cleaner',
+      clockInAt: null,
+      clockOutAt: null,
+      status: 'absent',
+      createdAt,
+      updatedAt: createdAt,
+    },
+  ];
+};
+
+const ensureResidentDemoExtensions = (state) => {
+  const resident = state.users?.find((user) => user.email === 'resident@soulvest.demo' || (user.role === 'resident' && normalizeFlatValue(user.flat) === 'A-101'));
+  const residentId = resident?.id || state.users?.find((user) => user.role === 'resident')?.id;
+  const societyId = resident?.societyId || DEFAULT_SOCIETY_ID;
+  const createdAt = state.meta?.initializedAt || nowIso();
+
+  if (!residentId) {
+    state.residentStaff = state.residentStaff || [];
+    state.residentStaffAttendance = state.residentStaffAttendance || [];
+    return state;
+  }
+
+  const seededStaff = buildResidentStaffSeed({ residentId, societyId, createdAt });
+  const seededAttendance = buildResidentStaffAttendanceSeed({ residentId, societyId, createdAt });
+
+  state.residentStaff = Array.isArray(state.residentStaff) ? state.residentStaff : [];
+  state.residentStaffAttendance = Array.isArray(state.residentStaffAttendance) ? state.residentStaffAttendance : [];
+
+  seededStaff.forEach((staff) => {
+    if (!state.residentStaff.some((entry) => entry.id === staff.id)) {
+      state.residentStaff.push(staff);
+    }
+  });
+
+  seededAttendance.forEach((entry) => {
+    if (!state.residentStaffAttendance.some((attendance) => attendance.id === entry.id)) {
+      state.residentStaffAttendance.push(entry);
+    }
+  });
+
+  if (!state.visitors.some((visitor) => visitor.id === 'visitor_delivery_demo')) {
+    state.visitors.push({
+      id: 'visitor_delivery_demo',
+      name: 'QuickDrop Courier',
+      phone: '9876500014',
+      purpose: 'Delivery',
+      flat: 'A-101',
+      residentId,
+      residentName: resident?.name || 'Resident',
+      societyId,
+      status: 'approved',
+      time: 'Today 5:40 PM',
+      entryMethod: 'walk-in',
+      history: [{ type: 'approved', actor: 'Priya Nair', at: createdAt }],
+      createdAt,
+      updatedAt: createdAt,
+    });
+  }
+
+  state.meta = {
+    ...state.meta,
+    version: Math.max(Number(state.meta?.version || 1), 2),
+  };
+
+  return state;
+};
+
 const createSeedState = () => {
   const societyId = DEFAULT_SOCIETY_ID;
   const createdAt = nowIso();
@@ -31,7 +173,7 @@ const createSeedState = () => {
 
   return {
     meta: {
-      version: 1,
+      version: 2,
       initializedAt: createdAt,
     },
     users: [
@@ -165,6 +307,22 @@ const createSeedState = () => {
         createdAt,
         updatedAt: createdAt,
       },
+      {
+        id: 'visitor_delivery_demo',
+        name: 'QuickDrop Courier',
+        phone: '9876500014',
+        purpose: 'Delivery',
+        flat: 'A-101',
+        residentId: residentOneId,
+        residentName: 'Priya Nair',
+        societyId,
+        status: 'approved',
+        time: 'Today 5:40 PM',
+        entryMethod: 'walk-in',
+        history: [{ type: 'approved', actor: 'Priya Nair', at: createdAt }],
+        createdAt,
+        updatedAt: createdAt,
+      },
     ],
     announcements: [
       {
@@ -295,6 +453,8 @@ const createSeedState = () => {
         updatedAt: createdAt,
       },
     ],
+    residentStaff: buildResidentStaffSeed({ residentId: residentOneId, societyId, createdAt }),
+    residentStaffAttendance: buildResidentStaffAttendanceSeed({ residentId: residentOneId, societyId, createdAt }),
     notifications: [
       {
         id: 'notification_demo_1',
@@ -330,15 +490,15 @@ const readFromStorage = () => {
 
   const raw = window.localStorage.getItem(STORAGE_KEY);
   if (!raw) {
-    const seed = createSeedState();
+    const seed = ensureResidentDemoExtensions(createSeedState());
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(seed));
     return seed;
   }
 
   try {
-    return JSON.parse(raw);
+    return ensureResidentDemoExtensions(JSON.parse(raw));
   } catch {
-    const seed = createSeedState();
+    const seed = ensureResidentDemoExtensions(createSeedState());
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(seed));
     return seed;
   }

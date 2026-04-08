@@ -202,6 +202,28 @@ export function subscribeToResidentFacilityBookings(userId, callback, context = 
   );
 }
 
+export function subscribeToResidentStaff(userId, callback, context = DEFAULT_SOCIETY_ID) {
+  if (!userId) return () => {};
+  const societyId = resolveSocietyId(context);
+  return subscribeDemoState(
+    (state) => (state.residentStaff || [])
+      .filter((entry) => entry.societyId === societyId && entry.residentId === userId)
+      .sort((left, right) => `${left.roleLabel || ''}-${left.name || ''}`.localeCompare(`${right.roleLabel || ''}-${right.name || ''}`)),
+    callback,
+  );
+}
+
+export function subscribeToResidentStaffAttendance(userId, callback, context = DEFAULT_SOCIETY_ID) {
+  if (!userId) return () => {};
+  const societyId = resolveSocietyId(context);
+  return subscribeDemoState(
+    (state) => (state.residentStaffAttendance || [])
+      .filter((entry) => entry.societyId === societyId && entry.residentId === userId)
+      .sort((left, right) => getComparableTime(right.clockInAt || right.createdAt) - getComparableTime(left.clockInAt || left.createdAt)),
+    callback,
+  );
+}
+
 export function subscribeToStaffAttendance(callback, context = DEFAULT_SOCIETY_ID) {
   const societyId = resolveSocietyId(context);
   return subscribeDemoState(
@@ -422,6 +444,32 @@ export async function createPaymentRecord(payment) {
     state.payments.push(created);
     return state;
   });
+  return clone(created);
+}
+
+export async function createResidentStaff(staff) {
+  let created = null;
+  mutateDemoState((state) => {
+    state.residentStaff = state.residentStaff || [];
+
+    created = {
+      id: createId('resident_staff'),
+      residentId: staff.residentId,
+      residentName: staff.residentName || 'Resident',
+      societyId: resolveSocietyId(staff),
+      name: staff.name,
+      roleLabel: staff.roleLabel || staff.role || 'Helper',
+      phone: staff.phone || '',
+      autoApproved: staff.autoApproved !== false,
+      notes: staff.notes || '',
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    };
+
+    state.residentStaff.push(created);
+    return state;
+  });
+
   return clone(created);
 }
 

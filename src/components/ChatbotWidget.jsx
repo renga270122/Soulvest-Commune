@@ -15,29 +15,63 @@ import SendIcon from '@mui/icons-material/Send';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import CloseIcon from '@mui/icons-material/Close';
 import { useAuthContext } from './AuthContext';
-import { subscribeToResidentComplaints, subscribeToResidentFacilityBookings, subscribeToResidentPayments } from '../services/communityData';
+import {
+  subscribeToResidentComplaints,
+  subscribeToResidentFacilityBookings,
+  subscribeToResidentPayments,
+  subscribeToResidentStaffAttendance,
+} from '../services/communityData';
+
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV ? 'http://localhost:4000' : '')).replace(/\/$/, '');
+const CHATBOT_TIMEOUT_MS = 5000;
 
 const initialMessages = [
   { sender: 'bot', text: 'Hi! I am your AI assistant. How can I help you today?' }
 ];
 
+function createTimeoutSignal(timeoutMs) {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+  return {
+    signal: controller.signal,
+    cleanup: () => window.clearTimeout(timeoutId),
+  };
+}
+
 const getLLMReply = async (input) => {
+  if (!API_BASE_URL) {
+    return '';
+  }
+
+  const { signal, cleanup } = createTimeoutSignal(CHATBOT_TIMEOUT_MS);
+
   try {
-    const res = await fetch('https://commune.soulvest.ai/chatbot-llm', {
+    const res = await fetch(`${API_BASE_URL}/chatbot-llm`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: input })
+      body: JSON.stringify({ message: input }),
+      signal,
     });
-    const data = await res.json();
-    if (data.reply) return data.reply;
-    return data.error ? `Error: ${data.error}` : 'Sorry, I could not get a reply.';
-  } catch (err) {
-    return 'Sorry, there was a problem connecting to the AI service.';
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return '';
+    }
+
+    return data.reply || '';
+  } catch {
+    return '';
+  } finally {
+    cleanup();
   }
 };
 
-const getLocalConciergeReply = (input, { payments, complaints, bookings }) => {
+const getLocalConciergeReply = (input, { payments, complaints, bookings, staffAttendance }) => {
   const query = input.toLowerCase();
+  if (/(^|\b)(hi|hello|hey|good morning|good evening)(\b|$)/.test(query)) {
+    return 'Hello! I can help with dues, complaints, amenity bookings, and staff attendance.';
+  }
+
   if (query.includes('due') || query.includes('payment') || query.includes('maintenance')) {
     const openPayments = payments.filter((payment) => payment.derivedStatus !== 'paid');
     if (!openPayments.length) {
@@ -66,8 +100,24 @@ const getLocalConciergeReply = (input, { payments, complaints, bookings }) => {
     return `Your next amenity booking is for ${activeBooking.amenity} during ${activeBooking.slot} on ${new Date(activeBooking.bookingDate).toLocaleDateString()}.`;
   }
 
+  if (query.includes('staff') || query.includes('maid') || query.includes('driver') || query.includes('cook') || query.includes('attendance')) {
+    if (!staffAttendance.length) {
+      return 'No staff attendance records are available yet.';
+    }
+
+    const flaggedAlert = staffAttendance.find((entry) => entry.alertType);
+    if (flaggedAlert?.alertMessage) {
+      return flaggedAlert.alertMessage;
+    }
+
+    const presentCount = staffAttendance.filter((entry) => entry.status !== 'absent').length;
+    return `${presentCount} staff member${presentCount === 1 ? '' : 's'} are marked present today.`;
+  }
+
   return '';
 };
+
+const getFallbackReply = () => 'I can help with maintenance dues, complaints, amenity bookings, and staff attendance. Ask me about any of those.';
 
 const ChatbotWidget = ({ variant = 'panel', greetingName = 'there', bottomOffset = { xs: 20, md: 24 } }) => {
   const [messages, setMessages] = useState(initialMessages);
@@ -77,6 +127,7 @@ const ChatbotWidget = ({ variant = 'panel', greetingName = 'there', bottomOffset
   const [payments, setPayments] = useState([]);
   const [complaints, setComplaints] = useState([]);
   const [bookings, setBookings] = useState([]);
+  const [staffAttendance, setStaffAttendance] = useState([]);
   const { user } = useAuthContext();
 
   useEffect(() => {
@@ -88,14 +139,19 @@ const ChatbotWidget = ({ variant = 'panel', greetingName = 'there', bottomOffset
     const unsubPayments = subscribeToResidentPayments(user.uid, setPayments, user);
     const unsubComplaints = subscribeToResidentComplaints(user.uid, setComplaints, user);
     const unsubBookings = subscribeToResidentFacilityBookings(user.uid, setBookings, user);
+    const unsubStaffAttendance = subscribeToResidentStaffAttendance(user.uid, setStaffAttendance, user);
     return () => {
       unsubPayments();
       unsubComplaints();
       unsubBookings();
+      unsubStaffAttendance();
     };
   }, [user?.uid]);
 
-  const conciergeContext = useMemo(() => ({ payments, complaints, bookings }), [payments, complaints, bookings]);
+  const conciergeContext = useMemo(
+    () => ({ payments, complaints, bookings, staffAttendance }),
+    [bookings, complaints, payments, staffAttendance],
+  );
 
   const handleSend = async () => {
     if (!input.trim()) return;
@@ -104,7 +160,8 @@ const ChatbotWidget = ({ variant = 'panel', greetingName = 'there', bottomOffset
     setLoading(true);
     setInput('');
     const localReply = getLocalConciergeReply(input, conciergeContext);
-    const reply = localReply || await getLLMReply(input);
+    const llmReply = localReply ? '' : await getLLMReply(input);
+    const reply = localReply || llmReply || getFallbackReply();
     setMessages((msgs) => [...msgs, { sender: 'bot', text: reply }]);
     setLoading(false);
   };
