@@ -1,10 +1,11 @@
+const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 
 const DEMO_SESSION_SECRET = process.env.DEMO_SESSION_SECRET || 'soulvest-demo-session-secret';
 const DEMO_SESSION_TTL = process.env.DEMO_SESSION_TTL || '12h';
 const DEMO_PASSWORD = process.env.DEMO_PASSWORD || 'demo123';
 
-const DEMO_USERS = [
+const demoUsers = [
   {
     uid: 'user_admin_demo',
     name: 'Aarav Rao',
@@ -84,7 +85,46 @@ function sanitizeDemoUser(user) {
 
 function findDemoUserByIdentifier(identifier = '') {
   const normalizedIdentifier = String(identifier).trim().toLowerCase();
-  return DEMO_USERS.find((user) => user.email.toLowerCase() === normalizedIdentifier || user.mobile === normalizedIdentifier) || null;
+  return demoUsers.find((user) => user.email.toLowerCase() === normalizedIdentifier || user.mobile === normalizedIdentifier) || null;
+}
+
+function registerDemoResident({ name, flat, mobile, email, password, language }) {
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  const normalizedMobile = String(mobile || '').trim();
+
+  if (!name || !flat || !normalizedEmail || !normalizedMobile || !password) {
+    const error = new Error('name, flat, mobile, email, and password are required.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (findDemoUserByIdentifier(normalizedEmail)) {
+    const error = new Error('A demo user already exists with this email.');
+    error.statusCode = 409;
+    throw error;
+  }
+
+  if (findDemoUserByIdentifier(normalizedMobile)) {
+    const error = new Error('A demo user already exists with this mobile number.');
+    error.statusCode = 409;
+    throw error;
+  }
+
+  const user = {
+    uid: `user_${crypto.randomUUID()}`,
+    name: String(name).trim(),
+    email: normalizedEmail,
+    mobile: normalizedMobile,
+    role: 'resident',
+    flat: String(flat).trim().toUpperCase(),
+    cityId: 'bengaluru',
+    societyId: 'brigade-metropolis',
+    language: language || 'en',
+    password: String(password),
+  };
+
+  demoUsers.push(user);
+  return sanitizeDemoUser(user);
 }
 
 function createDemoSession({ identifier, password, role }) {
@@ -159,5 +199,6 @@ function verifyDemoSessionToken(token) {
 
 module.exports = {
   createDemoSession,
+  registerDemoResident,
   verifyDemoSessionToken,
 };

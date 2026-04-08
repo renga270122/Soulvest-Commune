@@ -46,7 +46,7 @@ function getRazorpayMode() {
 }
 
 const { getDb, getFirebaseStatus } = require('./firebase');
-const { createDemoSession } = require('./auth/demo-session');
+const { createDemoSession, registerDemoResident } = require('./auth/demo-session');
 
 // LLM Chatbot route
 const chatbotLLM = require('./chatbot-llm');
@@ -93,6 +93,39 @@ app.post('/auth/demo-session', (req, res) => {
   } catch (error) {
     res.status(error.statusCode || 500).json({
       error: 'Failed to create demo session',
+      details: error.message,
+    });
+  }
+});
+
+app.post('/auth/demo-register', (req, res) => {
+  const {
+    name,
+    flat,
+    mobile,
+    email,
+    password,
+    language,
+  } = req.body;
+
+  try {
+    const user = registerDemoResident({
+      name,
+      flat,
+      mobile,
+      email,
+      password,
+      language,
+    });
+    const session = createDemoSession({
+      identifier: user.email,
+      password,
+      role: 'resident',
+    });
+    res.status(201).json({ ok: true, ...session });
+  } catch (error) {
+    res.status(error.statusCode || 500).json({
+      error: 'Failed to register demo resident',
       details: error.message,
     });
   }

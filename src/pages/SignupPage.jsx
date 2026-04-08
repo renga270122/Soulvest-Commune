@@ -54,7 +54,7 @@ export default function SignupPage() {
         {error && <div style={{ color: 'red', marginBottom: 8 }}>{error}</div>}
         {success && <div style={{ color: 'green', marginBottom: 8 }}>{success}</div>}
         <div style={{ color: '#5a3a0a', background: 'rgba(255, 248, 236, 0.88)', borderRadius: 12, padding: 12, marginBottom: 12 }}>
-          Demo mode stores this account only in your browser for local walkthroughs.
+          Demo signup stores this account in your browser and, when the backend is available, also issues a server-backed session for AI approvals.
         </div>
         <div className={styles.label}>Full Name</div>
         <div className={styles.inputGroup}>

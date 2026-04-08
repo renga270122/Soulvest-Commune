@@ -35,6 +35,36 @@ async function requestBackendDemoSession({ identifier, password, role }) {
   }
 }
 
+async function requestBackendDemoRegistration(form) {
+  if (!API_BASE_URL) {
+    return null;
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/auth/demo-register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(form),
+    });
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(data?.details || data?.error || 'Failed to register demo resident.');
+    }
+
+    if (!data?.token || !data?.user) {
+      throw new Error('Backend demo registration did not return a session token.');
+    }
+
+    return data;
+  } catch (error) {
+    if (error instanceof TypeError) {
+      return null;
+    }
+    throw error;
+  }
+}
+
 const buildSessionUser = (user, auth = {}) => ({
   uid: user.id,
   email: user.email || '',
@@ -78,6 +108,15 @@ export async function quickDemoAccess(role = 'resident') {
 export async function registerDemoResident(form) {
   const email = form.email.trim().toLowerCase();
   const mobile = form.mobile.trim();
+  const normalizedForm = {
+    name: form.name.trim(),
+    flat: normalizeFlatValue(form.flat),
+    mobile,
+    email,
+    password: form.password,
+    language: form.language || 'en',
+  };
+
   if (findDemoUserByIdentifier(email)) {
     throw new Error('A demo user already exists with this email.');
   }
@@ -85,18 +124,16 @@ export async function registerDemoResident(form) {
     throw new Error('A demo user already exists with this mobile number.');
   }
 
+  const backendRegistration = await requestBackendDemoRegistration(normalizedForm);
+
   const nextState = addDemoUser({
-    name: form.name.trim(),
-    flat: normalizeFlatValue(form.flat),
-    mobile,
-    email,
-    password: form.password,
-    language: form.language || 'en',
+    id: backendRegistration?.user?.uid,
+    ...normalizedForm,
     role: 'resident',
   });
 
   const createdUser = nextState.users[nextState.users.length - 1];
-  return buildSessionUser(createdUser);
+  return buildSessionUser(createdUser, backendRegistration || {});
 }
 
 export async function requestDemoPasswordReset(identifier) {
