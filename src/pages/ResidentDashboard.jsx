@@ -884,6 +884,53 @@ export default function ResidentDashboard() {
           </Alert>
         )}
 
+        <Paper
+          elevation={0}
+          sx={{
+            ...compactCardSx,
+            display: { xs: 'block', md: 'none' },
+            mb: 2,
+          }}
+        >
+          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.5 }}>
+            <Typography variant="h5" sx={{ fontSize: 22 }}>Quick Actions</Typography>
+            <Chip label="Mobile" size="small" color="primary" sx={{ borderRadius: 999 }} />
+          </Stack>
+
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+              gap: 1,
+            }}
+          >
+            <Button variant="outlined" onClick={() => navigate('/announcements')} sx={{ minHeight: 76, borderRadius: 3, flexDirection: 'column', gap: 0.5 }}>
+              <CampaignIcon fontSize="small" />
+              <Typography variant="caption" sx={{ fontSize: 12, fontWeight: 700 }}>Notices</Typography>
+            </Button>
+            <Button variant="outlined" onClick={() => navigate('/bookings')} sx={{ minHeight: 76, borderRadius: 3, flexDirection: 'column', gap: 0.5 }}>
+              <EventAvailableIcon fontSize="small" />
+              <Typography variant="caption" sx={{ fontSize: 12, fontWeight: 700 }}>Amenities</Typography>
+            </Button>
+            <Button variant="outlined" onClick={() => navigate('/expenses')} sx={{ minHeight: 76, borderRadius: 3, flexDirection: 'column', gap: 0.5 }}>
+              <AccountBalanceWalletIcon fontSize="small" />
+              <Typography variant="caption" sx={{ fontSize: 12, fontWeight: 700 }}>Dues</Typography>
+            </Button>
+            <Button variant="outlined" onClick={() => navigate('/complaints')} sx={{ minHeight: 76, borderRadius: 3, flexDirection: 'column', gap: 0.5 }}>
+              <BugReportIcon fontSize="small" />
+              <Typography variant="caption" sx={{ fontSize: 12, fontWeight: 700 }}>Complaints</Typography>
+            </Button>
+            <Button variant="outlined" onClick={() => navigate('/directory')} sx={{ minHeight: 76, borderRadius: 3, flexDirection: 'column', gap: 0.5 }}>
+              <GroupsIcon fontSize="small" />
+              <Typography variant="caption" sx={{ fontSize: 12, fontWeight: 700 }}>Directory</Typography>
+            </Button>
+            <Button variant="outlined" onClick={() => navigate('/profile')} sx={{ minHeight: 76, borderRadius: 3, flexDirection: 'column', gap: 0.5 }}>
+              <PersonIcon fontSize="small" />
+              <Typography variant="caption" sx={{ fontSize: 12, fontWeight: 700 }}>Profile</Typography>
+            </Button>
+          </Box>
+        </Paper>
+
         <Stack spacing={2} sx={{ display: { xs: 'flex', md: 'none' } }}>
           {activeMobileTab === 'visitors' && (
             <>
