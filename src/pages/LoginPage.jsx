@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import styles from "./LoginPage.module.css";
 import { useAuthContext } from "../components/AuthContext";
+import ChatbotWidget from "../components/ChatbotWidget";
 import { useTranslation } from "react-i18next";
 import { getDemoAccountList, loginDemoUser, quickDemoAccess, requestDemoPasswordReset } from "../services/demoAuth";
 
@@ -26,6 +27,14 @@ const featureCards = [
   { title: "AI Concierge", tag: "Gemini", text: "Ask about dues, visitors, and complaint status from a single assistant." },
   { title: "Unified Dashboard", tag: "Operations", text: "Bring residents, guards, admins, and AI workflows together in one connected platform." },
 ];
+
+const getQuickAccessLabel = (selectedRole, loading, t) => {
+  if (loading) return t("auth.connectingGoogle");
+  if (selectedRole === 'resident') return 'Quick resident access + AI concierge';
+  if (selectedRole === 'guard') return 'Quick guard access';
+  if (selectedRole === 'admin') return 'Quick admin access';
+  return 'Quick demo access';
+};
 
 function PalaceIllustration() {
   return (
@@ -102,6 +111,7 @@ export default function LoginPage() {
   const [resetSent, setResetSent] = useState(false);
   const [resendDisabled, setResendDisabled] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [showMobileConcierge, setShowMobileConcierge] = useState(false);
   const navigate = useNavigate();
   const { login } = useAuthContext();
 
@@ -279,6 +289,67 @@ export default function LoginPage() {
               Demo mode is active. Use any account below with password demo123.
             </div>
 
+            <button
+              type="button"
+              className={styles.aiDemoCard}
+              onClick={() => {
+                setSelectedRole('resident');
+                setEmailOrMobile('resident@soulvest.demo');
+                setPassword('demo123');
+                setError('');
+                setSuccess('Resident demo with AI concierge loaded.');
+                setShowMobileConcierge(true);
+              }}
+            >
+              <span className={styles.aiDemoBadge}>Resident + AI</span>
+              <strong>Open the resident demo with AI Concierge</strong>
+              <span>The chatbot lives inside the resident dashboard on mobile, above the bottom navigation.</span>
+            </button>
+
+            <div className={styles.mobileConciergeBlock}>
+              <div className={styles.mobileConciergeIntro}>
+                <span className={styles.mobileConciergeEyebrow}>Mobile preview</span>
+                <strong>Try the AI concierge before quick demo access</strong>
+                <p>Built for mobile users. Ask about dues, complaints, bookings, or staff attendance right here.</p>
+              </div>
+              <div className={styles.mobileConciergeActions}>
+                <button
+                  type="button"
+                  className={styles.mobileConciergeButton}
+                  onClick={() => {
+                    setSelectedRole('resident');
+                    setShowMobileConcierge((current) => !current);
+                    setError('');
+                  }}
+                >
+                  {showMobileConcierge ? 'Hide AI preview' : 'Preview AI on mobile'}
+                </button>
+                <button
+                  type="button"
+                  className={styles.mobileResidentButton}
+                  onClick={() => {
+                    setSelectedRole('resident');
+                    setEmailOrMobile('resident@soulvest.demo');
+                    setPassword('demo123');
+                    setError('');
+                    setSuccess('Resident demo credentials loaded with AI concierge.');
+                  }}
+                >
+                  Load resident demo
+                </button>
+              </div>
+
+              {showMobileConcierge && (
+                <div className={styles.mobileConciergePanel}>
+                  <ChatbotWidget
+                    variant="embedded"
+                    title="AI Concierge Preview"
+                    onClose={() => setShowMobileConcierge(false)}
+                  />
+                </div>
+              )}
+            </div>
+
             <div className={styles.featureGrid} style={{ marginBottom: 20 }}>
               {demoAccounts.map((account) => (
                 <button
@@ -296,6 +367,7 @@ export default function LoginPage() {
                 >
                   <span className={styles.featureBadge}>{account.role}</span>
                   <h3 style={{ marginBottom: 6 }}>{account.name}</h3>
+                  {account.role === 'resident' && <p style={{ marginBottom: 4 }}>Includes AI concierge access</p>}
                   <p style={{ marginBottom: 4 }}>{account.email || account.mobile}</p>
                   <p>Password: {account.password}</p>
                 </button>
@@ -379,8 +451,14 @@ export default function LoginPage() {
 
               <button type="button" className={styles.googleBtn} onClick={handleGoogleSignIn} disabled={googleLoading}>
                 <img src={googleIcon} alt="Google" height={20} />
-                {googleLoading ? t("auth.connectingGoogle") : 'Quick demo access'}
+                {getQuickAccessLabel(selectedRole, googleLoading, t)}
               </button>
+
+              {selectedRole === 'resident' && (
+                <div className={styles.quickAccessHint}>
+                  AI Concierge is available in the resident mobile dashboard as a floating assistant bubble.
+                </div>
+              )}
             </form>
           </div>
         </section>

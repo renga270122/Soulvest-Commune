@@ -119,7 +119,13 @@ const getLocalConciergeReply = (input, { payments, complaints, bookings, staffAt
 
 const getFallbackReply = () => 'I can help with maintenance dues, complaints, amenity bookings, and staff attendance. Ask me about any of those.';
 
-const ChatbotWidget = ({ variant = 'panel', greetingName = 'there', bottomOffset = { xs: 20, md: 24 } }) => {
+const ChatbotWidget = ({
+  variant = 'panel',
+  greetingName = 'there',
+  bottomOffset = { xs: 20, md: 24 },
+  title = 'AI Concierge',
+  onClose,
+}) => {
   const [messages, setMessages] = useState(initialMessages);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -170,6 +176,15 @@ const ChatbotWidget = ({ variant = 'panel', greetingName = 'there', bottomOffset
     setOpen((currentOpen) => !currentOpen);
   };
 
+  const handleClose = () => {
+    if (onClose) {
+      onClose();
+      return;
+    }
+
+    handleToggleOpen();
+  };
+
   const widgetShellSx = {
     position: 'fixed',
     bottom: bottomOffset,
@@ -177,20 +192,19 @@ const ChatbotWidget = ({ variant = 'panel', greetingName = 'there', bottomOffset
     zIndex: 1200,
   };
 
+  const panelSx = {
+    width: variant === 'embedded' ? '100%' : { xs: 'min(92vw, 340px)', md: 340 },
+    maxHeight: 420,
+    display: 'flex',
+    flexDirection: 'column',
+    overflow: 'hidden',
+    borderRadius: 4,
+    border: '1px solid rgba(223, 199, 165, 0.42)',
+    boxShadow: '0 22px 44px rgba(89, 105, 141, 0.2)',
+  };
+
   const panel = (
-    <Paper
-      elevation={10}
-      sx={{
-        width: { xs: 'min(92vw, 340px)', md: 340 },
-        maxHeight: 420,
-        display: 'flex',
-        flexDirection: 'column',
-        overflow: 'hidden',
-        borderRadius: 4,
-        border: '1px solid rgba(223, 199, 165, 0.42)',
-        boxShadow: '0 22px 44px rgba(89, 105, 141, 0.2)',
-      }}
-    >
+    <Paper elevation={10} sx={panelSx}>
       <Box
         sx={{
           display: 'flex',
@@ -202,9 +216,9 @@ const ChatbotWidget = ({ variant = 'panel', greetingName = 'there', bottomOffset
           color: '#fff',
         }}
       >
-        <Typography variant="h6">AI Concierge</Typography>
-        {variant === 'bubble' && (
-          <IconButton size="small" onClick={handleToggleOpen} sx={{ color: '#fff' }}>
+        <Typography variant="h6">{title}</Typography>
+        {(variant === 'bubble' || onClose) && (
+          <IconButton size="small" onClick={handleClose} sx={{ color: '#fff' }}>
             <CloseIcon fontSize="small" />
           </IconButton>
         )}
@@ -298,6 +312,10 @@ const ChatbotWidget = ({ variant = 'panel', greetingName = 'there', bottomOffset
         )}
       </Box>
     );
+  }
+
+  if (variant === 'embedded') {
+    return panel;
   }
 
   return <Box sx={widgetShellSx}>{panel}</Box>;
