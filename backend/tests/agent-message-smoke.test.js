@@ -148,6 +148,8 @@ async function runExecuteFlows() {
 
   assert.equal(deliveryExecute.tasks[0].status, 'completed');
   assert.equal(deliveryExecute.tasks[0].payload.deliveryStatus, 'security_hold_requested');
+  assert.equal(deliveryExecute.mcpContext.liveData.visitors.pendingCount, 0);
+  assert.equal(deliveryExecute.mcpContext.liveData.visitors.deliveries[0].deliveryStatus, 'security_hold_requested');
 
   const financeExecute = await fetchJson(`${baseUrl}/agent-message`, {
     method: 'POST',

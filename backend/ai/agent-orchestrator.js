@@ -271,6 +271,105 @@ function buildDecisionTrail(agentPlans) {
   }));
 }
 
+function upsertById(items, nextItem) {
+  if (!nextItem?.id) {
+    return items;
+  }
+
+  const index = items.findIndex((item) => item.id === nextItem.id);
+  if (index === -1) {
+    return [nextItem, ...items];
+  }
+
+  const updated = [...items];
+  updated[index] = {
+    ...updated[index],
+    ...nextItem,
+  };
+  return updated;
+}
+
+function applyExecutedTasksToSnapshot(request, executedTasks, actor) {
+  const contextSnapshot = {
+    ...(request.contextSnapshot || {}),
+    payments: Array.isArray(request.contextSnapshot?.payments) ? [...request.contextSnapshot.payments] : [],
+    complaints: Array.isArray(request.contextSnapshot?.complaints) ? [...request.contextSnapshot.complaints] : [],
+    bookings: Array.isArray(request.contextSnapshot?.bookings) ? [...request.contextSnapshot.bookings] : [],
+    staffMembers: Array.isArray(request.contextSnapshot?.staffMembers) ? [...request.contextSnapshot.staffMembers] : [],
+    staffAttendance: Array.isArray(request.contextSnapshot?.staffAttendance) ? [...request.contextSnapshot.staffAttendance] : [],
+    visitors: Array.isArray(request.contextSnapshot?.visitors) ? [...request.contextSnapshot.visitors] : [],
+    announcements: Array.isArray(request.contextSnapshot?.announcements) ? [...request.contextSnapshot.announcements] : [],
+  };
+
+  for (const task of executedTasks) {
+    if (task.status !== 'completed') {
+      continue;
+    }
+
+    if (task.type === 'delivery-routing-preview' || task.type === 'visitor-status-update') {
+      const visitorId = task.payload?.visitorId;
+      if (!visitorId) continue;
+
+      const existingVisitor = contextSnapshot.visitors.find((visitor) => visitor.id === visitorId) || {};
+      const nextStatus = task.type === 'delivery-routing-preview'
+        ? 'approved'
+        : (task.payload?.status || existingVisitor.status || 'approved');
+      contextSnapshot.visitors = upsertById(contextSnapshot.visitors, {
+        ...existingVisitor,
+        id: visitorId,
+        residentId: task.payload?.residentId || existingVisitor.residentId || actor.uid || null,
+        flat: task.payload?.flat || existingVisitor.flat || actor.flat || null,
+        societyId: task.payload?.societyId || existingVisitor.societyId || actor.societyId || null,
+        name: task.payload?.visitorName || existingVisitor.name,
+        status: nextStatus,
+        deliveryStatus: task.payload?.deliveryStatus || existingVisitor.deliveryStatus,
+        routedAt: task.payload?.routedAt || existingVisitor.routedAt,
+        updatedAt: task.payload?.routedAt || existingVisitor.updatedAt || new Date().toISOString(),
+      });
+      continue;
+    }
+
+    if (task.type === 'complaint-create') {
+      contextSnapshot.complaints = upsertById(contextSnapshot.complaints, {
+        id: task.payload?.complaintId,
+        category: task.payload?.category,
+        description: task.payload?.description,
+        residentId: task.payload?.residentId || actor.uid || null,
+        residentName: task.payload?.residentName || actor.name || 'Resident',
+        flat: task.payload?.flat || actor.flat || null,
+        societyId: task.payload?.societyId || actor.societyId || null,
+        status: 'open',
+        aiPriority: 'medium',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+      continue;
+    }
+
+    if (task.type === 'announcement-draft') {
+      contextSnapshot.announcements = upsertById(contextSnapshot.announcements, {
+        id: task.payload?.announcementId,
+        title: task.payload?.topic ? `Draft: ${String(task.payload.topic).trim().slice(0, 72)}` : 'Draft: Society announcement',
+        body: task.payload?.topic || 'AI-generated draft announcement. Review before publishing.',
+        language: task.payload?.language || actor.language || 'en',
+        pinned: false,
+        audience: 'all',
+        acknowledgements: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        createdByAgent: true,
+        publishState: 'draft',
+        taskId: task.id,
+      });
+    }
+  }
+
+  return {
+    ...request,
+    contextSnapshot,
+  };
+}
+
 function buildFallbackReply(agentPlans, executedTasks) {
   const summary = agentPlans.map((plan) => plan.summary).filter(Boolean).join(' ');
   if (!executedTasks.length) {
@@ -326,26 +425,26 @@ async function orchestrateAgentMessage(request, dependencies) {
     agents: orderedAgents,
   };
 
-  const mcpContext = buildMcpContext(hydratedRequest);
+  const initialMcpContext = buildMcpContext(hydratedRequest);
 
   const agentPlans = routing.agents.map((agent) => {
     switch (agent) {
       case 'visitor':
-        return planVisitorTasks(hydratedRequest.message, mcpContext);
+        return planVisitorTasks(hydratedRequest.message, initialMcpContext);
       case 'delivery':
-        return planDeliveryTasks(hydratedRequest.message, mcpContext);
+        return planDeliveryTasks(hydratedRequest.message, initialMcpContext);
       case 'finance':
-        return planFinanceTasks(hydratedRequest.message, mcpContext);
+        return planFinanceTasks(hydratedRequest.message, initialMcpContext);
       case 'complaint':
-        return planComplaintTasks(hydratedRequest.message, mcpContext);
+        return planComplaintTasks(hydratedRequest.message, initialMcpContext);
       case 'staff':
-        return planStaffTasks(hydratedRequest.message, mcpContext);
+        return planStaffTasks(hydratedRequest.message, initialMcpContext);
       case 'announcement':
-        return planAnnouncementTasks(hydratedRequest.message, mcpContext);
+        return planAnnouncementTasks(hydratedRequest.message, initialMcpContext);
       case 'booking':
-        return planBookingTasks(mcpContext);
+        return planBookingTasks(initialMcpContext);
       default:
-        return planConciergeSummary(mcpContext);
+        return planConciergeSummary(initialMcpContext);
     }
   });
 
@@ -356,8 +455,10 @@ async function orchestrateAgentMessage(request, dependencies) {
     approvedTaskIds: hydratedRequest.approvedTaskIds,
     requireConfirmation: hydratedRequest.requireConfirmation,
     auth: hydratedRequest.auth,
-    actor: mcpContext.actor,
+    actor: initialMcpContext.actor,
   }, dependencies);
+  const postExecutionRequest = applyExecutedTasksToSnapshot(hydratedRequest, executedTasks, initialMcpContext.actor);
+  const mcpContext = buildMcpContext(postExecutionRequest);
   const promptContext = createPromptContext(mcpContext, routing, collaborationPlans);
   const decisionTrail = buildDecisionTrail(agentPlans);
 
