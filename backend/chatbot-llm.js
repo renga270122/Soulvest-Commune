@@ -5,8 +5,10 @@ const router = express.Router();
 router.use(express.json());
 console.log('Chatbot LLM route loaded');
 
-const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+const { buildAgentGatewayRequest } = require('./ai/agent-gateway');
 const { orchestrateAgentMessage } = require('./ai/agent-orchestrator');
+const { logAiEvaluation } = require('./ai/evaluation-logger');
+const { generateSimpleReply } = require('./ai/llm-client');
 const { getAdminAuth, getDb, getFirebaseStatus } = require('./firebase');
 const { resolveAuthenticatedActor } = require('./auth/identity');
 
@@ -15,82 +17,129 @@ router.post('/chatbot-llm', async (req, res) => {
   const { message } = req.body;
   if (!message) return res.status(400).json({ error: 'Missing message' });
   try {
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) return res.status(500).json({ error: 'OpenAI API key not set' });
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model: 'gpt-3.5-turbo',
-        messages: [
-          { role: 'system', content: 'You are a helpful AI assistant for an apartment management app. Answer user queries about visitors, approvals, amenities, and general help.' },
-          { role: 'user', content: message }
-        ],
-        max_tokens: 200
-      })
+    const llmResponse = await generateSimpleReply({
+      systemPrompt: 'You are a helpful AI assistant for an apartment management app. Answer user queries about visitors, approvals, amenities, and general help.',
+      userMessage: message,
+      maxTokens: 200,
+      temperature: 0.4,
     });
-    const data = await response.json();
-    if (data.choices && data.choices[0] && data.choices[0].message) {
-      res.json({ reply: data.choices[0].message.content });
+
+    if (llmResponse?.text) {
+      await logAiEvaluation({
+        route: '/chatbot-llm',
+        gateway: {
+          requestId: null,
+          receivedAt: new Date().toISOString(),
+          route: '/chatbot-llm',
+          channel: 'legacy-chatbot',
+          inputMode: 'text',
+          executionMode: 'preview',
+        },
+        request: {
+          message,
+          executionMode: 'preview',
+          inputMode: 'text',
+          channel: 'legacy-chatbot',
+        },
+        responseText: llmResponse.text,
+        llm: {
+          provider: llmResponse.provider,
+          model: llmResponse.model,
+        },
+        dependencies: { getDb, getFirebaseStatus },
+      });
+      res.json({ reply: llmResponse.text });
     } else {
-      res.status(500).json({ error: 'No reply from LLM', details: data });
+      res.status(500).json({ error: 'No reply from LLM' });
     }
   } catch (err) {
+    await logAiEvaluation({
+      route: '/chatbot-llm',
+      gateway: {
+        requestId: null,
+        receivedAt: new Date().toISOString(),
+        route: '/chatbot-llm',
+        channel: 'legacy-chatbot',
+        inputMode: 'text',
+        executionMode: 'preview',
+      },
+      request: {
+        message,
+        executionMode: 'preview',
+        inputMode: 'text',
+        channel: 'legacy-chatbot',
+      },
+      error: err,
+      dependencies: { getDb, getFirebaseStatus },
+    });
     res.status(500).json({ error: 'Failed to get LLM reply', details: err.message });
   }
 });
 
 router.post('/agent-message', async (req, res) => {
-  const {
-    message,
-    user = {},
-    chatHistory = [],
-    contextSnapshot = {},
-    executionMode = 'preview',
-    approvedTaskIds = [],
-    requireConfirmation = false,
-  } = req.body;
-
-  if (!message) {
-    return res.status(400).json({ error: 'Missing message' });
-  }
-
   try {
-    const authResult = await resolveAuthenticatedActor(req, user, { getAdminAuth, getDb, getFirebaseStatus });
-    if (executionMode === 'execute' && !authResult.authenticated) {
+    const gatewayRequest = await buildAgentGatewayRequest(req, {
+      resolveAuthenticatedActor,
+      getAdminAuth,
+      getDb,
+      getFirebaseStatus,
+    });
+
+    if (gatewayRequest.request.executionMode === 'execute' && !gatewayRequest.authResult.authenticated) {
+      await logAiEvaluation({
+        route: '/agent-message',
+        gateway: gatewayRequest.gateway,
+        request: gatewayRequest.request,
+        error: Object.assign(new Error(gatewayRequest.authResult.errorMessage || 'Authenticated execution is required'), {
+          statusCode: 401,
+        }),
+        dependencies: { getDb, getFirebaseStatus },
+      });
       return res.status(401).json({
         error: 'Authenticated execution is required',
-        details: authResult.errorMessage,
-        code: authResult.errorCode,
+        details: gatewayRequest.authResult.errorMessage,
+        code: gatewayRequest.authResult.errorCode,
       });
     }
 
-    const result = await orchestrateAgentMessage(
-      {
-        message,
-        user: authResult.actor || user,
-        chatHistory,
-        contextSnapshot,
-        executionMode,
-        approvedTaskIds,
-        requireConfirmation,
-        auth: {
-          authenticated: authResult.authenticated,
-          authProvider: authResult.authProvider,
-        },
-      },
-      { getDb, getFirebaseStatus },
-    );
+    const result = await orchestrateAgentMessage(gatewayRequest.request, { getDb, getFirebaseStatus });
+
+    await logAiEvaluation({
+      route: '/agent-message',
+      gateway: gatewayRequest.gateway,
+      request: gatewayRequest.request,
+      result,
+      llm: result.llm,
+      dependencies: { getDb, getFirebaseStatus },
+    });
 
     res.json({
       ok: true,
+      requestId: gatewayRequest.requestId,
+      gateway: gatewayRequest.gateway,
       ...result,
     });
   } catch (error) {
-    res.status(500).json({
+    await logAiEvaluation({
+      route: '/agent-message',
+      gateway: {
+        requestId: null,
+        receivedAt: new Date().toISOString(),
+        route: '/agent-message',
+        channel: String(req.body?.channel || 'resident-dashboard-chat'),
+        inputMode: req.body?.inputMode === 'voice' ? 'voice' : 'text',
+        executionMode: req.body?.executionMode || 'preview',
+      },
+      request: {
+        message: req.body?.message || '',
+        executionMode: req.body?.executionMode || 'preview',
+        inputMode: req.body?.inputMode === 'voice' ? 'voice' : 'text',
+        channel: String(req.body?.channel || 'resident-dashboard-chat'),
+      },
+      error,
+      dependencies: { getDb, getFirebaseStatus },
+    });
+    res.status(error.statusCode || 500).json({
       error: 'Failed to process agent message',
       details: error.message,
     });

@@ -37,6 +37,11 @@ For Razorpay sandbox testing, use your `rzp_test_...` key pair here. You do not 
 5. Set these if you want the existing chatbot and notification channels live:
 
 - `OPENAI_API_KEY`
+- `OPENAI_MODEL`
+- `AZURE_OPENAI_ENDPOINT`
+- `AZURE_OPENAI_API_KEY`
+- `AZURE_OPENAI_DEPLOYMENT`
+- `AZURE_OPENAI_API_VERSION`
 - `SMTP_HOST`
 - `SMTP_PORT`
 - `SMTP_USER`
@@ -150,3 +155,10 @@ Current queued task handlers:
 - payment reminders
 - delivery routing to doorstep or security
 - announcement draft creation
+
+## AI Gateway And Logs
+
+- `POST /agent-message` now runs through a dedicated gateway normalizer in `backend/ai/agent-gateway.js`
+- evaluation and decision logs are appended to `backend/logs/ai-evaluations.ndjson`
+- when Firebase is configured, the same evaluation payload is also mirrored into the `aiEvaluations` collection
+- resident chat now supports browser speech-to-text on supported devices, and the gateway records whether the request came from text or voice input

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Chip,
   Avatar,
@@ -14,6 +14,7 @@ import {
   Typography,
 } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
+import MicIcon from '@mui/icons-material/Mic';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import CloseIcon from '@mui/icons-material/Close';
 import { useAuthContext } from './auth-context';
@@ -22,6 +23,7 @@ import {
   subscribeToResidentComplaints,
   subscribeToResidentFacilityBookings,
   subscribeToResidentPayments,
+  subscribeToResidentStaff,
   subscribeToResidentStaffAttendance,
   subscribeToVisitors,
 } from '../services/communityData';
@@ -115,11 +117,16 @@ const ChatbotWidget = ({
   const [payments, setPayments] = useState([]);
   const [complaints, setComplaints] = useState([]);
   const [bookings, setBookings] = useState([]);
+  const [staffMembers, setStaffMembers] = useState([]);
   const [staffAttendance, setStaffAttendance] = useState([]);
   const [visitors, setVisitors] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
   const [executingTaskId, setExecutingTaskId] = useState('');
+  const [speechSupported, setSpeechSupported] = useState(false);
+  const [isListening, setIsListening] = useState(false);
   const { user } = useAuthContext();
+  const recognitionRef = useRef(null);
+  const inputModeRef = useRef('text');
 
   useEffect(() => {
     setOpen(variant !== 'bubble');
@@ -130,6 +137,7 @@ const ChatbotWidget = ({
     const unsubPayments = subscribeToResidentPayments(user.uid, setPayments, user);
     const unsubComplaints = subscribeToResidentComplaints(user.uid, setComplaints, user);
     const unsubBookings = subscribeToResidentFacilityBookings(user.uid, setBookings, user);
+    const unsubStaffMembers = subscribeToResidentStaff(user.uid, setStaffMembers, user);
     const unsubStaffAttendance = subscribeToResidentStaffAttendance(user.uid, setStaffAttendance, user);
     const unsubVisitors = subscribeToVisitors((nextVisitors) => {
       setVisitors(nextVisitors.filter((visitor) => visitor.residentId === user.uid || visitor.flat === user.flat));
@@ -139,15 +147,59 @@ const ChatbotWidget = ({
       unsubPayments();
       unsubComplaints();
       unsubBookings();
+      unsubStaffMembers();
       unsubStaffAttendance();
       unsubVisitors();
       unsubAnnouncements();
     };
   }, [user]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return undefined;
+    }
+
+    const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!Recognition) {
+      setSpeechSupported(false);
+      recognitionRef.current = null;
+      return undefined;
+    }
+
+    const recognition = new Recognition();
+    recognition.lang = user?.language === 'kn' ? 'kn-IN' : user?.language === 'ta' ? 'ta-IN' : 'en-IN';
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.onstart = () => setIsListening(true);
+    recognition.onend = () => setIsListening(false);
+    recognition.onerror = () => setIsListening(false);
+    recognition.onresult = (event) => {
+      const transcript = Array.from(event.results || [])
+        .map((result) => result?.[0]?.transcript || '')
+        .join(' ')
+        .trim();
+
+      if (transcript) {
+        inputModeRef.current = 'voice';
+        setInput(transcript);
+      }
+    };
+
+    recognitionRef.current = recognition;
+    setSpeechSupported(true);
+
+    return () => {
+      recognition.onstart = null;
+      recognition.onend = null;
+      recognition.onerror = null;
+      recognition.onresult = null;
+      recognition.stop();
+    };
+  }, [user?.language]);
+
   const conciergeContext = useMemo(
-    () => ({ payments, complaints, bookings, staffAttendance, visitors, announcements }),
-    [announcements, bookings, complaints, payments, staffAttendance, visitors],
+    () => ({ payments, complaints, bookings, staffMembers, staffAttendance, visitors, announcements }),
+    [announcements, bookings, complaints, payments, staffAttendance, staffMembers, visitors],
   );
 
   const chatHistory = useMemo(
@@ -157,6 +209,7 @@ const ChatbotWidget = ({
 
   const handleSend = async () => {
     if (!input.trim()) return;
+    const currentInputMode = inputModeRef.current || 'text';
     const userMsg = { sender: 'user', text: input };
     setMessages((msgs) => [...msgs, userMsg]);
     setLoading(true);
@@ -165,6 +218,8 @@ const ChatbotWidget = ({
       message: input,
       chatHistory,
       authToken: user?.accessToken,
+      inputMode: currentInputMode,
+      channel: 'resident-dashboard-chat',
       user: {
         uid: user?.uid,
         name: user?.name,
@@ -184,9 +239,11 @@ const ChatbotWidget = ({
       meta: agentResponse ? {
         agents: agentResponse.routing?.agents || [],
         requestMessage: input,
+        requestInputMode: currentInputMode,
         tasks: agentResponse.tasks || [],
       } : null,
     }]);
+    inputModeRef.current = 'text';
     setLoading(false);
   };
 
@@ -198,6 +255,8 @@ const ChatbotWidget = ({
       message: requestMessage,
       chatHistory,
       authToken: user?.accessToken,
+      inputMode: 'text',
+      channel: 'resident-dashboard-chat',
       user: {
         uid: user?.uid,
         name: user?.name,
@@ -222,6 +281,21 @@ const ChatbotWidget = ({
       } : null,
     }]);
     setExecutingTaskId('');
+  };
+
+  const handleVoiceToggle = () => {
+    if (!recognitionRef.current || loading) return;
+
+    if (isListening) {
+      recognitionRef.current.stop();
+      return;
+    }
+
+    try {
+      recognitionRef.current.start();
+    } catch {
+      setIsListening(false);
+    }
   };
 
   const handleToggleOpen = () => {
@@ -341,12 +415,25 @@ const ChatbotWidget = ({
         <TextField
           fullWidth
           size="small"
-          placeholder={loading ? 'Waiting for AI reply...' : 'Type your message...'}
+          placeholder={loading ? 'Waiting for AI reply...' : isListening ? 'Listening...' : 'Type or speak your message...'}
           value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter' && !loading) handleSend(); }}
+          onChange={(e) => {
+            inputModeRef.current = 'text';
+            setInput(e.target.value);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !loading) {
+              inputModeRef.current = 'text';
+              handleSend();
+            }
+          }}
           disabled={loading}
         />
+        {speechSupported ? (
+          <IconButton color={isListening ? 'secondary' : 'default'} onClick={handleVoiceToggle} sx={{ ml: 0.5 }} disabled={loading}>
+            <MicIcon />
+          </IconButton>
+        ) : null}
         <IconButton color="primary" onClick={handleSend} sx={{ ml: 1 }} disabled={loading}>
           <SendIcon />
         </IconButton>

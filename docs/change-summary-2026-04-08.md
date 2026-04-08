@@ -163,6 +163,7 @@ Current constraints:
 - Execute mode is only implemented for visitor approval and complaint creation; other task types still queue to Firestore when supported.
 - The worker currently handles reminders, delivery routing, and announcement drafts, but not every future agent task type yet.
 - Authenticated server-side approval is now required for AI execute mode, with backend-issued demo session tokens, demo resident signup token issuance, and Firebase-token verification support when available.
+- Agent gateway normalization, MCP dues-status enrichment, evaluation logging, decision logging, and resident voice input are now in place for Sprint 1 and Sprint 2 scope.
 - Sensitive actions are not yet protected by an execution approval flow.
 - The frontend remains demo-first, so backend execution and resident-visible state are not fully reconciled yet.
 
