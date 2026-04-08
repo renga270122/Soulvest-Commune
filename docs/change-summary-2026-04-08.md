@@ -97,7 +97,27 @@ Outcome:
 
 - Chat responses are now resident-aware and structured, with visible agent/task metadata for follow-up work.
 
-## 7. Validation And Release Readiness
+## 7. Confirmed Execute-Mode Actions
+
+The first AI actions that can move beyond preview mode are now wired behind explicit confirmation.
+
+Implemented changes:
+
+- Updated [backend/ai/agent-orchestrator.js](backend/ai/agent-orchestrator.js) so visitor approval and complaint creation tasks now produce stable task ids and confirmation-required metadata.
+- Updated [backend/ai/task-executor.js](backend/ai/task-executor.js) so:
+  - execute mode requires explicit `approvedTaskIds`
+  - visitor approval runs directly against Firestore when Firebase is configured
+  - complaint creation writes directly into the society complaints collection when Firebase is configured
+  - unsupported execute-mode tasks still fall back to queueing in `aiTaskQueue`
+- Updated [backend/chatbot-llm.js](backend/chatbot-llm.js) so `POST /agent-message` accepts confirmation payloads for execute-mode calls.
+- Updated [src/components/ChatbotWidget.jsx](src/components/ChatbotWidget.jsx) so previewed tasks with confirmation requirements render a `Run Plan` button inside the chat UI.
+
+Outcome:
+
+- The AI concierge can now safely move two high-value actions from plan generation into confirmed execution, while still defaulting all requests to preview mode.
+- Execution remains guarded by explicit confirmation and role checks, and it degrades back to preview when Firebase is unavailable.
+
+## 8. Validation And Release Readiness
 
 The implementation was revalidated to ensure the recent changes remain production-build compatible.
 
@@ -112,14 +132,14 @@ Outcome:
 
 - The current frontend and backend code paths are in a releasable state for the present scope.
 
-## 8. Current Constraints And Next Work
+## 9. Current Constraints And Next Work
 
 The new AI layer is intentionally safe and partial rather than fully autonomous.
 
 Current constraints:
 
 - Frontend AI actions are preview-only by default.
-- Execute mode queues work to Firestore but no worker/consumer exists yet for `aiTaskQueue`.
+- Execute mode is only implemented for visitor approval and complaint creation; other task types still queue to Firestore when supported.
 - Sensitive actions are not yet protected by an execution approval flow.
 - The frontend remains demo-first, so backend execution and resident-visible state are not fully reconciled yet.
 

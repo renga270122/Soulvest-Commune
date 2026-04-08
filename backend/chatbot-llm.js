@@ -43,7 +43,15 @@ router.post('/chatbot-llm', async (req, res) => {
 });
 
 router.post('/agent-message', async (req, res) => {
-  const { message, user = {}, chatHistory = [], contextSnapshot = {}, executionMode = 'preview' } = req.body;
+  const {
+    message,
+    user = {},
+    chatHistory = [],
+    contextSnapshot = {},
+    executionMode = 'preview',
+    approvedTaskIds = [],
+    requireConfirmation = false,
+  } = req.body;
 
   if (!message) {
     return res.status(400).json({ error: 'Missing message' });
@@ -51,7 +59,15 @@ router.post('/agent-message', async (req, res) => {
 
   try {
     const result = await orchestrateAgentMessage(
-      { message, user, chatHistory, contextSnapshot, executionMode },
+      {
+        message,
+        user,
+        chatHistory,
+        contextSnapshot,
+        executionMode,
+        approvedTaskIds,
+        requireConfirmation,
+      },
       { getDb, getFirebaseStatus },
     );
 

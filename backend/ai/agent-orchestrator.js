@@ -11,6 +11,26 @@ function formatCurrency(amount) {
   return `Rs. ${Number(amount || 0).toLocaleString('en-IN')}`;
 }
 
+function inferComplaintCategory(message) {
+  const text = String(message || '').toLowerCase();
+  if (/plumb|water|leak|pipe|tap/.test(text)) return 'plumbing';
+  if (/electric|power|light|sparking|socket/.test(text)) return 'electrical';
+  if (/lift|elevator/.test(text)) return 'lift';
+  if (/security|guard|gate/.test(text)) return 'security';
+  if (/clean|garbage|housekeeping/.test(text)) return 'housekeeping';
+  if (/delivery|parcel|courier/.test(text)) return 'delivery';
+  if (/maid|cook|driver|staff/.test(text)) return 'staff-access';
+  return 'general';
+}
+
+function attachTaskMetadata(agent, tasks) {
+  return tasks.map((task, index) => ({
+    id: `${agent}-${task.type}-${index + 1}`,
+    requiresConfirmation: true,
+    ...task,
+  }));
+}
+
 function planVisitorTasks(message, mcpContext) {
   const visitorSummary = mcpContext.liveData.visitors;
   const namedMatch = message.match(/approve\s+([a-z][a-z\s'-]{1,30})/i);
@@ -32,19 +52,22 @@ function planVisitorTasks(message, mcpContext) {
   const visitorName = matchedVisitor?.name || requestedName || 'the visitor';
   return {
     agent: 'visitor',
-    summary: `${visitorName} can be issued a visitor pass${validUntil ? ` with a ${validUntil} reference` : ''}.`,
-    tasks: [
+    summary: `${visitorName} can be approved for entry${validUntil ? ` with a ${validUntil} reference` : ''}.`,
+    tasks: attachTaskMetadata('visitor', [
       {
-        type: 'visitor-pass-preview',
-        title: `Prepare visitor access for ${visitorName}`,
+        type: 'visitor-status-update',
+        title: `Approve visitor ${visitorName}`,
         payload: {
           visitorId: matchedVisitor?.id || null,
           visitorName,
+          status: 'approved',
           validUntil,
+          residentId: matchedVisitor?.residentId || mcpContext.actor.uid || null,
+          flat: matchedVisitor?.flat || mcpContext.actor.flat || null,
           societyId: mcpContext.actor.societyId,
         },
       },
-    ],
+    ]),
   };
 }
 
@@ -104,22 +127,26 @@ function planComplaintTasks(message, mcpContext) {
   return {
     agent: 'complaint',
     summary: isCreateFlow
-      ? 'A quick complaint draft can be created from this message for admin follow-up.'
+      ? 'A complaint can be created from this message after confirmation.'
       : complaints.openCount
         ? `There are ${complaints.openCount} open complaint${complaints.openCount === 1 ? '' : 's'} in progress.`
         : 'There are no open complaints right now.',
     tasks: isCreateFlow
-      ? [
+      ? attachTaskMetadata('complaint', [
           {
-            type: 'complaint-draft',
-            title: 'Create complaint draft',
+            type: 'complaint-create',
+            title: 'Create complaint',
             payload: {
+              category: inferComplaintCategory(message),
               description: message,
               residentId: mcpContext.actor.uid,
+              residentName: mcpContext.actor.name,
+              flat: mcpContext.actor.flat,
+              language: mcpContext.actor.language,
               societyId: mcpContext.actor.societyId,
             },
           },
-        ]
+        ])
       : [],
   };
 }
@@ -223,7 +250,12 @@ async function orchestrateAgentMessage(request, dependencies) {
   });
 
   const plannedTasks = agentPlans.flatMap((plan) => plan.tasks);
-  const executedTasks = await executeTaskPlan(plannedTasks, request.executionMode, dependencies);
+  const executedTasks = await executeTaskPlan(plannedTasks, {
+    executionMode: request.executionMode,
+    approvedTaskIds: request.approvedTaskIds,
+    requireConfirmation: request.requireConfirmation,
+    actor: mcpContext.actor,
+  }, dependencies);
   const promptContext = createPromptContext(mcpContext, routing);
 
   let reply = '';

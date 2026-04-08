@@ -3,6 +3,7 @@ import {
   Chip,
   Avatar,
   Box,
+  Button,
   ButtonBase,
   IconButton,
   List,
@@ -117,6 +118,7 @@ const ChatbotWidget = ({
   const [staffAttendance, setStaffAttendance] = useState([]);
   const [visitors, setVisitors] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
+  const [executingTaskId, setExecutingTaskId] = useState('');
   const { user } = useAuthContext();
 
   useEffect(() => {
@@ -180,10 +182,44 @@ const ChatbotWidget = ({
       text: reply,
       meta: agentResponse ? {
         agents: agentResponse.routing?.agents || [],
-        tasks: (agentResponse.tasks || []).map((task) => `${task.title}: ${task.status}`),
+        requestMessage: input,
+        tasks: agentResponse.tasks || [],
       } : null,
     }]);
     setLoading(false);
+  };
+
+  const handleExecuteTask = async (task, requestMessage) => {
+    if (!task?.id || !requestMessage || !user?.uid) return;
+
+    setExecutingTaskId(task.id);
+    const agentResponse = await sendAgentMessage({
+      message: requestMessage,
+      chatHistory,
+      user: {
+        uid: user?.uid,
+        name: user?.name,
+        role: user?.role,
+        flat: user?.flat,
+        societyId: user?.societyId,
+        language: user?.language,
+      },
+      contextSnapshot: conciergeContext,
+      executionMode: 'execute',
+      approvedTaskIds: [task.id],
+      requireConfirmation: true,
+    });
+
+    setMessages((msgs) => [...msgs, {
+      sender: 'bot',
+      text: agentResponse?.reply || agentResponse?.tasks?.[0]?.executionNote || 'I could not complete that action.',
+      meta: agentResponse ? {
+        agents: agentResponse.routing?.agents || [],
+        requestMessage,
+        tasks: agentResponse.tasks || [],
+      } : null,
+    }]);
+    setExecutingTaskId('');
   };
 
   const handleToggleOpen = () => {
@@ -255,7 +291,27 @@ const ChatbotWidget = ({
                   {msg.meta?.tasks?.length ? (
                     <Box sx={{ mt: 1 }}>
                       {msg.meta.tasks.slice(0, 3).map((task) => (
-                        <Typography key={task} sx={{ fontSize: 12, color: 'text.secondary' }}>{task}</Typography>
+                        <Box key={task.id || `${task.title}-${task.status}`} sx={{ mt: 0.75 }}>
+                          <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+                            {task.title}: {task.status}
+                          </Typography>
+                          {task.executionNote ? (
+                            <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+                              {task.executionNote}
+                            </Typography>
+                          ) : null}
+                          {task.status === 'preview' && task.requiresConfirmation ? (
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              sx={{ mt: 0.75 }}
+                              disabled={loading || executingTaskId === task.id}
+                              onClick={() => handleExecuteTask(task, msg.meta.requestMessage)}
+                            >
+                              {executingTaskId === task.id ? 'Running...' : 'Run Plan'}
+                            </Button>
+                          ) : null}
+                        </Box>
                       ))}
                     </Box>
                   ) : null}
