@@ -36,6 +36,8 @@ import CreditCardIcon from '@mui/icons-material/CreditCard';
 import NotificationsNoneIcon from '@mui/icons-material/NotificationsNone';
 import { useNavigate } from 'react-router-dom';
 import QRCode from 'react-qr-code';
+import topIllustration from '../assets/top-illustration.png';
+import bottomIllustration from '../assets/bottom-illustration.png';
 import { useAuthContext } from '../components/auth-context';
 import ChatbotWidget from '../components/ChatbotWidget';
 import {
@@ -216,29 +218,33 @@ const dashboardShellSx = {
   minHeight: '100vh',
   px: { xs: 2, md: 3 },
   py: { xs: 2.5, md: 3.5 },
-  background: 'radial-gradient(circle at top left, rgba(255,255,255,0.82) 0%, rgba(248,243,231,0.96) 36%, #f4ecde 100%)',
+  position: 'relative',
+  overflow: 'hidden',
+  background: 'linear-gradient(180deg, #fff4df 0%, #f6dfb6 18%, #f7edd7 54%, #efd29e 100%)',
 };
 
 const softCardSx = {
   p: 2.5,
-  borderRadius: 4,
-  background: 'rgba(255, 250, 242, 0.92)',
-  border: '1px solid rgba(223, 199, 165, 0.4)',
-  boxShadow: '0 14px 36px rgba(188, 155, 104, 0.14)',
+  borderRadius: 5,
+  background: 'linear-gradient(180deg, rgba(255,249,239,0.96) 0%, rgba(255,246,232,0.92) 100%)',
+  border: '1px solid rgba(194, 137, 64, 0.28)',
+  boxShadow: '0 18px 38px rgba(120, 74, 24, 0.16)',
 };
 
 const pillButtonSx = {
-  justifyContent: 'flex-start',
+  justifyContent: 'center',
   px: 1.8,
   py: 1.05,
-  borderRadius: 999,
-  color: 'primary.main',
-  bgcolor: 'rgba(255,255,255,0.9)',
-  borderColor: 'rgba(36, 86, 166, 0.16)',
-  boxShadow: '0 10px 24px rgba(166, 138, 90, 0.12)',
+  borderRadius: 2,
+  color: '#5b2b14',
+  bgcolor: 'rgba(255, 247, 235, 0.84)',
+  borderColor: 'rgba(166, 115, 45, 0.22)',
+  boxShadow: 'none',
+  fontWeight: 800,
+  fontFamily: 'Georgia, "Times New Roman", serif',
   '&:hover': {
-    borderColor: 'rgba(36, 86, 166, 0.32)',
-    bgcolor: '#fff',
+    borderColor: 'rgba(166, 115, 45, 0.38)',
+    bgcolor: 'rgba(255, 250, 243, 0.96)',
   },
 };
 
@@ -258,6 +264,39 @@ const defaultStaffForm = {
   accessStartTime: '07:00',
   accessEndTime: '12:00',
   notes: '',
+};
+
+const templeTitleSx = {
+  fontFamily: 'Georgia, "Times New Roman", serif',
+  color: '#6c2f11',
+  textShadow: '0 1px 0 rgba(255,255,255,0.7)',
+};
+
+const sectionHeadingSx = {
+  ...templeTitleSx,
+  fontSize: { xs: 26, md: 34 },
+  lineHeight: 1.02,
+};
+
+const ornamentOrbSx = {
+  width: 94,
+  height: 94,
+  borderRadius: '30px',
+  background: 'radial-gradient(circle at 32% 28%, rgba(255,239,189,0.98) 0%, rgba(225,157,52,0.95) 48%, rgba(122,77,24,0.92) 100%)',
+  boxShadow: 'inset 0 2px 8px rgba(255,255,255,0.5), 0 16px 26px rgba(129, 78, 21, 0.24)',
+  display: 'grid',
+  placeItems: 'center',
+  color: '#fff9ef',
+  flexShrink: 0,
+};
+
+const desktopPanelSx = {
+  ...softCardSx,
+  p: 2.5,
+  borderRadius: '34px',
+  position: 'relative',
+  overflow: 'hidden',
+  backdropFilter: 'blur(6px)',
 };
 
 export default function ResidentDashboard() {
@@ -803,6 +842,54 @@ export default function ResidentDashboard() {
   return (
     <Box sx={{ ...dashboardShellSx, pb: { xs: 16, md: 3.5 } }}>
       <Box ref={topSectionRef} sx={{ maxWidth: 1180, mx: 'auto' }}>
+        <Box sx={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'hidden' }}>
+          <Box
+            component="img"
+            src={topIllustration}
+            alt=""
+            sx={{
+              display: { xs: 'none', md: 'block' },
+              position: 'absolute',
+              top: 18,
+              left: -100,
+              width: 320,
+              opacity: 0.22,
+              filter: 'sepia(0.35) saturate(0.9)',
+            }}
+          />
+          <Box
+            component="img"
+            src={topIllustration}
+            alt=""
+            sx={{
+              display: { xs: 'none', md: 'block' },
+              position: 'absolute',
+              top: 22,
+              right: -95,
+              width: 320,
+              opacity: 0.18,
+              transform: 'scaleX(-1)',
+              filter: 'sepia(0.45) saturate(0.9)',
+            }}
+          />
+          <Box
+            component="img"
+            src={bottomIllustration}
+            alt=""
+            sx={{
+              display: { xs: 'none', md: 'block' },
+              position: 'absolute',
+              top: 160,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              width: '105%',
+              maxWidth: 1400,
+              opacity: 0.18,
+              filter: 'sepia(0.55) saturate(0.8)',
+            }}
+          />
+        </Box>
+
         <Paper
           elevation={0}
           sx={{
@@ -896,53 +983,76 @@ export default function ResidentDashboard() {
           justifyContent="space-between"
           alignItems={{ xs: 'flex-start', md: 'center' }}
           spacing={2}
-          sx={{ mb: 3, display: { xs: 'none', md: 'flex' } }}
+          sx={{
+            mb: 2.25,
+            pt: 1,
+            display: { xs: 'none', md: 'flex' },
+            position: 'relative',
+            zIndex: 1,
+          }}
         >
-          <Box>
-            <Typography variant="h3" sx={{ fontSize: { xs: 32, md: 42 }, mb: 0.5 }}>
+          <Box sx={{ flex: 1, textAlign: 'center' }}>
+            <Typography variant="h2" sx={{ ...templeTitleSx, fontSize: { md: 54, lg: 60 }, lineHeight: 1, fontWeight: 700 }}>
               Resident Dashboard
             </Typography>
-            <Typography color="text.secondary" sx={{ fontSize: { xs: 16, md: 18 } }}>
-              Welcome back
-            </Typography>
-            <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mt: 1 }}>
+            <Stack direction="row" spacing={1.5} alignItems="center" justifyContent="center" sx={{ mt: 1.5 }}>
               <Avatar
                 src={residentAvatarSrc || undefined}
                 sx={{
-                  width: 52,
-                  height: 52,
-                  bgcolor: 'rgba(255,255,255,0.94)',
-                  color: 'primary.main',
-                  boxShadow: '0 10px 20px rgba(166, 138, 90, 0.18)',
+                  width: 46,
+                  height: 46,
+                  bgcolor: 'rgba(255,249,240,0.98)',
+                  color: '#8b4b1d',
+                  boxShadow: '0 12px 18px rgba(137, 86, 29, 0.18)',
+                  border: '2px solid rgba(177, 121, 48, 0.24)',
                   fontWeight: 800,
                   fontSize: 18,
                 }}
               >
                 {residentInitials}
               </Avatar>
-              <Box>
-                <Typography color="text.primary" sx={{ fontSize: { xs: 18, md: 22 }, fontWeight: 700 }}>
-                  {residentName}
-                </Typography>
-                <Typography color="text.secondary" sx={{ fontSize: { xs: 14, md: 16 } }}>
-                  {myFlat ? `Flat ${myFlat}` : 'Flat not assigned'}
-                </Typography>
-              </Box>
+              <Typography sx={{ ...templeTitleSx, fontSize: { md: 24, lg: 28 }, fontWeight: 700 }}>
+                Namaskara {residentName}{myFlat ? ` · Flat ${myFlat}` : ''}
+              </Typography>
             </Stack>
             {residentProfileFacts.length ? (
-              <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: 'wrap' }}>
+              <Stack direction="row" spacing={1} justifyContent="center" sx={{ mt: 1.25, flexWrap: 'wrap' }}>
                 {residentProfileFacts.slice(0, 3).map((fact) => (
-                  <Chip key={fact} label={fact} size="small" variant="outlined" sx={{ borderRadius: 999 }} />
+                  <Chip
+                    key={fact}
+                    label={fact}
+                    size="small"
+                    sx={{
+                      borderRadius: 999,
+                      bgcolor: 'rgba(255,247,236,0.84)',
+                      color: '#774018',
+                      border: '1px solid rgba(177, 121, 48, 0.18)',
+                      '& .MuiChip-label': { fontWeight: 700 },
+                    }}
+                  />
                 ))}
               </Stack>
             ) : null}
           </Box>
           <Button
             variant="outlined"
-            color="secondary"
             startIcon={<LogoutIcon />}
             onClick={handleLogout}
-            sx={{ borderRadius: 999, px: 2.5, py: 1.1, bgcolor: 'rgba(255,250,242,0.88)' }}
+            sx={{
+              borderRadius: 999,
+              px: 2.5,
+              py: 1.25,
+              minWidth: 146,
+              alignSelf: 'flex-start',
+              bgcolor: 'rgba(255,248,237,0.95)',
+              borderColor: 'rgba(175, 118, 46, 0.28)',
+              color: '#8b4b1d',
+              boxShadow: '0 10px 26px rgba(129, 78, 21, 0.12)',
+              '&:hover': {
+                borderColor: 'rgba(175, 118, 46, 0.44)',
+                bgcolor: 'rgba(255,251,245,0.98)',
+              },
+            }}
           >
             Logout
           </Button>
@@ -954,9 +1064,23 @@ export default function ResidentDashboard() {
           </Alert>
         )}
 
-        <Box sx={{ display: { xs: 'none', md: 'flex' }, flexWrap: 'wrap', gap: 1.25, mb: 3 }}>
+        <Paper
+          elevation={0}
+          sx={{
+            display: { xs: 'none', md: 'block' },
+            mb: 3,
+            p: 0.9,
+            borderRadius: 3,
+            bgcolor: 'rgba(255, 246, 233, 0.82)',
+            border: '1px solid rgba(194, 137, 64, 0.18)',
+            boxShadow: '0 12px 26px rgba(120, 74, 24, 0.1)',
+            position: 'relative',
+            zIndex: 1,
+          }}
+        >
+          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 0.75 }}>
           <Button variant="outlined" startIcon={<CampaignIcon />} onClick={() => navigate('/announcements')} sx={pillButtonSx}>
-            Announcements
+            Community Updates
           </Button>
           <Button variant="outlined" startIcon={<EventAvailableIcon />} onClick={() => navigate('/bookings')} sx={pillButtonSx}>
             Facility Booking
@@ -970,7 +1094,8 @@ export default function ResidentDashboard() {
           <Button variant="outlined" startIcon={<GroupsIcon />} onClick={() => navigate('/directory')} sx={pillButtonSx}>
             Resident Directory
           </Button>
-        </Box>
+          </Box>
+        </Paper>
 
         {!myFlat && (
           <Alert severity="warning" sx={{ mb: 3, borderRadius: 3 }}>
@@ -1437,120 +1562,133 @@ export default function ResidentDashboard() {
             gridTemplateColumns: { xs: '1fr', lg: '1.05fr 1fr 0.95fr' },
             gap: 2,
             alignItems: 'stretch',
+            position: 'relative',
+            zIndex: 1,
           }}
         >
-          <Paper elevation={0} sx={softCardSx}>
+          <Paper elevation={0} sx={desktopPanelSx}>
             <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={2} sx={{ mb: 2.5 }}>
               <Stack direction="row" spacing={1.25} alignItems="center">
-                <QrCode2Icon color="primary" />
-                <Typography variant="h5" sx={{ fontSize: { xs: 28, md: 34 }, lineHeight: 1.08 }}>
+                <PersonAddAlt1Icon sx={{ color: '#b76e1e', fontSize: 30 }} />
+                <Typography variant="h5" sx={sectionHeadingSx}>
                   Pre-Approve
                   <br />
                   Visitor
                 </Typography>
               </Stack>
-              <Button variant="contained" onClick={() => setPassDialogOpen(true)} sx={{ minWidth: 118, minHeight: 86, borderRadius: 3 }}>
-                Create
-                <br />
-                Pass
-              </Button>
+              <Box sx={ornamentOrbSx}>
+                <QrCode2Icon sx={{ fontSize: 42 }} />
+              </Box>
             </Stack>
 
-            <Typography color="text.secondary" sx={{ fontSize: 18, maxWidth: 320, mb: 2.5 }}>
-              Generate a QR pass or OTP before your guest arrives. Each pass stays valid until two hours after the scheduled arrival.
+            <Typography sx={{ color: '#6e4930', fontSize: 17.5, maxWidth: 320, mb: 2.25, lineHeight: 1.55 }}>
+              Generate a QR pass or OTP for your guests. Each pass stays valid until two hours after the scheduled arrival.
             </Typography>
 
-            <Chip
-              label={`${preApprovedVisitors.length} active pre-approved pass${preApprovedVisitors.length === 1 ? '' : 'es'}`}
-              variant="outlined"
+            <Button
+              variant="contained"
+              onClick={() => setPassDialogOpen(true)}
               sx={{
-                mb: 3,
                 width: 'fit-content',
+                minWidth: 154,
+                px: 3,
+                py: 1.25,
+                mb: 2.5,
                 borderRadius: 999,
-                borderColor: 'rgba(93, 143, 214, 0.42)',
-                color: 'primary.main',
-                bgcolor: 'rgba(239, 247, 255, 0.85)',
+                background: 'linear-gradient(90deg, #53683f 0%, #916321 100%)',
+                boxShadow: '0 12px 24px rgba(111, 83, 30, 0.24)',
+                '&:hover': { background: 'linear-gradient(90deg, #4d6038 0%, #865c1f 100%)' },
               }}
-            />
+            >
+              Create Pass
+            </Button>
 
-            <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
-              <PersonAddAlt1Icon color="secondary" />
-              <Typography variant="h5" sx={{ fontSize: 24 }}>
-                Unified Approvals
-              </Typography>
-            </Stack>
+            <Box sx={{ borderTop: '1px solid rgba(187, 145, 82, 0.24)', pt: 2.25 }}>
+              <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.25 }}>
+                <PersonAddAlt1Icon sx={{ color: '#b76e1e', fontSize: 24 }} />
+                <Typography sx={{ ...templeTitleSx, fontSize: 24, fontWeight: 700 }}>
+                  Unified Approvals
+                </Typography>
+              </Stack>
 
-            <Stack direction="row" spacing={1} sx={{ mb: 2, flexWrap: 'wrap' }}>
-              <Chip label={`Guests ${approvalOverview.guests}`} color={approvalOverview.guests ? 'warning' : 'default'} sx={{ borderRadius: 999 }} />
-              <Chip label={`Staff ${approvalOverview.staff}`} color={approvalOverview.staff ? 'warning' : 'default'} sx={{ borderRadius: 999 }} />
-              <Chip label={`Delivery ${approvalOverview.delivery}`} color={approvalOverview.delivery ? 'warning' : 'default'} sx={{ borderRadius: 999 }} />
-            </Stack>
+              <Stack direction="row" spacing={1} sx={{ mb: 2, flexWrap: 'wrap' }}>
+                <Chip label={`Guests ${approvalOverview.guests}`} sx={{ borderRadius: 999, bgcolor: '#f4c255', color: '#6e3914' }} />
+                <Chip label={`Staff ${approvalOverview.staff}`} sx={{ borderRadius: 999, bgcolor: '#edd3a0', color: '#6e3914' }} />
+                <Chip label={`Delivery ${approvalOverview.delivery}`} sx={{ borderRadius: 999, bgcolor: '#f0b649', color: '#6e3914' }} />
+              </Stack>
 
-            <Stack spacing={1.5}>
-              {pendingVisitors.length === 0 && (
-                <Paper
-                  variant="outlined"
-                  sx={{
-                    p: 2.5,
-                    borderRadius: 3.5,
-                    borderColor: 'rgba(223, 199, 165, 0.52)',
-                    bgcolor: 'rgba(255,255,255,0.72)',
-                  }}
-                >
-                  <Typography variant="subtitle1">No visitors waiting</Typography>
-                  <Typography color="text.secondary">New gate approvals will appear here as soon as guards log them.</Typography>
-                </Paper>
-              )}
-              {pendingVisitors.map((visitor) => (
-                <Paper
-                  key={visitor.id}
-                  variant="outlined"
-                  sx={{
-                    p: 2.25,
-                    borderRadius: 3.5,
-                    borderColor: 'rgba(223, 199, 165, 0.52)',
-                    bgcolor: 'rgba(255,255,255,0.72)',
-                  }}
-                >
-                  <Typography variant="h6" sx={{ mb: 0.5 }}>{formatTextValue(visitor.name, 'Visitor')}</Typography>
-                  <Typography sx={{ color: '#4d6284', mb: 0.5 }}>{formatTextValue(visitor.purpose, 'Purpose not provided')}</Typography>
-                  <Typography color="text.secondary" sx={{ mb: 1.8 }}>
-                    Arrival: {formatTextValue(visitor.time, formatDateTimeValue(visitor.expectedAt, 'Not specified'))}
-                  </Typography>
-                  <Stack direction="row" spacing={1.2}>
-                    <Button
-                      variant="contained"
-                      color="success"
-                      disabled={updatingId === visitor.id}
-                      onClick={() => handleVisitorDecision(visitor.id, 'approved')}
-                      sx={{ minWidth: 96 }}
-                    >
-                      Approve
-                    </Button>
-                    <Button
-                      variant="outlined"
-                      color="error"
-                      disabled={updatingId === visitor.id}
-                      onClick={() => handleVisitorDecision(visitor.id, 'denied')}
-                      sx={{ minWidth: 88, bgcolor: 'rgba(255,255,255,0.7)' }}
-                    >
-                      Deny
-                    </Button>
-                  </Stack>
-                </Paper>
-              ))}
-            </Stack>
+              <Stack spacing={1.5}>
+                {pendingVisitors.length === 0 && (
+                  <Paper
+                    variant="outlined"
+                    sx={{
+                      p: 2.25,
+                      borderRadius: '28px',
+                      borderColor: 'rgba(194, 137, 64, 0.2)',
+                      bgcolor: 'rgba(255,255,255,0.76)',
+                    }}
+                  >
+                    <Typography variant="subtitle1">No visitors waiting</Typography>
+                    <Typography color="text.secondary">New gate approvals will appear here as soon as guards log them.</Typography>
+                  </Paper>
+                )}
+                {pendingVisitors.slice(0, 2).map((visitor) => (
+                  <Paper
+                    key={visitor.id}
+                    variant="outlined"
+                    sx={{
+                      p: 2,
+                      borderRadius: '28px',
+                      borderColor: 'rgba(194, 137, 64, 0.22)',
+                      bgcolor: 'rgba(255,253,247,0.82)',
+                    }}
+                  >
+                    <Stack direction="row" spacing={1.25} alignItems="center" sx={{ mb: 1 }}>
+                      <Avatar sx={{ width: 48, height: 48, bgcolor: 'rgba(230, 176, 80, 0.26)', color: '#7b3a18', fontWeight: 800 }}>
+                        {(formatTextValue(visitor.name, 'V')[0] || 'V').toUpperCase()}
+                      </Avatar>
+                      <Box>
+                        <Typography sx={{ ...templeTitleSx, fontSize: 18, fontWeight: 700 }}>
+                          {formatTextValue(visitor.name, 'Visitor')}
+                        </Typography>
+                        <Typography color="text.secondary">{formatTextValue(visitor.purpose, 'Guest active')}</Typography>
+                      </Box>
+                    </Stack>
+                    <Stack direction="row" spacing={1.2}>
+                      <Button
+                        variant="contained"
+                        color="success"
+                        disabled={updatingId === visitor.id}
+                        onClick={() => handleVisitorDecision(visitor.id, 'approved')}
+                        sx={{ minWidth: 96 }}
+                      >
+                        Approve
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        color="error"
+                        disabled={updatingId === visitor.id}
+                        onClick={() => handleVisitorDecision(visitor.id, 'denied')}
+                        sx={{ minWidth: 88, bgcolor: 'rgba(255,255,255,0.72)' }}
+                      >
+                        Deny
+                      </Button>
+                    </Stack>
+                  </Paper>
+                ))}
+              </Stack>
+            </Box>
           </Paper>
 
-          <Paper elevation={0} sx={softCardSx}>
+          <Paper elevation={0} sx={desktopPanelSx}>
             <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2.25 }}>
               <Stack direction="row" spacing={1} alignItems="center">
-                <BoltIcon color="secondary" />
-                <Typography variant="h4" sx={{ fontSize: 24 }}>
+                <NotificationsActiveIcon sx={{ color: '#c37d1c' }} />
+                <Typography variant="h4" sx={{ ...templeTitleSx, fontSize: 24 }}>
                   Notifications
                 </Typography>
               </Stack>
-              <Button size="small" onClick={requestBrowserAlerts} sx={{ borderRadius: 999 }}>
+              <Button size="small" onClick={requestBrowserAlerts} sx={{ borderRadius: 999, bgcolor: 'rgba(255,246,231,0.8)' }}>
                 Enable Alerts
               </Button>
             </Stack>
@@ -1560,13 +1698,16 @@ export default function ResidentDashboard() {
                 variant="outlined"
                 sx={{
                   p: 2.25,
-                  borderRadius: 4,
+                  borderRadius: '30px',
                   mb: 1.5,
-                  borderColor: 'rgba(223, 199, 165, 0.5)',
-                  background: 'linear-gradient(180deg, rgba(255,255,255,0.9) 0%, rgba(255,249,240,0.86) 100%)',
+                  borderColor: 'rgba(194, 137, 64, 0.22)',
+                  background: 'linear-gradient(180deg, rgba(255,255,255,0.93) 0%, rgba(255,249,240,0.88) 100%)',
+                  boxShadow: '0 12px 28px rgba(129, 78, 21, 0.1)',
                 }}
               >
-                <Typography sx={{ fontSize: 18, mb: 1.5 }}>{formatTextValue(leadNotification.message, 'No message available.')}</Typography>
+                <Typography sx={{ fontSize: 18, mb: 1.5, color: '#5d3417', fontWeight: 700 }}>
+                  {formatTextValue(leadNotification.message, 'No message available.')}
+                </Typography>
                 <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5 }}>
                   <Chip
                     size="small"
@@ -1576,27 +1717,15 @@ export default function ResidentDashboard() {
                   />
                   <Typography variant="subtitle1">{formatTextValue(leadNotification.title, 'Notification')}</Typography>
                 </Stack>
-                <Stack direction="row" spacing={1} alignItems="center">
-                  {notifications.slice(0, 3).map((notification, index) => (
-                    <Box
-                      key={notification.id}
-                      sx={{
-                        width: index === 0 ? 12 : 10,
-                        height: index === 0 ? 12 : 10,
-                        borderRadius: '50%',
-                        bgcolor: index === 0 ? 'rgba(36, 86, 166, 0.58)' : 'rgba(171, 165, 156, 0.38)',
-                      }}
-                    />
-                  ))}
-                </Stack>
+                <Typography color="text.secondary">{formatTextValue(leadNotification.title, 'Notification')}</Typography>
               </Paper>
             ) : (
               <Paper
                 variant="outlined"
                 sx={{
                   p: 2.5,
-                  borderRadius: 4,
-                  borderColor: 'rgba(223, 199, 165, 0.52)',
+                  borderRadius: '30px',
+                  borderColor: 'rgba(194, 137, 64, 0.22)',
                   bgcolor: 'rgba(255,255,255,0.72)',
                 }}
               >
@@ -1615,9 +1744,9 @@ export default function ResidentDashboard() {
                   variant="outlined"
                   sx={{
                     p: 1.5,
-                    borderRadius: 3,
-                    borderColor: 'rgba(223, 199, 165, 0.46)',
-                    bgcolor: 'rgba(255,255,255,0.64)',
+                    borderRadius: '24px',
+                    borderColor: 'rgba(194, 137, 64, 0.2)',
+                    bgcolor: 'rgba(255,255,255,0.68)',
                   }}
                 >
                   <Stack direction="row" justifyContent="space-between" spacing={1.5} alignItems="center">
@@ -1636,10 +1765,16 @@ export default function ResidentDashboard() {
             </Stack>
           </Paper>
 
-          <Paper elevation={0} sx={softCardSx}>
+          <Paper
+            elevation={0}
+            sx={{
+              ...desktopPanelSx,
+              background: 'linear-gradient(180deg, rgba(255,247,232,0.95) 0%, rgba(250,236,202,0.92) 100%)',
+            }}
+          >
             <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
-              <CreditCardIcon color="secondary" />
-              <Typography variant="h4" sx={{ fontSize: 24 }}>
+              <AccountBalanceWalletIcon sx={{ color: '#c37d1c' }} />
+              <Typography variant="h4" sx={{ ...templeTitleSx, fontSize: 24 }}>
                 Maintenance Dues
               </Typography>
             </Stack>
@@ -1648,26 +1783,29 @@ export default function ResidentDashboard() {
               variant="outlined"
               sx={{
                 p: 2,
-                borderRadius: 4,
+                borderRadius: '30px',
                 mb: 2.2,
-                borderColor: 'rgba(173, 194, 223, 0.72)',
-                bgcolor: 'rgba(229, 236, 247, 0.9)',
+                borderColor: 'rgba(194, 137, 64, 0.24)',
+                bgcolor: 'rgba(255,251,243,0.88)',
+                position: 'relative',
+                overflow: 'hidden',
               }}
             >
+              <Box sx={{ position: 'absolute', right: -22, top: 10, width: 120, height: 120, borderRadius: '38px', background: 'radial-gradient(circle at 35% 30%, rgba(255,224,160,0.95) 0%, rgba(190,135,51,0.95) 58%, rgba(122,77,24,0.84) 100%)', opacity: 0.8 }} />
               <Stack direction="row" justifyContent="space-between" spacing={2} alignItems="flex-start">
-                <Box>
+                <Box sx={{ position: 'relative', zIndex: 1 }}>
                   <Typography color="text.secondary">{residentName} owes</Typography>
                   <Typography color="text.secondary" sx={{ mt: 2 }}>Next due amount</Typography>
                   <Typography color="text.secondary" sx={{ mt: 1.5 }}>Due date</Typography>
                 </Box>
-                <Box sx={{ textAlign: 'right' }}>
-                  <Typography variant="h4" sx={{ fontSize: { xs: 28, md: 40 }, mb: 2 }}>
+                <Box sx={{ textAlign: 'right', position: 'relative', zIndex: 1 }}>
+                  <Typography variant="h4" sx={{ ...templeTitleSx, fontSize: { xs: 28, md: 40 }, mb: 2 }}>
                     {formatCurrency(dueSummary.outstandingAmount)}
                   </Typography>
-                  <Typography sx={{ color: 'primary.main', fontWeight: 700 }}>
+                  <Typography sx={{ color: '#8b4b1d', fontWeight: 700 }}>
                     {formatCurrency(dueSummary.nextDue?.amount || 0)}
                   </Typography>
-                  <Typography sx={{ mt: 1.25, fontWeight: 700 }}>
+                  <Typography sx={{ mt: 1.25, fontWeight: 700, color: '#6a3618' }}>
                     {formatDateValue(dueSummary.nextDue?.dueDate)}
                   </Typography>
                 </Box>
@@ -1676,16 +1814,21 @@ export default function ResidentDashboard() {
 
             <Chip
               label={`${dueSummary.openCount} open bill${dueSummary.openCount === 1 ? '' : 's'}`}
-              variant="outlined"
-              sx={{ mb: 2.5, bgcolor: 'rgba(255,255,255,0.65)' }}
+              sx={{ mb: 2.5, bgcolor: 'rgba(255,247,235,0.92)', color: '#6a3618', borderRadius: 999 }}
             />
 
             <Button
               variant="contained"
-              color="success"
               fullWidth
               onClick={() => navigate('/expenses')}
-              sx={{ minHeight: 46, borderRadius: 3, fontSize: 22 }}
+              sx={{
+                minHeight: 52,
+                borderRadius: 999,
+                fontSize: 22,
+                background: 'linear-gradient(90deg, #51693f 0%, #7f8f48 100%)',
+                boxShadow: '0 12px 24px rgba(78, 105, 63, 0.24)',
+                '&:hover': { background: 'linear-gradient(90deg, #4b613a 0%, #738143 100%)' },
+              }}
             >
               Pay Now
             </Button>
@@ -1695,10 +1838,10 @@ export default function ResidentDashboard() {
             <Paper
               elevation={0}
               sx={{
-                ...softCardSx,
+                ...desktopPanelSx,
                 p: 0,
                 overflow: 'hidden',
-                background: 'linear-gradient(135deg, rgba(189, 211, 238, 0.92) 0%, rgba(214, 228, 245, 0.9) 44%, rgba(188, 212, 238, 0.78) 100%)',
+                background: 'linear-gradient(135deg, rgba(248, 225, 181, 0.72) 0%, rgba(242, 214, 162, 0.82) 44%, rgba(223, 184, 109, 0.72) 100%)',
               }}
             >
               <Box
@@ -1717,7 +1860,7 @@ export default function ResidentDashboard() {
                         width: 88,
                         height: 88,
                         borderRadius: '50%',
-                        background: 'conic-gradient(from 18deg, #f3a048 0deg 292deg, rgba(255,255,255,0.65) 292deg 360deg)',
+                        background: 'conic-gradient(from 18deg, #b86e1f 0deg 292deg, rgba(255,255,255,0.65) 292deg 360deg)',
                         display: 'grid',
                         placeItems: 'center',
                         flexShrink: 0,
@@ -1728,11 +1871,11 @@ export default function ResidentDashboard() {
                           width: 68,
                           height: 68,
                           borderRadius: '50%',
-                          bgcolor: 'rgba(247, 244, 237, 0.94)',
+                          bgcolor: 'rgba(255, 248, 235, 0.94)',
                           display: 'grid',
                           placeItems: 'center',
                           fontWeight: 800,
-                          color: '#3d4d6e',
+                          color: '#7a4119',
                           fontSize: 18,
                         }}
                       >
@@ -1741,18 +1884,18 @@ export default function ResidentDashboard() {
                     </Box>
 
                     <Box>
-                      <Typography sx={{ fontSize: 18, color: '#4b6387', mb: 0.5 }}>
+                      <Typography sx={{ fontSize: 18, color: '#8a4b1d', mb: 0.5, fontWeight: 700 }}>
                         {spotlightVisitor?.status === 'preapproved' ? 'Open pre-approved pass' : spotlightVisitor?.status === 'pending' ? 'Open visitor approval' : 'Visitor update'}
                       </Typography>
-                      <Typography variant="h5" sx={{ mb: 0.5 }}>
+                      <Typography variant="h5" sx={{ ...templeTitleSx, mb: 0.5 }}>
                         {formatTextValue(spotlightVisitor?.name, spotlightVisitor ? 'Visitor' : 'No active pass yet')}
                       </Typography>
-                      <Typography sx={{ color: '#4f6382' }}>
+                      <Typography sx={{ color: '#6a3618' }}>
                         {spotlightVisitor
                           ? formatTextValue(spotlightVisitor.purpose, 'Guest visit')
                           : 'Create a pass to keep guest entry smooth at the gate.'}
                       </Typography>
-                      <Typography sx={{ color: '#4f6382', mt: 0.5 }}>
+                      <Typography sx={{ color: '#6a3618', mt: 0.5 }}>
                         {spotlightVisitor?.otp
                           ? `OTP: ${spotlightVisitor.otp}`
                           : spotlightVisitor?.expectedAt
@@ -1767,8 +1910,9 @@ export default function ResidentDashboard() {
                       icon={<SmartToyIcon />}
                       label="AI Concierge active"
                       sx={{
-                        bgcolor: 'rgba(255,255,255,0.9)',
+                        bgcolor: 'rgba(255,248,236,0.9)',
                         borderRadius: 999,
+                        color: '#6a3618',
                         '& .MuiChip-icon': { color: '#d48b33' },
                       }}
                     />
