@@ -72,5 +72,21 @@ export default defineConfig({
         ],
       },
     }),
+    {
+      name: 'github-pages-spa-fallback',
+      apply: 'build',
+      generateBundle(_options, bundle) {
+        const indexAsset = bundle['index.html'];
+
+        if (!indexAsset || indexAsset.type !== 'asset') {
+          return;
+        }
+
+        bundle['404.html'] = {
+          ...indexAsset,
+          fileName: '404.html',
+        };
+      },
+    },
   ],
 });
