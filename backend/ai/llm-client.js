@@ -4,6 +4,8 @@ const fetch = (...args) => import('node-fetch').then(({ default: fetchImpl }) =>
 
 const DEFAULT_MODEL = process.env.OPENAI_MODEL || 'gpt-4.1-mini';
 const DEFAULT_AZURE_API_VERSION = process.env.AZURE_OPENAI_API_VERSION || '2024-10-21';
+const CONCIERGE_PROMPT_VERSION = 'concierge-v2';
+const LLM_TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS || 5000);
 
 function trimTrailingSlash(value = '') {
   return String(value).replace(/\/$/, '');
@@ -55,11 +57,25 @@ async function requestChatCompletion({ messages, maxTokens, temperature }) {
     return null;
   }
 
-  const response = await fetch(providerConfig.url, {
-    method: 'POST',
-    headers: providerConfig.headers,
-    body: JSON.stringify(providerConfig.buildBody({ messages, maxTokens, temperature })),
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), LLM_TIMEOUT_MS);
+
+  let response;
+  try {
+    response = await fetch(providerConfig.url, {
+      method: 'POST',
+      headers: providerConfig.headers,
+      body: JSON.stringify(providerConfig.buildBody({ messages, maxTokens, temperature })),
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      throw new Error(`LLM request timed out after ${LLM_TIMEOUT_MS}ms.`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   const data = await response.json();
   if (!response.ok) {
@@ -70,6 +86,7 @@ async function requestChatCompletion({ messages, maxTokens, temperature }) {
     text: data?.choices?.[0]?.message?.content?.trim() || '',
     provider: providerConfig.provider,
     model: providerConfig.model,
+    promptVersion: CONCIERGE_PROMPT_VERSION,
   };
 }
 
@@ -100,6 +117,7 @@ async function generateConciergeReply({ promptContext, agentSummaries, userMessa
     text: '',
     provider: 'none',
     model: null,
+    promptVersion: CONCIERGE_PROMPT_VERSION,
   };
 }
 
@@ -121,6 +139,7 @@ async function generateSimpleReply({ systemPrompt, userMessage, maxTokens = 200,
 }
 
 module.exports = {
+  CONCIERGE_PROMPT_VERSION,
   generateConciergeReply,
   generateSimpleReply,
   getLlmProviderConfig,

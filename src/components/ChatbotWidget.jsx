@@ -33,6 +33,111 @@ const initialMessages = [
   { sender: 'bot', text: 'Hi! I am your AI assistant. How can I help you today?' },
 ];
 
+const taskStatusLabelMap = {
+  preview: 'Preview',
+  queued: 'Queued',
+  completed: 'Completed',
+  blocked: 'Blocked',
+  failed: 'Failed',
+  skipped: 'Skipped',
+  processing: 'Processing',
+};
+
+const taskStatusColorMap = {
+  preview: 'warning',
+  queued: 'info',
+  completed: 'success',
+  blocked: 'error',
+  failed: 'error',
+  skipped: 'default',
+  processing: 'info',
+};
+
+const buildTaskOutcomeMessage = (task) => {
+  if (!task) {
+    return 'I could not complete that action.';
+  }
+
+  if (task.status === 'completed') {
+    if (task.type === 'delivery-routing-preview') {
+      return task.payload?.route === 'doorstep'
+        ? 'Delivery has been approved for doorstep drop-off.'
+        : 'Parcel has been sent to the security desk.';
+    }
+
+    if (task.type === 'complaint-create') {
+      return 'Your complaint has been created successfully.';
+    }
+
+    if (task.type === 'visitor-status-update') {
+      return task.payload?.status === 'approved'
+        ? `${task.payload?.visitorName || 'The visitor'} has been approved.`
+        : `${task.payload?.visitorName || 'The visitor'} has been updated successfully.`;
+    }
+  }
+
+  if (task.status === 'queued') {
+    return 'The action has been accepted and queued for processing.';
+  }
+
+  if (task.status === 'blocked') {
+    return task.executionNote || 'This action is blocked for your account.';
+  }
+
+  if (task.status === 'failed') {
+    return task.executionNote || 'The action failed before it could be completed.';
+  }
+
+  return task.executionNote || 'I could not complete that action.';
+};
+
+const buildPreviewTaskLabel = (task) => {
+  if (!task) {
+    return 'Ready for review';
+  }
+
+  if (task.type === 'delivery-routing-preview') {
+    return task.payload?.route === 'doorstep'
+      ? 'Ready to approve doorstep delivery'
+      : 'Ready to send parcel to security desk';
+  }
+
+  if (task.type === 'complaint-create') {
+    return 'Ready to create complaint';
+  }
+
+  if (task.type === 'visitor-status-update') {
+    return task.payload?.status === 'approved'
+      ? `Ready to approve ${task.payload?.visitorName || 'visitor'}`
+      : task.title || 'Ready to update visitor';
+  }
+
+  if (task.type === 'payment-reminder') {
+    return 'Ready to schedule dues reminder';
+  }
+
+  if (task.type === 'announcement-draft') {
+    return 'Ready to draft announcement';
+  }
+
+  return task.title || 'Ready for review';
+};
+
+const buildExecuteReply = (agentResponse) => {
+  const tasks = agentResponse?.tasks || [];
+  const primaryTask = tasks[0] || null;
+
+  if (!primaryTask) {
+    return agentResponse?.reply || 'I could not complete that action.';
+  }
+
+  if (tasks.length === 1) {
+    return buildTaskOutcomeMessage(primaryTask);
+  }
+
+  return tasks.map((task) => buildTaskOutcomeMessage(task)).join(' ');
+};
+
 const getLocalConciergeReply = (input, { payments, complaints, bookings, staffAttendance, visitors, announcements }) => {
   const query = input.toLowerCase();
   if (/(^|\b)(hi|hello|hey|good morning|good evening)(\b|$)/.test(query)) {
@@ -238,6 +343,7 @@ const ChatbotWidget = ({
       text: reply,
       meta: agentResponse ? {
         agents: agentResponse.routing?.agents || [],
+        gateway: agentResponse.gateway || null,
         requestMessage: input,
         requestInputMode: currentInputMode,
         tasks: agentResponse.tasks || [],
@@ -247,7 +353,7 @@ const ChatbotWidget = ({
     setLoading(false);
   };
 
-  const handleExecuteTask = async (task, requestMessage) => {
+  const handleExecuteTask = async (task, requestMessage, requestInputMode = 'text') => {
     if (!task?.id || !requestMessage || !user?.uid) return;
 
     setExecutingTaskId(task.id);
@@ -273,10 +379,12 @@ const ChatbotWidget = ({
 
     setMessages((msgs) => [...msgs, {
       sender: 'bot',
-      text: agentResponse?.reply || agentResponse?.tasks?.[0]?.executionNote || 'I could not complete that action.',
+      text: buildExecuteReply(agentResponse),
       meta: agentResponse ? {
         agents: agentResponse.routing?.agents || [],
+        gateway: agentResponse.gateway || null,
         requestMessage,
+        requestInputMode,
         tasks: agentResponse.tasks || [],
       } : null,
     }]);
@@ -359,6 +467,9 @@ const ChatbotWidget = ({
                   <Typography sx={{ fontSize: 15, lineHeight: 1.45 }}>{msg.text}</Typography>
                   {msg.meta?.agents?.length ? (
                     <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap', mt: 1 }}>
+                      {msg.meta.requestInputMode ? (
+                        <Chip label={msg.meta.requestInputMode === 'voice' ? 'Voice request' : 'Text request'} size="small" />
+                      ) : null}
                       {msg.meta.agents.map((agent) => (
                         <Chip key={agent} label={`${agent} agent`} size="small" variant="outlined" />
                       ))}
@@ -368,9 +479,17 @@ const ChatbotWidget = ({
                     <Box sx={{ mt: 1 }}>
                       {msg.meta.tasks.slice(0, 3).map((task) => (
                         <Box key={task.id || `${task.title}-${task.status}`} sx={{ mt: 0.75 }}>
-                          <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
-                            {task.title}: {task.status}
-                          </Typography>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
+                            <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+                              {task.status === 'preview' ? buildPreviewTaskLabel(task) : task.title}
+                            </Typography>
+                            <Chip
+                              label={taskStatusLabelMap[task.status] || task.status || 'Status unknown'}
+                              size="small"
+                              color={taskStatusColorMap[task.status] || 'default'}
+                              variant={task.status === 'preview' ? 'outlined' : 'filled'}
+                            />
+                          </Box>
                           {task.executionNote ? (
                             <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
                               {task.executionNote}
@@ -382,7 +501,7 @@ const ChatbotWidget = ({
                               variant="outlined"
                               sx={{ mt: 0.75 }}
                               disabled={loading || executingTaskId === task.id}
-                              onClick={() => handleExecuteTask(task, msg.meta.requestMessage)}
+                              onClick={() => handleExecuteTask(task, msg.meta.requestMessage, msg.meta.requestInputMode)}
                             >
                               {executingTaskId === task.id ? 'Running...' : 'Run Plan'}
                             </Button>

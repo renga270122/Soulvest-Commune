@@ -107,6 +107,7 @@ Implemented changes:
 - Updated [backend/ai/task-executor.js](backend/ai/task-executor.js) so:
   - execute mode requires explicit `approvedTaskIds`
   - visitor approval runs directly against Firestore when Firebase is configured
+  - delivery routing now runs directly against Firestore when Firebase is configured and the route is `doorstep` or `security`
   - complaint creation writes directly into the society complaints collection when Firebase is configured
   - unsupported execute-mode tasks still fall back to queueing in `aiTaskQueue`
 - Updated [backend/chatbot-llm.js](backend/chatbot-llm.js) so `POST /agent-message` accepts confirmation payloads for execute-mode calls.

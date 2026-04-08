@@ -1,7 +1,19 @@
 const { classifyIntents } = require('./intent-classifier');
 const { buildMcpContext, createPromptContext } = require('./mcp-context');
+const { hydrateAgentRequestContext } = require('./context-store');
 const { generateConciergeReply } = require('./llm-client');
 const { executeTaskPlan } = require('./task-executor');
+
+const AGENT_PRIORITY = {
+  visitor: 1,
+  delivery: 2,
+  staff: 3,
+  finance: 4,
+  complaint: 5,
+  announcement: 6,
+  booking: 7,
+  concierge: 99,
+};
 
 function extractTimeReference(message) {
   return message.match(/\b(?:tomorrow|today|next week|\d{1,2}(?::\d{2})?\s?(?:am|pm)?)\b/i)?.[0] || null;
@@ -245,6 +257,20 @@ function summarizeTasks(tasks) {
   return tasks.map((task) => `- ${task.title} (${task.status})`).join('\n');
 }
 
+function prioritizeAgents(agents) {
+  return [...agents].sort((left, right) => (AGENT_PRIORITY[left] || 50) - (AGENT_PRIORITY[right] || 50));
+}
+
+function buildDecisionTrail(agentPlans) {
+  return agentPlans.map((plan, index) => ({
+    step: index + 1,
+    agent: plan.agent,
+    summary: plan.summary,
+    taskCount: plan.tasks.length,
+    taskTypes: plan.tasks.map((task) => task.type),
+  }));
+}
+
 function buildFallbackReply(agentPlans, executedTasks) {
   const summary = agentPlans.map((plan) => plan.summary).filter(Boolean).join(' ');
   if (!executedTasks.length) {
@@ -292,28 +318,30 @@ function buildCollaborationPlans(agentPlans) {
 }
 
 async function orchestrateAgentMessage(request, dependencies) {
+  const hydratedRequest = await hydrateAgentRequestContext(request, dependencies);
   const intents = classifyIntents(request.message);
+  const orderedAgents = prioritizeAgents([...new Set(intents.map((intent) => intent.agent))]);
   const routing = {
     intents: intents.map((intent) => intent.id),
-    agents: [...new Set(intents.map((intent) => intent.agent))],
+    agents: orderedAgents,
   };
 
-  const mcpContext = buildMcpContext(request);
+  const mcpContext = buildMcpContext(hydratedRequest);
 
   const agentPlans = routing.agents.map((agent) => {
     switch (agent) {
       case 'visitor':
-        return planVisitorTasks(request.message, mcpContext);
+        return planVisitorTasks(hydratedRequest.message, mcpContext);
       case 'delivery':
-        return planDeliveryTasks(request.message, mcpContext);
+        return planDeliveryTasks(hydratedRequest.message, mcpContext);
       case 'finance':
-        return planFinanceTasks(request.message, mcpContext);
+        return planFinanceTasks(hydratedRequest.message, mcpContext);
       case 'complaint':
-        return planComplaintTasks(request.message, mcpContext);
+        return planComplaintTasks(hydratedRequest.message, mcpContext);
       case 'staff':
-        return planStaffTasks(request.message, mcpContext);
+        return planStaffTasks(hydratedRequest.message, mcpContext);
       case 'announcement':
-        return planAnnouncementTasks(request.message, mcpContext);
+        return planAnnouncementTasks(hydratedRequest.message, mcpContext);
       case 'booking':
         return planBookingTasks(mcpContext);
       default:
@@ -324,13 +352,14 @@ async function orchestrateAgentMessage(request, dependencies) {
   const collaborationPlans = buildCollaborationPlans(agentPlans);
   const plannedTasks = agentPlans.flatMap((plan) => plan.tasks);
   const executedTasks = await executeTaskPlan(plannedTasks, {
-    executionMode: request.executionMode,
-    approvedTaskIds: request.approvedTaskIds,
-    requireConfirmation: request.requireConfirmation,
-    auth: request.auth,
+    executionMode: hydratedRequest.executionMode,
+    approvedTaskIds: hydratedRequest.approvedTaskIds,
+    requireConfirmation: hydratedRequest.requireConfirmation,
+    auth: hydratedRequest.auth,
     actor: mcpContext.actor,
   }, dependencies);
   const promptContext = createPromptContext(mcpContext, routing, collaborationPlans);
+  const decisionTrail = buildDecisionTrail(agentPlans);
 
   let reply = '';
   let llm = { provider: 'none', model: null };
@@ -341,13 +370,14 @@ async function orchestrateAgentMessage(request, dependencies) {
         ...agentPlans.map((plan) => `${plan.agent}: ${plan.summary}`),
         ...collaborationPlans.map((plan) => `collaboration: ${plan.summary}`),
       ],
-      userMessage: request.message,
+      userMessage: hydratedRequest.message,
       language: mcpContext.actor.language,
     });
     reply = llmResponse?.text || '';
     llm = {
       provider: llmResponse?.provider || 'none',
       model: llmResponse?.model || null,
+      promptVersion: llmResponse?.promptVersion || 'concierge-v2',
     };
   } catch {
     reply = '';
@@ -363,6 +393,7 @@ async function orchestrateAgentMessage(request, dependencies) {
     tasks: executedTasks,
     agentPlans: agentPlans.map((plan) => ({ agent: plan.agent, summary: plan.summary })),
     collaborationPlans,
+    decisionTrail,
     llm,
     mcpContext,
   };

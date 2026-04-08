@@ -54,6 +54,7 @@ async function logAiEvaluation({ route, gateway, request, result, error, respons
   const entry = {
     id: crypto.randomUUID(),
     createdAt: new Date().toISOString(),
+    requestId: gateway?.requestId || null,
     route,
     outcome: error ? 'error' : 'success',
     gateway,
@@ -63,11 +64,13 @@ async function logAiEvaluation({ route, gateway, request, result, error, respons
       inputMode: request?.inputMode || 'text',
       channel: request?.channel || gateway?.channel || 'resident-dashboard-chat',
       auth: request?.auth || null,
+      contextMeta: request?.contextMeta || null,
     },
     llm: llm || null,
     responseText: responseText || result?.reply || '',
     routing: result?.routing || null,
     agentPlans: Array.isArray(result?.agentPlans) ? result.agentPlans : [],
+    decisionTrail: Array.isArray(result?.decisionTrail) ? result.decisionTrail : [],
     collaborationPlans: Array.isArray(result?.collaborationPlans) ? result.collaborationPlans : [],
     tasks: Array.isArray(result?.tasks)
       ? result.tasks.map((task) => ({
@@ -79,6 +82,10 @@ async function logAiEvaluation({ route, gateway, request, result, error, respons
         }))
       : [],
     mcpSummary: summarizeMcpContext(result?.mcpContext),
+    contextMeta: result?.mcpContext?.contextMeta || request?.contextMeta || null,
+    metrics: {
+      durationMs: gateway?.durationMs || null,
+    },
     error: error
       ? {
           message: error.message,

@@ -16,7 +16,7 @@ Already implemented in the repository:
 - Background task queue consumption in `backend/ai/task-worker.js`
 - Resident-facing AI concierge UI in `src/components/ChatbotWidget.jsx`
 
-That means Phase 1 is partially complete, Phase 2 is partially started, and Phase 3 is still open.
+That means Sprint 1 foundation work is now implemented, Sprint 2 core orchestration work is implemented for the current resident concierge scope, and Phase 3 remains open.
 
 ## Phase 1 - Immediate (Weeks 1-4)
 
@@ -55,9 +55,9 @@ Resident-aware AI concierge with stable context retrieval, structured routing lo
 
 ### Phase 1 Status
 
-- Done: base context builder, gateway, LLM wiring, frontend concierge shell
-- In progress: task execution policy, orchestration auditability, worker handoff
-- Not done: persistent backend context adapters, strong server-side auth binding for execution, analytics-grade logging
+- Done: resident MCP context schema, backend context hydration, gateway correlation ids, evaluation logging, Azure/OpenAI-compatible LLM wiring, resident dashboard chat UI, preview and execute task surfacing
+- In progress: deeper analytics and longer-lived audit reporting improvements
+- Not done: none for the original Sprint 1 deliverable
 
 ## Phase 2 - Near-Term (Months 2-3)
 
@@ -96,9 +96,18 @@ Multi-agent orchestration that can interpret compound instructions, queue backgr
 
 ### Phase 2 Status
 
-- Done: initial visitor, delivery, finance, complaint, booking, announcement routing logic exists
-- In progress: delivery routing worker, payment reminders, announcement drafts
-- Not done: voice input, WhatsApp integration, staff agent depth, compound execution sequencing
+- Done: visitor, delivery, staff, finance, and complaint agents; multi-intent orchestration ordering; delivery-to-complaint collaboration handoff; browser speech-to-text input; agent decision trail logging; direct execute-mode delivery routing; worker support for payment reminders and announcement drafts
+- In progress: broader task-handler coverage and deeper staff-specific automation
+- Not done: optional notification-channel expansion beyond the current delivery path
+
+## Validation Snapshot
+
+Validated on 2026-04-08:
+
+- frontend production build completed successfully with existing non-blocking Vite `use client` warnings from MUI and React Router packages
+- backend AI modules loaded successfully via Node runtime import check
+- `GET /health` responded successfully from the live Express server
+- `POST /agent-message` returned a successful multi-agent preview response for a voice-origin delivery-plus-complaint request, including hydrated MCP context, collaboration metadata, and preview tasks
 
 ## Phase 3 - Visionary (Months 4-6)
 

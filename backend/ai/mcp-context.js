@@ -90,7 +90,7 @@ function buildAnnouncementSummary(announcements) {
   };
 }
 
-function buildMcpContext({ message, user = {}, chatHistory = [], contextSnapshot = {} }) {
+function buildMcpContext({ message, user = {}, chatHistory = [], contextSnapshot = {}, contextMeta = {} }) {
   const payments = Array.isArray(contextSnapshot.payments) ? contextSnapshot.payments : [];
   const complaints = Array.isArray(contextSnapshot.complaints) ? contextSnapshot.complaints : [];
   const bookings = Array.isArray(contextSnapshot.bookings) ? contextSnapshot.bookings : [];
@@ -102,6 +102,12 @@ function buildMcpContext({ message, user = {}, chatHistory = [], contextSnapshot
 
   return {
     protocol: 'soulvest.mcp/1.0',
+    contextMeta: {
+      source: contextMeta.source || 'client-snapshot',
+      usedServerData: Boolean(contextMeta.usedServerData),
+      hydratedAt: contextMeta.hydratedAt || null,
+      fetchedCollections: contextMeta.fetchedCollections || {},
+    },
     request: {
       message,
       timestamp: new Date().toISOString(),
@@ -152,6 +158,7 @@ function createPromptContext(mcpContext, routing, collaborationPlans = []) {
 
   return [
     'Soulvest MCP Context',
+    `Context source: ${mcpContext.contextMeta?.source || 'client-snapshot'}`,
     `Actor: ${actor.name} (${actor.role}) flat=${actor.flat || 'n/a'} society=${actor.societyId} language=${actor.language} duesStatus=${actor.duesStatus}`,
     `Intents: ${routing.intents.join(', ') || 'general_concierge'}`,
     `Pending dues: ${liveData.payments.pendingCount} totaling INR ${liveData.payments.totalPending}`,

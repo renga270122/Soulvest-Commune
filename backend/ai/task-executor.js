@@ -1,5 +1,31 @@
+const { dispatchNotifications } = require('../notification-service');
+
 function isTaskApproved(taskId, approvedTaskIds) {
   return Array.isArray(approvedTaskIds) && approvedTaskIds.includes(taskId);
+}
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function getSocietyCollection(db, societyId, collectionName) {
+  return db.collection('societies').doc(societyId).collection(collectionName);
+}
+
+async function getUserById(db, userId) {
+  if (!userId) return null;
+  const snapshot = await db.collection('users').doc(userId).get();
+  if (!snapshot.exists) return null;
+  return { id: snapshot.id, ...snapshot.data() };
+}
+
+async function findGuardForSociety(db, societyId) {
+  const snapshot = await db.collection('users').where('societyId', '==', societyId).limit(25).get();
+  const guard = snapshot.docs
+    .map((doc) => ({ id: doc.id, ...doc.data() }))
+    .find((user) => user.role === 'guard');
+
+  return guard || null;
 }
 
 function ensureRole(actor, allowedRoles, title) {
@@ -108,6 +134,129 @@ async function executeComplaintCreate(task, actor, dependencies) {
   };
 }
 
+async function executeDeliveryRouting(task, actor, dependencies) {
+  const roleError = ensureRole(actor, ['resident', 'admin', 'guard'], task.title);
+  if (roleError) {
+    return { ...task, ...roleError };
+  }
+
+  const { getFirebaseStatus, getDb } = dependencies;
+  const firebaseStatus = getFirebaseStatus();
+  if (!firebaseStatus.configured) {
+    return {
+      ...task,
+      status: 'preview',
+      executionNote: 'Firebase is not configured, so delivery routing remains a preview only.',
+    };
+  }
+
+  const societyId = task.payload?.societyId;
+  const visitorId = task.payload?.visitorId;
+  const route = task.payload?.route;
+
+  if (!societyId || !visitorId) {
+    return {
+      ...task,
+      status: 'failed',
+      executionNote: 'Delivery routing is missing visitor or society context.',
+    };
+  }
+
+  if (!['doorstep', 'security'].includes(route)) {
+    return {
+      ...task,
+      status: 'blocked',
+      executionNote: `Delivery route ${route || 'unknown'} cannot be executed directly.`,
+    };
+  }
+
+  const db = getDb();
+  const docRef = getSocietyCollection(db, societyId, 'visitors').doc(visitorId);
+  const snapshot = await docRef.get();
+
+  if (!snapshot.exists) {
+    return {
+      ...task,
+      status: 'failed',
+      executionNote: 'Delivery visitor record could not be found for execution.',
+    };
+  }
+
+  const visitor = snapshot.data();
+  if (actor.role === 'resident' && visitor.residentId && visitor.residentId !== actor.uid) {
+    return {
+      ...task,
+      status: 'blocked',
+      executionNote: 'Residents can only route deliveries for their own flat.',
+    };
+  }
+
+  const routedAt = nowIso();
+  const update = route === 'doorstep'
+    ? {
+        status: 'approved',
+        deliveryStatus: 'doorstep',
+        routedAt,
+        routedBy: actor.name || actor.uid || actor.role,
+        updatedAt: routedAt,
+      }
+    : {
+        status: 'approved',
+        deliveryStatus: 'security_hold_requested',
+        collectedBy: '',
+        routedAt,
+        routedBy: actor.name || actor.uid || actor.role,
+        updatedAt: routedAt,
+      };
+
+  await docRef.update(update);
+
+  const residentUser = await getUserById(db, visitor.residentId);
+  const guardUser = route === 'security' ? await findGuardForSociety(db, societyId) : null;
+  const notificationTargets = [
+    residentUser && {
+      user: residentUser,
+      payload: {
+        title: route === 'doorstep' ? 'Delivery approved to doorstep' : 'Parcel will be held at security',
+        message: route === 'doorstep'
+          ? `${visitor.vendorName || visitor.name} will be sent to your doorstep.`
+          : `${visitor.vendorName || visitor.name} will be held at the security desk until collection.`,
+      },
+    },
+    guardUser && {
+      user: guardUser,
+      payload: {
+        title: 'Parcel assigned to security desk',
+        message: `${visitor.vendorName || visitor.name} for Flat ${visitor.flat} should be held at the security desk.`,
+      },
+    },
+  ].filter(Boolean);
+
+  for (const target of notificationTargets) {
+    await dispatchNotifications(target.user, {
+      ...target.payload,
+      channels: { push: true, email: false, sms: false },
+      meta: {
+        taskType: task.type,
+        taskId: task.id,
+        route,
+        visitorId,
+      },
+    });
+  }
+
+  return {
+    ...task,
+    status: 'completed',
+    executionNote: `Delivery ${visitor.vendorName || visitor.name} routed to ${route}.`,
+    payload: {
+      ...task.payload,
+      deliveryStatus: update.deliveryStatus,
+      routedAt,
+    },
+  };
+}
+
 async function queueTask(task, dependencies) {
   const { getFirebaseStatus, getDb } = dependencies;
   const firebaseStatus = getFirebaseStatus();
@@ -149,6 +298,10 @@ async function executeOneTask(task, options, dependencies) {
 
   if (task.type === 'complaint-create') {
     return executeComplaintCreate(task, options.actor, dependencies);
+  }
+
+  if (task.type === 'delivery-routing-preview') {
+    return executeDeliveryRouting(task, options.actor, dependencies);
   }
 
   return queueTask(task, dependencies);

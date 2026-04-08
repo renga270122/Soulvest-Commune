@@ -14,6 +14,7 @@ const { resolveAuthenticatedActor } = require('./auth/identity');
 
 // POST /chatbot-llm
 router.post('/chatbot-llm', async (req, res) => {
+  const startedAt = Date.now();
   const { message } = req.body;
   if (!message) return res.status(400).json({ error: 'Missing message' });
   try {
@@ -34,6 +35,7 @@ router.post('/chatbot-llm', async (req, res) => {
           channel: 'legacy-chatbot',
           inputMode: 'text',
           executionMode: 'preview',
+          durationMs: Date.now() - startedAt,
         },
         request: {
           message,
@@ -62,6 +64,7 @@ router.post('/chatbot-llm', async (req, res) => {
         channel: 'legacy-chatbot',
         inputMode: 'text',
         executionMode: 'preview',
+        durationMs: Date.now() - startedAt,
       },
       request: {
         message,
@@ -77,6 +80,7 @@ router.post('/chatbot-llm', async (req, res) => {
 });
 
 router.post('/agent-message', async (req, res) => {
+  const startedAt = Date.now();
   try {
     const gatewayRequest = await buildAgentGatewayRequest(req, {
       resolveAuthenticatedActor,
@@ -103,6 +107,8 @@ router.post('/agent-message', async (req, res) => {
     }
 
     const result = await orchestrateAgentMessage(gatewayRequest.request, { getDb, getFirebaseStatus });
+    gatewayRequest.gateway.durationMs = Date.now() - startedAt;
+    gatewayRequest.request.contextMeta = result.mcpContext?.contextMeta || null;
 
     await logAiEvaluation({
       route: '/agent-message',
@@ -129,12 +135,14 @@ router.post('/agent-message', async (req, res) => {
         channel: String(req.body?.channel || 'resident-dashboard-chat'),
         inputMode: req.body?.inputMode === 'voice' ? 'voice' : 'text',
         executionMode: req.body?.executionMode || 'preview',
+        durationMs: Date.now() - startedAt,
       },
       request: {
         message: req.body?.message || '',
         executionMode: req.body?.executionMode || 'preview',
         inputMode: req.body?.inputMode === 'voice' ? 'voice' : 'text',
         channel: String(req.body?.channel || 'resident-dashboard-chat'),
+        contextMeta: null,
       },
       error,
       dependencies: { getDb, getFirebaseStatus },
