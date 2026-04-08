@@ -42,6 +42,7 @@ import {
   createResidentStaff,
   createVisitorPass,
   deleteResidentStaff,
+  getUserProfileByUid,
   markDeliveryCollected,
   markNotificationAsRead,
   normalizeFlat,
@@ -265,6 +266,7 @@ export default function ResidentDashboard() {
   const [payments, setPayments] = useState([]);
   const [staffMembers, setStaffMembers] = useState([]);
   const [staffAttendance, setStaffAttendance] = useState([]);
+  const [residentProfile, setResidentProfile] = useState(null);
   const [banner, setBanner] = useState({ type: '', message: '' });
   const [updatingId, setUpdatingId] = useState('');
   const [activeMobileTab, setActiveMobileTab] = useState('visitors');
@@ -347,7 +349,40 @@ export default function ResidentDashboard() {
     });
   }, [notifications]);
 
-  const myFlat = normalizeFlat(user?.flat);
+  useEffect(() => {
+    if (!user?.uid) {
+      setResidentProfile(null);
+      return undefined;
+    }
+
+    let active = true;
+
+    void getUserProfileByUid(user.uid)
+      .then((profile) => {
+        if (!active) return;
+        setResidentProfile(profile || null);
+      })
+      .catch(() => {
+        if (!active) return;
+        setResidentProfile(null);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [user?.uid]);
+
+  const residentUser = useMemo(() => {
+    if (!user && !residentProfile) return null;
+
+    return {
+      ...(user || {}),
+      ...(residentProfile || {}),
+      flat: normalizeFlat(residentProfile?.flat || user?.flat),
+    };
+  }, [residentProfile, user]);
+
+  const myFlat = normalizeFlat(residentUser?.flat);
   const myVisitors = useMemo(
     () => visitors.filter((visitor) => normalizeFlat(visitor.flat) === myFlat),
     [myFlat, visitors],
@@ -409,7 +444,7 @@ export default function ResidentDashboard() {
 
   const leadNotification = notifications[0] || null;
   const spotlightVisitor = preApprovedVisitors[0] || pendingVisitors[0] || myVisitors[0] || null;
-  const residentName = formatTextValue(user?.name, 'Resident');
+  const residentName = formatTextValue(residentUser?.name, 'Resident');
   const residentFirstName = residentName.split(' ')[0];
   const residentInitials = residentName
     .split(' ')
@@ -417,6 +452,28 @@ export default function ResidentDashboard() {
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase() || '')
     .join('') || 'R';
+  const residentAvatarSrc = residentUser?.photoDataUrl || '';
+  const residentProfileFacts = useMemo(() => {
+    const items = [];
+
+    if (residentUser?.vehicleNumber) {
+      items.push(`Vehicle ${residentUser.vehicleNumber}`);
+    }
+
+    if (residentUser?.emergencyContactName) {
+      items.push(`Emergency: ${residentUser.emergencyContactName}${residentUser?.emergencyContactPhone ? ` (${residentUser.emergencyContactPhone})` : ''}`);
+    }
+
+    if (residentUser?.householdSize) {
+      items.push(`${residentUser.householdSize} resident${Number(residentUser.householdSize) === 1 ? '' : 's'}`);
+    }
+
+    if (residentUser?.language) {
+      items.push(`Language ${String(residentUser.language).toUpperCase()}`);
+    }
+
+    return items;
+  }, [residentUser?.emergencyContactName, residentUser?.emergencyContactPhone, residentUser?.householdSize, residentUser?.language, residentUser?.vehicleNumber]);
   const activeStaffAlert = useMemo(
     () => staffAttendance.find((entry) => entry.alertType && !notedStaffAlertIds.includes(entry.id)) || null,
     [notedStaffAlertIds, staffAttendance],
@@ -558,7 +615,7 @@ export default function ResidentDashboard() {
     try {
       await updateVisitorStatus(visitorId, status, {
         uid: user?.uid || '',
-        name: user?.name || 'Resident',
+        name: residentUser?.name || 'Resident',
         societyId: user?.societyId,
       });
       setBanner({ type: 'success', message: `Visitor ${status}.` });
@@ -630,7 +687,7 @@ export default function ResidentDashboard() {
     try {
       const updatedVisitor = await routeDelivery(visitorId, resolution, {
         uid: user?.uid || '',
-        name: user?.name || 'Resident',
+        name: residentUser?.name || 'Resident',
         societyId: user?.societyId,
       });
       const successMessage = resolution === 'security'
@@ -649,7 +706,7 @@ export default function ResidentDashboard() {
     try {
       const updatedVisitor = await markDeliveryCollected(visitor.id, {
         uid: user?.uid || '',
-        name: user?.name || 'Resident',
+        name: residentUser?.name || 'Resident',
         societyId: user?.societyId,
       });
       setBanner({
@@ -733,7 +790,7 @@ export default function ResidentDashboard() {
       autoApprovedStaffVisitorIds.current.add(visitor.id);
       void updateVisitorStatus(visitor.id, 'approved', {
         uid: user?.uid || '',
-        name: user?.name || 'Resident',
+        name: residentUser?.name || 'Resident',
         societyId: user?.societyId,
       }).then(() => {
         setBanner({ type: 'success', message: `${matchedStaff.name} auto-approved for the configured access window.` });
@@ -741,7 +798,7 @@ export default function ResidentDashboard() {
         autoApprovedStaffVisitorIds.current.delete(visitor.id);
       });
     });
-  }, [pendingStaffVisitors, staffMembers, user?.name, user?.societyId, user?.uid]);
+  }, [pendingStaffVisitors, residentUser?.name, staffMembers, user?.societyId, user?.uid]);
 
   return (
     <Box sx={{ ...dashboardShellSx, pb: { xs: 16, md: 3.5 } }}>
@@ -759,6 +816,7 @@ export default function ResidentDashboard() {
           <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1.5}>
             <Stack direction="row" spacing={1.5} alignItems="center">
               <Avatar
+                src={residentAvatarSrc || undefined}
                 sx={{
                   width: 58,
                   height: 58,
@@ -773,6 +831,11 @@ export default function ResidentDashboard() {
               <Box>
                 <Typography variant="h5" sx={{ fontSize: 22 }}>{residentName}</Typography>
                 <Typography color="text.secondary">{myFlat ? `Flat ${myFlat}` : 'Flat not assigned'}</Typography>
+                {residentProfileFacts[0] ? (
+                  <Typography color="text.secondary" sx={{ fontSize: 13.5, mt: 0.25 }}>
+                    {residentProfileFacts[0]}
+                  </Typography>
+                ) : null}
               </Box>
             </Stack>
 
@@ -839,9 +902,32 @@ export default function ResidentDashboard() {
             <Typography variant="h3" sx={{ fontSize: { xs: 32, md: 42 }, mb: 0.5 }}>
               Resident Dashboard
             </Typography>
-            <Typography color="text.secondary" sx={{ fontSize: { xs: 18, md: 22 } }}>
-              Welcome {formatTextValue(user?.name, 'Resident')}{myFlat ? ` • Flat ${myFlat}` : ''}
-            </Typography>
+            <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mt: 1 }}>
+              <Avatar
+                src={residentAvatarSrc || undefined}
+                sx={{
+                  width: 52,
+                  height: 52,
+                  bgcolor: 'rgba(255,255,255,0.94)',
+                  color: 'primary.main',
+                  boxShadow: '0 10px 20px rgba(166, 138, 90, 0.18)',
+                  fontWeight: 800,
+                  fontSize: 18,
+                }}
+              >
+                {residentInitials}
+              </Avatar>
+              <Typography color="text.secondary" sx={{ fontSize: { xs: 18, md: 22 } }}>
+                Welcome {residentName}{myFlat ? ` • Flat ${myFlat}` : ''}
+              </Typography>
+            </Stack>
+            {residentProfileFacts.length ? (
+              <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: 'wrap' }}>
+                {residentProfileFacts.slice(0, 3).map((fact) => (
+                  <Chip key={fact} label={fact} size="small" variant="outlined" sx={{ borderRadius: 999 }} />
+                ))}
+              </Stack>
+            ) : null}
           </Box>
           <Button
             variant="outlined"
@@ -1562,7 +1648,7 @@ export default function ResidentDashboard() {
             >
               <Stack direction="row" justifyContent="space-between" spacing={2} alignItems="flex-start">
                 <Box>
-                  <Typography color="text.secondary">{formatTextValue(user?.name, 'Resident')} owes</Typography>
+                  <Typography color="text.secondary">{residentName} owes</Typography>
                   <Typography color="text.secondary" sx={{ mt: 2 }}>Next due amount</Typography>
                   <Typography color="text.secondary" sx={{ mt: 1.5 }}>Due date</Typography>
                 </Box>
