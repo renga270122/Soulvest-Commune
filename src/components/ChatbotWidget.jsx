@@ -164,6 +164,7 @@ const ChatbotWidget = ({
     const agentResponse = await sendAgentMessage({
       message: input,
       chatHistory,
+      authToken: user?.accessToken,
       user: {
         uid: user?.uid,
         name: user?.name,
@@ -196,6 +197,7 @@ const ChatbotWidget = ({
     const agentResponse = await sendAgentMessage({
       message: requestMessage,
       chatHistory,
+      authToken: user?.accessToken,
       user: {
         uid: user?.uid,
         name: user?.name,

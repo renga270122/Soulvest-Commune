@@ -165,6 +165,14 @@ async function executeTaskPlan(tasks, options, dependencies) {
     }));
   }
 
+  if (!options.auth?.authenticated || !options.actor?.uid) {
+    return tasks.map((task) => ({
+      ...task,
+      status: 'blocked',
+      executionNote: 'Authenticated server-side approval is required before this task can run.',
+    }));
+  }
+
   const results = [];
   for (const task of tasks) {
     results.push(await executeOneTask(task, options, dependencies));

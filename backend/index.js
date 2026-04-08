@@ -46,6 +46,7 @@ function getRazorpayMode() {
 }
 
 const { getDb, getFirebaseStatus } = require('./firebase');
+const { createDemoSession } = require('./auth/demo-session');
 
 // LLM Chatbot route
 const chatbotLLM = require('./chatbot-llm');
@@ -77,6 +78,24 @@ app.get('/health', (req, res) => {
     firebaseConfigured: firebaseStatus.configured,
     firebaseMessage: firebaseStatus.message,
   });
+});
+
+app.post('/auth/demo-session', (req, res) => {
+  const { identifier, password, role } = req.body;
+
+  if (!identifier || !password) {
+    return res.status(400).json({ error: 'identifier and password are required.' });
+  }
+
+  try {
+    const session = createDemoSession({ identifier, password, role });
+    res.json({ ok: true, ...session });
+  } catch (error) {
+    res.status(error.statusCode || 500).json({
+      error: 'Failed to create demo session',
+      details: error.message,
+    });
+  }
 });
 
 

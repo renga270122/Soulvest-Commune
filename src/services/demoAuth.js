@@ -10,7 +10,32 @@ import {
   normalizeFlatValue,
 } from './demoStore';
 
-const buildSessionUser = (user) => ({
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV ? 'http://localhost:4000' : '')).replace(/\/$/, '');
+
+async function requestBackendDemoSession({ identifier, password, role }) {
+  if (!API_BASE_URL) {
+    return null;
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/auth/demo-session`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ identifier, password, role }),
+    });
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok || !data?.token) {
+      return null;
+    }
+
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+const buildSessionUser = (user, auth = {}) => ({
   uid: user.id,
   email: user.email || '',
   mobile: user.mobile || '',
@@ -20,6 +45,8 @@ const buildSessionUser = (user) => ({
   cityId: user.cityId || DEFAULT_CITY_ID,
   societyId: user.societyId || DEFAULT_SOCIETY_ID,
   language: user.language || 'en',
+  accessToken: auth.token || '',
+  authProvider: auth.user?.authProvider || auth.authProvider || 'demo-local',
 });
 
 export async function loginDemoUser({ identifier, password, role }) {
@@ -33,13 +60,19 @@ export async function loginDemoUser({ identifier, password, role }) {
   if (role && user.role !== role) {
     throw new Error(`This account is registered as ${user.role}, not ${role}.`);
   }
-  return buildSessionUser(user);
+  const auth = await requestBackendDemoSession({ identifier, password, role });
+  return buildSessionUser(user, auth || {});
 }
 
 export async function quickDemoAccess(role = 'resident') {
   const account = getDemoAccounts().find((entry) => entry.role === role) || getDemoAccounts()[0];
   const user = findDemoUserByIdentifier(account.email || account.mobile);
-  return buildSessionUser(user);
+  const auth = await requestBackendDemoSession({
+    identifier: account.email || account.mobile,
+    password: user.password,
+    role: user.role,
+  });
+  return buildSessionUser(user, auth || {});
 }
 
 export async function registerDemoResident(form) {

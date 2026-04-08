@@ -5,6 +5,7 @@
 require('dotenv').config();
 
 const { initializeApp, cert, getApps } = require('firebase-admin/app');
+const { getAuth } = require('firebase-admin/auth');
 const { getFirestore } = require('firebase-admin/firestore');
 
 let cachedDb = null;
@@ -100,9 +101,19 @@ function getFirebaseStatus() {
   return { ...firebaseStatus };
 }
 
+function getAdminAuth() {
+  initializeFirebase();
+  if (!firebaseStatus.configured || getApps().length === 0) {
+    return null;
+  }
+
+  return getAuth();
+}
+
 initializeFirebase();
 
 module.exports = {
+  getAdminAuth,
   getDb,
   getFirebaseStatus,
 };

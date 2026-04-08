@@ -7,7 +7,8 @@ console.log('Chatbot LLM route loaded');
 
 const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
 const { orchestrateAgentMessage } = require('./ai/agent-orchestrator');
-const { getDb, getFirebaseStatus } = require('./firebase');
+const { getAdminAuth, getDb, getFirebaseStatus } = require('./firebase');
+const { resolveAuthenticatedActor } = require('./auth/identity');
 
 // POST /chatbot-llm
 router.post('/chatbot-llm', async (req, res) => {
@@ -58,15 +59,28 @@ router.post('/agent-message', async (req, res) => {
   }
 
   try {
+    const authResult = await resolveAuthenticatedActor(req, user, { getAdminAuth, getDb, getFirebaseStatus });
+    if (executionMode === 'execute' && !authResult.authenticated) {
+      return res.status(401).json({
+        error: 'Authenticated execution is required',
+        details: authResult.errorMessage,
+        code: authResult.errorCode,
+      });
+    }
+
     const result = await orchestrateAgentMessage(
       {
         message,
-        user,
+        user: authResult.actor || user,
         chatHistory,
         contextSnapshot,
         executionMode,
         approvedTaskIds,
         requireConfirmation,
+        auth: {
+          authenticated: authResult.authenticated,
+          authProvider: authResult.authProvider,
+        },
       },
       { getDb, getFirebaseStatus },
     );

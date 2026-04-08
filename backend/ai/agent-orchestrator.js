@@ -254,6 +254,7 @@ async function orchestrateAgentMessage(request, dependencies) {
     executionMode: request.executionMode,
     approvedTaskIds: request.approvedTaskIds,
     requireConfirmation: request.requireConfirmation,
+    auth: request.auth,
     actor: mcpContext.actor,
   }, dependencies);
   const promptContext = createPromptContext(mcpContext, routing);

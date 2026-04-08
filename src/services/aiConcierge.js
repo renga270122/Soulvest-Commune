@@ -16,12 +16,16 @@ export async function sendAgentMessage(payload) {
   }
 
   const { signal, cleanup } = createTimeoutSignal(CHATBOT_TIMEOUT_MS);
+  const { authToken, ...requestBody } = payload;
 
   try {
     const response = await fetch(`${API_BASE_URL}/agent-message`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      headers: {
+        'Content-Type': 'application/json',
+        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+      },
+      body: JSON.stringify(requestBody),
       signal,
     });
 
