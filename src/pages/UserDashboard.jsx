@@ -3,8 +3,10 @@ import styles from "./UserDashboard.module.css";
 import topIllustration from "../assets/top-illustration.png";
 import bottomIllustration from "../assets/bottom-illustration.png";
 import Navbar from "../components/Navbar";
+import { useAuthContext } from "../components/auth-context";
 
 export default function UserDashboard() {
+  const { user } = useAuthContext();
   // Simulate user info and onboarding state
   const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem("soulvest_onboarded"));
   const [showFlatPrompt, setShowFlatPrompt] = useState(() => !localStorage.getItem("soulvest_flat_verified"));
@@ -17,8 +19,8 @@ export default function UserDashboard() {
   }, [showOnboarding, showFlatPrompt]);
 
   // Simulated data
-  const userName = name || "Rahul";
-  const userFlat = flat || "A-101";
+  const userName = name || user?.name || "Rahul";
+  const userFlat = flat || user?.flat || "A-101";
   const currentDues = 3500;
   const pendingComplaints = 2;
   const announcements = [
@@ -80,7 +82,21 @@ export default function UserDashboard() {
       )}
 
       <div className={styles.dashboardCard}>
-        <div className={styles.greeting}>Namaskara, {userName}! <span style={{ color: '#a67c2d', fontWeight: 500 }}>({userFlat})</span></div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+          <img
+            src={user?.photoDataUrl || undefined}
+            alt={userName}
+            style={{
+              width: 52,
+              height: 52,
+              borderRadius: '50%',
+              objectFit: 'cover',
+              border: '2px solid rgba(166, 124, 45, 0.22)',
+              background: '#fff8ec',
+            }}
+          />
+          <div className={styles.greeting}>Namaskara, {userName}! <span style={{ color: '#a67c2d', fontWeight: 500 }}>({userFlat})</span></div>
+        </div>
         <div className={styles.announcements}>
           <div style={{ fontWeight: 600, color: '#3a2c0a', marginBottom: 4 }}>Community Announcements</div>
           {announcements.map((a, i) => (

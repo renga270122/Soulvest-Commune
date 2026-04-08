@@ -902,6 +902,9 @@ export default function ResidentDashboard() {
             <Typography variant="h3" sx={{ fontSize: { xs: 32, md: 42 }, mb: 0.5 }}>
               Resident Dashboard
             </Typography>
+            <Typography color="text.secondary" sx={{ fontSize: { xs: 16, md: 18 } }}>
+              Welcome back
+            </Typography>
             <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mt: 1 }}>
               <Avatar
                 src={residentAvatarSrc || undefined}
@@ -917,9 +920,14 @@ export default function ResidentDashboard() {
               >
                 {residentInitials}
               </Avatar>
-              <Typography color="text.secondary" sx={{ fontSize: { xs: 18, md: 22 } }}>
-                Welcome {residentName}{myFlat ? ` • Flat ${myFlat}` : ''}
-              </Typography>
+              <Box>
+                <Typography color="text.primary" sx={{ fontSize: { xs: 18, md: 22 }, fontWeight: 700 }}>
+                  {residentName}
+                </Typography>
+                <Typography color="text.secondary" sx={{ fontSize: { xs: 14, md: 16 } }}>
+                  {myFlat ? `Flat ${myFlat}` : 'Flat not assigned'}
+                </Typography>
+              </Box>
             </Stack>
             {residentProfileFacts.length ? (
               <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: 'wrap' }}>

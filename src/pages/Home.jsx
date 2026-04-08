@@ -32,8 +32,23 @@ export default function Home() {
       <img src={topIllustration} alt="Top" style={{ width: '100%', maxWidth: 600, marginBottom: 8 }} />
 
       {/* Header */}
-      <div style={{ textAlign: 'center', marginBottom: 8 }}>
-        <div style={{ fontSize: 22, fontWeight: 'bold', color: '#5a3a0a' }}>Namaskara, {user?.name || 'Resident'}!</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8, padding: '0 16px' }}>
+        <img
+          src={user?.photoDataUrl || undefined}
+          alt={user?.name || 'Resident'}
+          style={{
+            width: 52,
+            height: 52,
+            borderRadius: '50%',
+            objectFit: 'cover',
+            border: '2px solid rgba(166, 124, 45, 0.22)',
+            background: '#fff8ec',
+          }}
+        />
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: '#a67c2d', letterSpacing: '0.04em', textTransform: 'uppercase' }}>Namaskara</div>
+          <div style={{ fontSize: 22, fontWeight: 'bold', color: '#5a3a0a' }}>{user?.name || 'Resident'}</div>
+        </div>
       </div>
 
       {/* Announcements Dropdown */}
