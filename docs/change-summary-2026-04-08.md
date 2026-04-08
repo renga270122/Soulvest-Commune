@@ -108,9 +108,22 @@ Implemented changes:
   - execute mode requires explicit `approvedTaskIds`
   - visitor approval runs directly against Firestore when Firebase is configured
   - delivery routing now runs directly against Firestore when Firebase is configured and the route is `doorstep` or `security`
+  - payment reminders now dispatch directly in execute mode for the authenticated actor or target user
+  - announcement drafts now write directly into the society announcements collection in execute mode for admins
   - complaint creation writes directly into the society complaints collection when Firebase is configured
   - unsupported execute-mode tasks still fall back to queueing in `aiTaskQueue`
 - Updated [backend/chatbot-llm.js](backend/chatbot-llm.js) so `POST /agent-message` accepts confirmation payloads for execute-mode calls.
+
+## 11. Backend AI Smoke Tests
+
+Implemented changes:
+
+- Added [backend/tests/agent-message-smoke.test.js](backend/tests/agent-message-smoke.test.js) to start the backend on a test port and validate preview and execute AI flows over HTTP.
+- Updated [backend/package.json](backend/package.json) so `npm test` and `npm run test:ai-smoke` execute the smoke suite.
+
+Outcome:
+
+- The critical `POST /agent-message` paths now have repeatable backend coverage for preview mode and the direct execute-mode actions added in this sprint.
 - Updated [src/components/ChatbotWidget.jsx](src/components/ChatbotWidget.jsx) so previewed tasks with confirmation requirements render a `Run Plan` button inside the chat UI.
 
 Outcome:

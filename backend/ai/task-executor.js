@@ -257,6 +257,139 @@ async function executeDeliveryRouting(task, actor, dependencies) {
   };
 }
 
+async function executePaymentReminder(task, actor, dependencies) {
+  const roleError = ensureRole(actor, ['resident', 'admin'], task.title);
+  if (roleError) {
+    return { ...task, ...roleError };
+  }
+
+  const { getFirebaseStatus, getDb } = dependencies;
+  const firebaseStatus = getFirebaseStatus();
+  if (!firebaseStatus.configured) {
+    return {
+      ...task,
+      status: 'preview',
+      executionNote: 'Firebase is not configured, so payment reminders remain a preview only.',
+    };
+  }
+
+  const db = getDb();
+  const targetUserId = task.payload?.userId || actor.uid;
+  const user = await getUserById(db, targetUserId) || (targetUserId === actor.uid ? {
+    id: actor.uid,
+    name: actor.name,
+    email: actor.email,
+    mobile: actor.mobile,
+    societyId: actor.societyId,
+    role: actor.role,
+  } : null);
+  if (!user) {
+    return {
+      ...task,
+      status: 'failed',
+      executionNote: 'The payment reminder target user could not be found.',
+    };
+  }
+
+  if (actor.role === 'resident' && user.id !== actor.uid) {
+    return {
+      ...task,
+      status: 'blocked',
+      executionNote: 'Residents can only send reminders for their own account.',
+    };
+  }
+
+  const title = task.payload?.title || 'Maintenance payment reminder';
+  const message = task.payload?.message || `You have pending society dues${task.payload?.remindAt ? ` scheduled for ${task.payload.remindAt}` : ''}.`;
+  const results = await dispatchNotifications(user, {
+    title,
+    message,
+    channels: task.payload?.channels || { push: true, email: true, sms: false },
+    meta: {
+      taskType: task.type,
+      taskId: task.id,
+      remindAt: task.payload?.remindAt || '',
+    },
+  });
+
+  await db.collection('notificationDispatchLogs').add({
+    taskId: task.id,
+    taskType: task.type,
+    title,
+    message,
+    societyId: task.payload?.societyId || actor.societyId || null,
+    userId: user.id,
+    results,
+    createdAt: nowIso(),
+    createdByAgent: true,
+  });
+
+  return {
+    ...task,
+    status: 'completed',
+    executionNote: `Payment reminder dispatched to ${user.name || user.id}.`,
+    payload: {
+      ...task.payload,
+      dispatchedTo: user.id,
+      dispatchedAt: nowIso(),
+    },
+  };
+}
+
+async function executeAnnouncementDraft(task, actor, dependencies) {
+  const roleError = ensureRole(actor, ['admin'], task.title);
+  if (roleError) {
+    return { ...task, ...roleError };
+  }
+
+  const { getFirebaseStatus, getDb } = dependencies;
+  const firebaseStatus = getFirebaseStatus();
+  if (!firebaseStatus.configured) {
+    return {
+      ...task,
+      status: 'preview',
+      executionNote: 'Firebase is not configured, so announcement drafting remains a preview only.',
+    };
+  }
+
+  const societyId = task.payload?.societyId || actor.societyId;
+  if (!societyId) {
+    return {
+      ...task,
+      status: 'failed',
+      executionNote: 'Announcement draft is missing society context.',
+    };
+  }
+
+  const db = getDb();
+  const topic = String(task.payload?.topic || '').trim().replace(/\s+/g, ' ');
+  const title = topic ? `Draft: ${topic.slice(0, 72)}` : 'Draft: Society announcement';
+  const body = topic || 'AI-generated draft announcement. Review before publishing.';
+  const created = await getSocietyCollection(db, societyId, 'announcements').add({
+    title,
+    body,
+    language: task.payload?.language || actor.language || 'en',
+    pinned: false,
+    audience: 'all',
+    acknowledgements: [],
+    createdAt: nowIso(),
+    updatedAt: nowIso(),
+    createdByAgent: true,
+    publishState: 'draft',
+    taskId: task.id,
+  });
+
+  return {
+    ...task,
+    status: 'completed',
+    executionNote: `Announcement draft created with id ${created.id}.`,
+    payload: {
+      ...task.payload,
+      announcementId: created.id,
+    },
+  };
+}
+
 async function queueTask(task, dependencies) {
   const { getFirebaseStatus, getDb } = dependencies;
   const firebaseStatus = getFirebaseStatus();
@@ -302,6 +435,14 @@ async function executeOneTask(task, options, dependencies) {
 
   if (task.type === 'delivery-routing-preview') {
     return executeDeliveryRouting(task, options.actor, dependencies);
+  }
+
+  if (task.type === 'payment-reminder') {
+    return executePaymentReminder(task, options.actor, dependencies);
+  }
+
+  if (task.type === 'announcement-draft') {
+    return executeAnnouncementDraft(task, options.actor, dependencies);
   }
 
   return queueTask(task, dependencies);

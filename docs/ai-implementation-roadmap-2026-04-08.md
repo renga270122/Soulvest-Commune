@@ -96,7 +96,7 @@ Multi-agent orchestration that can interpret compound instructions, queue backgr
 
 ### Phase 2 Status
 
-- Done: visitor, delivery, staff, finance, and complaint agents; multi-intent orchestration ordering; delivery-to-complaint collaboration handoff; browser speech-to-text input; agent decision trail logging; direct execute-mode delivery routing; worker support for payment reminders and announcement drafts
+- Done: visitor, delivery, staff, finance, and complaint agents; multi-intent orchestration ordering; delivery-to-complaint collaboration handoff; browser speech-to-text input; agent decision trail logging; direct execute-mode delivery routing, payment reminders, and announcement drafts; worker support for payment reminders and announcement drafts
 - In progress: broader task-handler coverage and deeper staff-specific automation
 - Not done: optional notification-channel expansion beyond the current delivery path
 
@@ -108,6 +108,7 @@ Validated on 2026-04-08:
 - backend AI modules loaded successfully via Node runtime import check
 - `GET /health` responded successfully from the live Express server
 - `POST /agent-message` returned a successful multi-agent preview response for a voice-origin delivery-plus-complaint request, including hydrated MCP context, collaboration metadata, and preview tasks
+- `npm test` in `backend/` now runs a smoke suite that validates preview flow plus execute-mode delivery routing, finance reminders, and announcement drafting
 
 ## Phase 3 - Visionary (Months 4-6)
 
