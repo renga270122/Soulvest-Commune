@@ -17,17 +17,6 @@ const roles = [
   { value: "admin", labelKey: "roles.admin", icon: "⚙️" },
 ];
 
-const featureCards = [
-  { title: "Visitor Entry", tag: "Live", text: "Visitor entry flows from gate approval to an instant resident alert without extra calls." },
-  { title: "Guard PWA Flow", tag: "Realtime", text: "Guards verify visitors in seconds and log every entry directly into Firestore." },
-  { title: "Resident Alerts", tag: "AI Ready", text: "Residents see live entry notifications and approval history on one screen." },
-  { title: "Announcements", tag: "Admin", text: "Admin announcements get acknowledged by residents without WhatsApp clutter." },
-  { title: "Maintenance Dues", tag: "Finance", text: "Residents check maintenance dues from the dashboard or ask the AI concierge for status." },
-  { title: "Complaint Desk", tag: "Next", text: "Residents raise issues and follow transparent status updates through resolution." },
-  { title: "AI Concierge", tag: "Gemini", text: "Ask about dues, visitors, and complaint status from a single assistant." },
-  { title: "Unified Dashboard", tag: "Operations", text: "Bring residents, guards, admins, and AI workflows together in one connected platform." },
-];
-
 const getQuickAccessLabel = (selectedRole, loading, t) => {
   if (loading) return t("auth.connectingGoogle");
   if (selectedRole === 'resident') return 'Quick resident access + AI concierge';
@@ -100,7 +89,6 @@ function PalaceIllustration() {
 
 export default function LoginPage() {
   const { t, i18n } = useTranslation();
-  const currentYear = new Date().getFullYear();
   const demoAccounts = getDemoAccountList();
   const [activeTab, setActiveTab] = useState("signin");
   const [selectedRole, setSelectedRole] = useState("resident");
@@ -209,51 +197,7 @@ export default function LoginPage() {
             {t("landing.heroCopy")}
           </p>
 
-          <div className={styles.statsBar}>
-            <div>
-              <strong>50%</strong>
-              <span>{t("landing.stats.cheaperOps")}</span>
-            </div>
-            <div>
-              <strong>AI</strong>
-              <span>{t("landing.stats.assistantLayer")}</span>
-            </div>
-            <div>
-              <strong>5G</strong>
-              <span>{t("landing.stats.realtimeUpdates")}</span>
-            </div>
-            <div>
-              <strong>IoT</strong>
-              <span>{t("landing.stats.readyForGates")}</span>
-            </div>
-          </div>
-
-          <div className={styles.bannerCard}>
-            <h2>{t("landing.bannerTitle")}</h2>
-            <p>{t("landing.bannerCopy")}</p>
-          </div>
-
           <PalaceIllustration />
-
-          <section className={styles.featuresSection}>
-            <div className={styles.sectionHeader}>
-              <span>{t("landing.featureEstate")}</span>
-              <h2>{t("landing.featureTitle")}</h2>
-            </div>
-            <div className={styles.featureGrid}>
-              {featureCards.map((feature) => (
-                <article key={feature.title} className={styles.featureCard}>
-                  <span className={styles.featureBadge}>{feature.tag}</span>
-                  <h3>{feature.title}</h3>
-                  <p>{feature.text}</p>
-                </article>
-              ))}
-            </div>
-          </section>
-
-          <footer className={styles.footerLine}>
-            {t("landing.footer", { year: currentYear })}
-          </footer>
         </section>
 
         <section className={styles.loginColumn}>
