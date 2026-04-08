@@ -114,6 +114,7 @@ function PalaceIllustration() {
 
 export default function LoginPage() {
   const { t, i18n } = useTranslation();
+  const currentYear = new Date().getFullYear();
   const demoAccounts = getDemoAccountList();
   const [activeTab, setActiveTab] = useState("signin");
   const [selectedRole, setSelectedRole] = useState("resident");
@@ -432,6 +433,9 @@ export default function LoginPage() {
           </div>
         </section>
       </div>
+      <footer className={styles.publicFooter}>
+        {`© ${currentYear} Soulvest Commune. All rights reserved.`}
+      </footer>
     </div>
   );
 }
