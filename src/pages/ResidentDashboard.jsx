@@ -41,6 +41,7 @@ import {
   createResidentStaff,
   createVisitorPass,
   deleteResidentStaff,
+  markDeliveryCollected,
   markNotificationAsRead,
   normalizeFlat,
   routeDelivery,
@@ -63,6 +64,7 @@ const statusColorMap = {
   expired: 'error',
   pending: 'warning',
   pending_pickup: 'info',
+  picked_up: 'success',
   security_hold_requested: 'info',
   preapproved: 'info',
   security_received: 'info',
@@ -161,6 +163,7 @@ const getVendorMeta = (visitor) => {
 };
 
 const getDeliveryStatusLabel = (visitor) => {
+  if (visitor.deliveryStatus === 'picked_up') return 'Collected';
   if (visitor.deliveryStatus === 'security_received') return 'Delivered to Security';
   if (visitor.deliveryStatus === 'security_hold_requested') return 'Hold at Security';
   if (visitor.deliveryStatus === 'doorstep') return 'Doorstep';
@@ -168,6 +171,11 @@ const getDeliveryStatusLabel = (visitor) => {
   if (visitor.deliveryStatus === 'awaiting_instruction') return 'Waiting';
   return formatTextValue(visitor.status, 'Pending');
 };
+
+const canConfirmDeliveryReceipt = (visitor) => (
+  ['doorstep', 'pending_pickup', 'security_hold_requested', 'security_received'].includes(visitor.deliveryStatus)
+  || (visitor.status === 'approved' && !visitor.deliveryStatus)
+);
 
 const matchesStaffMember = (visitor, staffMember) => {
   const visitorName = formatTextValue(visitor?.name, '').toLowerCase();
@@ -601,6 +609,25 @@ export default function ResidentDashboard() {
       setBanner({ type: 'success', message: successMessage });
     } catch (error) {
       setBanner({ type: 'error', message: error.message || 'Unable to update the delivery instructions.' });
+    }
+    setUpdatingId('');
+  };
+
+  const handleDeliveryCollected = async (visitor) => {
+    setUpdatingId(visitor.id);
+    setBanner({ type: '', message: '' });
+    try {
+      const updatedVisitor = await markDeliveryCollected(visitor.id, {
+        uid: user?.uid || '',
+        name: user?.name || 'Resident',
+        societyId: user?.societyId,
+      });
+      setBanner({
+        type: 'success',
+        message: `${updatedVisitor.vendorName || updatedVisitor.name} marked as collected.`,
+      });
+    } catch (error) {
+      setBanner({ type: 'error', message: error.message || 'Unable to confirm the delivery pickup.' });
     }
     setUpdatingId('');
   };
@@ -1188,13 +1215,26 @@ export default function ResidentDashboard() {
                             </Stack>
                             <Typography color="text.secondary">{formatDateValue(visitor.updatedAt || visitor.createdAt)}</Typography>
                             <Typography color="text.secondary">
-                              {visitor.deliveryStatus === 'security_hold_requested'
+                              {visitor.deliveryStatus === 'picked_up'
+                                ? `Collected by ${formatTextValue(visitor.collectedBy, 'Resident')} on ${formatDateValue(visitor.collectedAt || visitor.updatedAt)}`
+                                : visitor.deliveryStatus === 'security_hold_requested'
                                 ? 'Awaiting guard acknowledgement'
                                 : `Collected by ${formatTextValue(visitor.collectedBy, visitor.deliveryStatus === 'security_received' ? 'Security desk' : 'Resident')}`}
                             </Typography>
                           </Box>
                           <Typography color="text.secondary">{formatTextValue(visitor.name, 'Delivery')}</Typography>
                         </Stack>
+                        {canConfirmDeliveryReceipt(visitor) && (
+                          <Button
+                            fullWidth
+                            variant={visitor.deliveryStatus === 'doorstep' ? 'contained' : 'outlined'}
+                            disabled={updatingId === visitor.id}
+                            onClick={() => handleDeliveryCollected(visitor)}
+                            sx={{ mt: 1.25, borderRadius: 2.5 }}
+                          >
+                            {visitor.deliveryStatus === 'doorstep' ? 'Confirm Received' : 'Mark Picked Up'}
+                          </Button>
+                        )}
                       </Paper>
                     );
                   })}

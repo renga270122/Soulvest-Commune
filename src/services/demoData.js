@@ -588,6 +588,38 @@ export async function routeDelivery(visitorId, resolution, actor = {}) {
   return updated;
 }
 
+export async function markDeliveryCollected(visitorId, actor = {}, extra = {}) {
+  let updated = null;
+  mutateDemoState((state) => {
+    const visitor = state.visitors.find((entry) => entry.id === visitorId);
+    if (!visitor) throw new Error('Delivery not found.');
+
+    visitor.status = 'approved';
+    visitor.deliveryStatus = 'picked_up';
+    visitor.collectedBy = extra.collectedBy || actor?.name || 'Resident';
+    visitor.collectedAt = extra.collectedAt || nowIso();
+    visitor.updatedAt = nowIso();
+    appendVisitorHistory(visitor, 'delivery_collected', actor);
+
+    if (visitor.residentId) {
+      appendNotification(state, {
+        userId: visitor.residentId,
+        title: 'Delivery marked as collected',
+        message: `${visitor.vendorName || visitor.name} has been marked as collected.`,
+        type: 'delivery-collected',
+        visitorId: visitor.id,
+        flat: visitor.flat,
+        societyId: visitor.societyId,
+      });
+    }
+
+    updated = clone(visitor);
+    return state;
+  });
+
+  return updated;
+}
+
 export async function clockInStaff(actor = {}, extra = {}) {
   let result = null;
   mutateDemoState((state) => {
