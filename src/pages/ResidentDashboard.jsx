@@ -1700,6 +1700,7 @@ export default function ResidentDashboard() {
         variant="bubble"
         greetingName={residentFirstName}
         bottomOffset={{ xs: 104, md: 24 }}
+        title="Resident AI Concierge"
       />
 
       <Box

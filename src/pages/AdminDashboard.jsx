@@ -448,7 +448,7 @@ export default function AdminDashboard() {
           </Stack>
         </Box>
       </Box>
-      {featureFlags.AI_CHATBOT && <ChatbotWidget />}
+      {featureFlags.AI_CHATBOT && <ChatbotWidget title="AI Operations Desk" />}
     </Box>
   );
 }

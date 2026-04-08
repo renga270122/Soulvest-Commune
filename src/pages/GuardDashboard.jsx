@@ -410,7 +410,7 @@ export default function GuardDashboard() {
           </Button>
         </DialogActions>
       </Dialog>
-      {featureFlags.AI_CHATBOT && <ChatbotWidget />}
+      {featureFlags.AI_CHATBOT && <ChatbotWidget title="AI Gate Assistant" />}
     </Box>
   );
 }

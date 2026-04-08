@@ -12,6 +12,12 @@ function getSocietyCollection(db, societyId, collectionName) {
   return db.collection('societies').doc(societyId).collection(collectionName);
 }
 
+function toIsoOrNow(value) {
+  if (!value) return nowIso();
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? nowIso() : parsed.toISOString();
+}
+
 async function getUserById(db, userId) {
   if (!userId) return null;
   const snapshot = await db.collection('users').doc(userId).get();
@@ -130,6 +136,231 @@ async function executeComplaintCreate(task, actor, dependencies) {
     payload: {
       ...task.payload,
       complaintId: created.id,
+    },
+  };
+}
+
+async function executeVisitorCreate(task, actor, dependencies) {
+  const roleError = ensureRole(actor, ['guard', 'admin'], task.title);
+  if (roleError) {
+    return { ...task, ...roleError };
+  }
+
+  const { getFirebaseStatus, getDb } = dependencies;
+  const firebaseStatus = getFirebaseStatus();
+  if (!firebaseStatus.configured) {
+    return {
+      ...task,
+      status: 'preview',
+      executionNote: 'Firebase is not configured, so visitor logging remains a preview only.',
+    };
+  }
+
+  const createdAt = nowIso();
+  const payload = {
+    name: task.payload?.visitorName || 'Walk-in visitor',
+    flat: task.payload?.flat || '',
+    purpose: task.payload?.purpose || 'Guest visit',
+    time: task.payload?.time || createdAt,
+    societyId: task.payload?.societyId || actor.societyId,
+    residentId: task.payload?.residentId || '',
+    residentName: task.payload?.residentName || '',
+    phone: task.payload?.phone || '',
+    status: 'pending',
+    entryMethod: 'walk-in',
+    createdAt,
+    updatedAt: createdAt,
+    history: [{ type: 'pending', actor: actor.name || actor.uid || 'Guard', at: createdAt }],
+  };
+
+  const db = getDb();
+  const created = await getSocietyCollection(db, payload.societyId, 'visitors').add(payload);
+
+  return {
+    ...task,
+    status: 'completed',
+    executionNote: `${payload.name} was logged for Flat ${payload.flat || 'unknown'}.`,
+    payload: {
+      ...task.payload,
+      visitorId: created.id,
+      visitorName: payload.name,
+      time: payload.time,
+    },
+  };
+}
+
+async function executeVisitorVerifyPass(task, actor, dependencies) {
+  const roleError = ensureRole(actor, ['guard', 'admin'], task.title);
+  if (roleError) {
+    return { ...task, ...roleError };
+  }
+
+  const { getFirebaseStatus, getDb } = dependencies;
+  const firebaseStatus = getFirebaseStatus();
+  if (!firebaseStatus.configured) {
+    return {
+      ...task,
+      status: 'preview',
+      executionNote: 'Firebase is not configured, so pass verification remains a preview only.',
+    };
+  }
+
+  const societyId = task.payload?.societyId || actor.societyId;
+  const code = String(task.payload?.code || '').trim();
+  if (!societyId || !code) {
+    return {
+      ...task,
+      status: 'failed',
+      executionNote: 'Pass verification is missing society or OTP context.',
+    };
+  }
+
+  const db = getDb();
+  const snapshot = await getSocietyCollection(db, societyId, 'visitors').where('otp', '==', code).limit(1).get();
+  if (snapshot.empty) {
+    return {
+      ...task,
+      status: 'failed',
+      executionNote: 'No visitor pass matched that OTP.',
+    };
+  }
+
+  const doc = snapshot.docs[0];
+  const visitor = doc.data();
+  if (!['preapproved', 'approved'].includes(visitor.status)) {
+    return {
+      ...task,
+      status: 'blocked',
+      executionNote: 'That pass is not ready for verification or has already been used.',
+    };
+  }
+
+  await doc.ref.update({
+    status: 'checked_in',
+    passState: 'used',
+    checkedInAt: nowIso(),
+    updatedAt: nowIso(),
+  });
+
+  return {
+    ...task,
+    status: 'completed',
+    executionNote: `${visitor.name || visitor.visitorName || 'Visitor'} checked in successfully.`,
+    payload: {
+      ...task.payload,
+      visitorId: doc.id,
+      visitorName: visitor.name || visitor.visitorName || 'Visitor',
+      status: 'checked_in',
+    },
+  };
+}
+
+async function executeVisitorCheckIn(task, actor, dependencies) {
+  const roleError = ensureRole(actor, ['guard', 'admin'], task.title);
+  if (roleError) {
+    return { ...task, ...roleError };
+  }
+
+  const { getFirebaseStatus, getDb } = dependencies;
+  const firebaseStatus = getFirebaseStatus();
+  if (!firebaseStatus.configured) {
+    return {
+      ...task,
+      status: 'preview',
+      executionNote: 'Firebase is not configured, so visitor check-in remains a preview only.',
+    };
+  }
+
+  const societyId = task.payload?.societyId || actor.societyId;
+  const visitorId = task.payload?.visitorId;
+  if (!societyId || !visitorId) {
+    return {
+      ...task,
+      status: 'failed',
+      executionNote: 'Visitor check-in is missing society or visitor context.',
+    };
+  }
+
+  const db = getDb();
+  const docRef = getSocietyCollection(db, societyId, 'visitors').doc(visitorId);
+  const snapshot = await docRef.get();
+  if (!snapshot.exists) {
+    return {
+      ...task,
+      status: 'failed',
+      executionNote: 'Visitor could not be found for check-in.',
+    };
+  }
+
+  const visitor = snapshot.data();
+  await docRef.update({
+    status: 'checked_in',
+    checkedInAt: nowIso(),
+    updatedAt: nowIso(),
+  });
+
+  return {
+    ...task,
+    status: 'completed',
+    executionNote: `${visitor.name || task.payload?.visitorName || 'Visitor'} checked in successfully.`,
+    payload: {
+      ...task.payload,
+      status: 'checked_in',
+    },
+  };
+}
+
+async function executeVisitorCheckOut(task, actor, dependencies) {
+  const roleError = ensureRole(actor, ['guard', 'admin'], task.title);
+  if (roleError) {
+    return { ...task, ...roleError };
+  }
+
+  const { getFirebaseStatus, getDb } = dependencies;
+  const firebaseStatus = getFirebaseStatus();
+  if (!firebaseStatus.configured) {
+    return {
+      ...task,
+      status: 'preview',
+      executionNote: 'Firebase is not configured, so visitor check-out remains a preview only.',
+    };
+  }
+
+  const societyId = task.payload?.societyId || actor.societyId;
+  const visitorId = task.payload?.visitorId;
+  if (!societyId || !visitorId) {
+    return {
+      ...task,
+      status: 'failed',
+      executionNote: 'Visitor check-out is missing society or visitor context.',
+    };
+  }
+
+  const db = getDb();
+  const docRef = getSocietyCollection(db, societyId, 'visitors').doc(visitorId);
+  const snapshot = await docRef.get();
+  if (!snapshot.exists) {
+    return {
+      ...task,
+      status: 'failed',
+      executionNote: 'Visitor could not be found for check-out.',
+    };
+  }
+
+  const visitor = snapshot.data();
+  await docRef.update({
+    status: 'checked_out',
+    exitTime: nowIso(),
+    updatedAt: nowIso(),
+  });
+
+  return {
+    ...task,
+    status: 'completed',
+    executionNote: `${visitor.name || task.payload?.visitorName || 'Visitor'} checked out successfully.`,
+    payload: {
+      ...task.payload,
+      status: 'checked_out',
     },
   };
 }
@@ -336,6 +567,110 @@ async function executePaymentReminder(task, actor, dependencies) {
   };
 }
 
+async function executePaymentCreateCharge(task, actor, dependencies) {
+  const roleError = ensureRole(actor, ['admin'], task.title);
+  if (roleError) {
+    return { ...task, ...roleError };
+  }
+
+  const { getFirebaseStatus, getDb } = dependencies;
+  const firebaseStatus = getFirebaseStatus();
+  if (!firebaseStatus.configured) {
+    return {
+      ...task,
+      status: 'preview',
+      executionNote: 'Firebase is not configured, so charge creation remains a preview only.',
+    };
+  }
+
+  const societyId = task.payload?.societyId || actor.societyId;
+  const targetResidents = Array.isArray(task.payload?.targetResidents) ? task.payload.targetResidents : [];
+  if (!societyId || !targetResidents.length) {
+    return {
+      ...task,
+      status: 'failed',
+      executionNote: 'Charge creation needs at least one target resident.',
+    };
+  }
+
+  const db = getDb();
+  const createdAt = nowIso();
+  await Promise.all(targetResidents.map((resident) => getSocietyCollection(db, societyId, 'payments').add({
+    userId: resident.id,
+    residentName: resident.name || 'Resident',
+    flat: resident.flat || '',
+    societyId,
+    title: task.payload?.title || 'Monthly Maintenance',
+    amount: Number(task.payload?.amount || 0),
+    dueDate: toIsoOrNow(task.payload?.dueDate),
+    breakdown: task.payload?.breakdown || { Security: 40, Housekeeping: 25, Utilities: 20, Other: 15 },
+    status: 'pending',
+    method: 'manual',
+    createdAt,
+    updatedAt: createdAt,
+    createdByAgent: true,
+  })));
+
+  return {
+    ...task,
+    status: 'completed',
+    executionNote: `Charge created for ${targetResidents.length} resident${targetResidents.length === 1 ? '' : 's'}.`,
+  };
+}
+
+async function executeComplaintStatusUpdate(task, actor, dependencies) {
+  const roleError = ensureRole(actor, ['admin'], task.title);
+  if (roleError) {
+    return { ...task, ...roleError };
+  }
+
+  const { getFirebaseStatus, getDb } = dependencies;
+  const firebaseStatus = getFirebaseStatus();
+  if (!firebaseStatus.configured) {
+    return {
+      ...task,
+      status: 'preview',
+      executionNote: 'Firebase is not configured, so complaint updates remain a preview only.',
+    };
+  }
+
+  const societyId = task.payload?.societyId || actor.societyId;
+  const complaintId = task.payload?.complaintId;
+  if (!societyId || !complaintId) {
+    return {
+      ...task,
+      status: 'failed',
+      executionNote: 'Complaint update is missing society or complaint context.',
+    };
+  }
+
+  const db = getDb();
+  const docRef = getSocietyCollection(db, societyId, 'complaints').doc(complaintId);
+  const snapshot = await docRef.get();
+  if (!snapshot.exists) {
+    return {
+      ...task,
+      status: 'failed',
+      executionNote: 'Complaint could not be found for update.',
+    };
+  }
+
+  const status = task.payload?.status || 'resolved';
+  await docRef.update({
+    status,
+    updatedAt: nowIso(),
+    resolvedAt: status === 'resolved' ? nowIso() : null,
+    resolutionNote: task.payload?.resolutionNote || '',
+    lastUpdatedBy: actor.name || actor.uid || 'Admin',
+  });
+
+  return {
+    ...task,
+    status: 'completed',
+    executionNote: `Complaint ${complaintId} was marked ${status}.`,
+  };
+}
+
 async function executeAnnouncementDraft(task, actor, dependencies) {
   const roleError = ensureRole(actor, ['admin'], task.title);
   if (roleError) {
@@ -437,8 +772,32 @@ async function executeOneTask(task, options, dependencies) {
     return executeDeliveryRouting(task, options.actor, dependencies);
   }
 
+  if (task.type === 'visitor-create') {
+    return executeVisitorCreate(task, options.actor, dependencies);
+  }
+
+  if (task.type === 'visitor-verify-pass') {
+    return executeVisitorVerifyPass(task, options.actor, dependencies);
+  }
+
+  if (task.type === 'visitor-check-in') {
+    return executeVisitorCheckIn(task, options.actor, dependencies);
+  }
+
+  if (task.type === 'visitor-check-out') {
+    return executeVisitorCheckOut(task, options.actor, dependencies);
+  }
+
   if (task.type === 'payment-reminder') {
     return executePaymentReminder(task, options.actor, dependencies);
+  }
+
+  if (task.type === 'payment-create-charge') {
+    return executePaymentCreateCharge(task, options.actor, dependencies);
+  }
+
+  if (task.type === 'complaint-status-update') {
+    return executeComplaintStatusUpdate(task, options.actor, dependencies);
   }
 
   if (task.type === 'announcement-draft') {

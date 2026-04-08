@@ -70,12 +70,21 @@ function buildVisitorSummary(visitors, user) {
   });
 
   const pending = scopedVisitors.filter((visitor) => visitor.status === 'pending');
+  const preapproved = scopedVisitors.filter((visitor) => visitor.status === 'preapproved');
+  const approved = scopedVisitors.filter((visitor) => visitor.status === 'approved');
+  const checkedIn = scopedVisitors.filter((visitor) => visitor.status === 'checked_in');
   const deliveries = scopedVisitors.filter((visitor) => String(visitor.purpose || '').toLowerCase() === 'delivery');
 
   return {
     count: scopedVisitors.length,
     pendingCount: pending.length,
     pending,
+    preapprovedCount: preapproved.length,
+    preapproved,
+    approvedCount: approved.length,
+    approved,
+    checkedInCount: checkedIn.length,
+    checkedIn,
     deliveries,
     latest: sortByDateDescending(scopedVisitors, 'createdAt').slice(0, 5),
   };

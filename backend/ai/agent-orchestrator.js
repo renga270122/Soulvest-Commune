@@ -23,6 +23,93 @@ function formatCurrency(amount) {
   return `Rs. ${Number(amount || 0).toLocaleString('en-IN')}`;
 }
 
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function extractFlatReference(message) {
+  return message.match(/\b([A-Z]{1,2}-?\d{2,4})\b/i)?.[1]?.toUpperCase().replace(/\s+/g, '') || null;
+}
+
+function extractAmountReference(message) {
+  const explicit = message.match(/(?:rs\.?|₹)\s*([\d,]+)/i)?.[1] || message.match(/\b(\d{3,6})\b/)?.[1] || null;
+  return explicit ? Number(String(explicit).replace(/,/g, '')) : null;
+}
+
+function extractOtpReference(message) {
+  return message.match(/\b(\d{4,8})\b/)?.[1] || null;
+}
+
+function normalizeText(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function extractVisitorName(message, fallback = 'Visitor') {
+  const patterns = [
+    /(?:visitor|walk-?in|entry)\s+(?:for\s+)?([a-z][a-z\s'-]{1,40}?)(?:\s+(?:for|to|flat|at|coming|arriving)\b|$)/i,
+    /for\s+([a-z][a-z\s'-]{1,40}?)(?:\s+(?:to|flat|at)\b|$)/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = message.match(pattern)?.[1]?.trim();
+    if (match && !/all residents|everyone/i.test(match)) {
+      return match.replace(/\s+/g, ' ');
+    }
+  }
+
+  return fallback;
+}
+
+function inferWalkInPurpose(message) {
+  const text = normalizeText(message);
+  if (/delivery|courier|parcel|amazon|swiggy|zomato|blinkit|zepto/.test(text)) return 'Delivery';
+  if (/maid|cook|driver|staff|helper|nanny/.test(text)) return 'Staff visit';
+  return 'Guest visit';
+}
+
+function inferChargeTitle(message) {
+  if (/sinking fund/i.test(message)) return 'Quarterly Sinking Fund';
+  if (/water/i.test(message)) return 'Water Charge';
+  if (/maintenance/i.test(message)) return 'Monthly Maintenance';
+  return 'Society Charge';
+}
+
+function findResidentTargets(message, residents = []) {
+  if (!residents.length) return [];
+
+  if (/\b(all residents|everyone|all flats|every flat)\b/i.test(message)) {
+    return residents;
+  }
+
+  const flat = extractFlatReference(message);
+  if (flat) {
+    const byFlat = residents.filter((resident) => normalizeText(resident.flat) === normalizeText(flat));
+    if (byFlat.length) return byFlat;
+  }
+
+  return residents.filter((resident) => {
+    const residentName = normalizeText(resident.name);
+    return residentName && normalizeText(message).includes(residentName);
+  });
+}
+
+function findComplaintMatch(message, complaints = []) {
+  const text = normalizeText(message);
+  const category = inferComplaintCategory(message);
+  return complaints.find((complaint) => normalizeText(complaint.category) === category)
+    || complaints.find((complaint) => normalizeText(complaint.flat) && text.includes(normalizeText(complaint.flat)))
+    || complaints[0]
+    || null;
+}
+
+function findVisitorMatch(message, visitors = []) {
+  const text = normalizeText(message);
+  return visitors.find((visitor) => normalizeText(visitor.name) && text.includes(normalizeText(visitor.name)))
+    || visitors.find((visitor) => normalizeText(visitor.flat) && text.includes(normalizeText(visitor.flat)))
+    || visitors[0]
+    || null;
+}
+
 function inferComplaintCategory(message) {
   const text = String(message || '').toLowerCase();
   if (/plumb|water|leak|pipe|tap/.test(text)) return 'plumbing';
@@ -58,8 +145,98 @@ function isStaffRelatedVisitor(visitor, staffSummary) {
 
 function planVisitorTasks(message, mcpContext) {
   const visitorSummary = mcpContext.liveData.visitors;
+  const actorRole = mcpContext.actor.role;
+
+  if (actorRole === 'guard') {
+    const otpCode = extractOtpReference(message);
+    const approvedVisitor = findVisitorMatch(message, [...visitorSummary.approved, ...visitorSummary.preapproved]);
+    const checkedInVisitor = findVisitorMatch(message, visitorSummary.checkedIn);
+
+    if (/\b(verify|otp|qr|pass)\b/i.test(message) && otpCode) {
+      return {
+        agent: 'visitor',
+        summary: `OTP ${otpCode} can be verified at the gate after confirmation.`,
+        tasks: attachTaskMetadata('visitor', [
+          {
+            type: 'visitor-verify-pass',
+            title: `Verify pass ${otpCode}`,
+            payload: {
+              code: otpCode,
+              societyId: mcpContext.actor.societyId,
+            },
+          },
+        ]),
+      };
+    }
+
+    if (/\b(check\s?out|checkout|exit)\b/i.test(message) && checkedInVisitor) {
+      return {
+        agent: 'visitor',
+        summary: `${checkedInVisitor.name} can be checked out from the gate log after confirmation.`,
+        tasks: attachTaskMetadata('visitor', [
+          {
+            type: 'visitor-check-out',
+            title: `Check out ${checkedInVisitor.name}`,
+            payload: {
+              visitorId: checkedInVisitor.id,
+              visitorName: checkedInVisitor.name,
+              societyId: mcpContext.actor.societyId,
+            },
+          },
+        ]),
+      };
+    }
+
+    if (/\b(check\s?in|checkin|allow\s+entry|let\s+in|allow\s+in)\b/i.test(message) && approvedVisitor) {
+      return {
+        agent: 'visitor',
+        summary: `${approvedVisitor.name} is ready for gate check-in after confirmation.`,
+        tasks: attachTaskMetadata('visitor', [
+          {
+            type: 'visitor-check-in',
+            title: `Check in ${approvedVisitor.name}`,
+            payload: {
+              visitorId: approvedVisitor.id,
+              visitorName: approvedVisitor.name,
+              societyId: mcpContext.actor.societyId,
+            },
+          },
+        ]),
+      };
+    }
+
+    if (/\b(log|add|create)\b.*\b(visitor|walk-?in|entry)\b/i.test(message)) {
+      const flat = extractFlatReference(message);
+      const visitorName = extractVisitorName(message, 'Walk-in visitor');
+      return {
+        agent: 'visitor',
+        summary: `${visitorName} can be logged as a walk-in visitor${flat ? ` for Flat ${flat}` : ''} after confirmation.`,
+        tasks: attachTaskMetadata('visitor', [
+          {
+            type: 'visitor-create',
+            title: `Log walk-in visitor ${visitorName}`,
+            payload: {
+              visitorName,
+              flat,
+              purpose: inferWalkInPurpose(message),
+              time: extractTimeReference(message) || nowIso(),
+              societyId: mcpContext.actor.societyId,
+            },
+          },
+        ]),
+      };
+    }
+
+    return {
+      agent: 'visitor',
+      summary: `Gate status shows ${visitorSummary.preapprovedCount} pre-approved, ${visitorSummary.approvedCount} approved, and ${visitorSummary.checkedInCount} checked-in visitors.`,
+      tasks: [],
+    };
+  }
+
   const namedMatch = message.match(/approve\s+([a-z][a-z\s'-]{1,30})/i);
   const requestedName = namedMatch?.[1]?.trim() || null;
+  const requestedStatus = /\b(deny|denied|reject)\b/i.test(message) ? 'denied' : 'approved';
   const matchedVisitor = visitorSummary.pending.find((visitor) => {
     if (!requestedName) return false;
     return visitor.name?.toLowerCase().includes(requestedName.toLowerCase());
@@ -77,15 +254,15 @@ function planVisitorTasks(message, mcpContext) {
   const visitorName = matchedVisitor?.name || requestedName || 'the visitor';
   return {
     agent: 'visitor',
-    summary: `${visitorName} can be approved for entry${validUntil ? ` with a ${validUntil} reference` : ''}.`,
+    summary: `${visitorName} can be marked ${requestedStatus}${validUntil ? ` with a ${validUntil} reference` : ''}.`,
     tasks: attachTaskMetadata('visitor', [
       {
         type: 'visitor-status-update',
-        title: `Approve visitor ${visitorName}`,
+        title: `${requestedStatus === 'approved' ? 'Approve' : 'Deny'} visitor ${visitorName}`,
         payload: {
           visitorId: matchedVisitor?.id || null,
           visitorName,
-          status: 'approved',
+          status: requestedStatus,
           validUntil,
           residentId: matchedVisitor?.residentId || mcpContext.actor.uid || null,
           flat: matchedVisitor?.flat || mcpContext.actor.flat || null,
@@ -122,9 +299,45 @@ function planDeliveryTasks(message, mcpContext) {
   };
 }
 
-function planFinanceTasks(message, mcpContext) {
+function planFinanceTasks(message, request, mcpContext) {
   const payments = mcpContext.liveData.payments;
   const reminderWhen = extractTimeReference(message) || (message.toLowerCase().includes('tomorrow') ? 'tomorrow' : null);
+  const residents = Array.isArray(request.contextSnapshot?.residents) ? request.contextSnapshot.residents : [];
+
+  if (mcpContext.actor.role === 'admin' && /\b(charge|bill|invoice|maintenance)\b/i.test(message)) {
+    const amount = extractAmountReference(message) || 3500;
+    const targetResidents = findResidentTargets(message, residents);
+
+    if (!targetResidents.length) {
+      return {
+        agent: 'finance',
+        summary: 'I could not match any resident targets for that charge request. Mention a flat, resident name, or say all residents.',
+        tasks: [],
+      };
+    }
+
+    return {
+      agent: 'finance',
+      summary: `${inferChargeTitle(message)} of ${formatCurrency(amount)} can be created for ${targetResidents.length} resident${targetResidents.length === 1 ? '' : 's'}.`,
+      tasks: attachTaskMetadata('finance', [
+        {
+          type: 'payment-create-charge',
+          title: `Create ${inferChargeTitle(message)} charge`,
+          payload: {
+            title: inferChargeTitle(message),
+            amount,
+            dueDate: reminderWhen,
+            societyId: mcpContext.actor.societyId,
+            targetResidents: targetResidents.map((resident) => ({
+              id: resident.id || resident.uid,
+              name: resident.name,
+              flat: resident.flat,
+            })),
+          },
+        },
+      ]),
+    };
+  }
 
   return {
     agent: 'finance',
@@ -150,6 +363,36 @@ function planFinanceTasks(message, mcpContext) {
 function planComplaintTasks(message, mcpContext) {
   const complaints = mcpContext.liveData.complaints;
   const isCreateFlow = /\b(report|raise|file|log)\b/i.test(message);
+  const isResolveFlow = mcpContext.actor.role === 'admin' && /\b(resolve|resolved|close|closed|mark\s+resolved)\b/i.test(message);
+
+  if (isResolveFlow) {
+    const targetComplaint = findComplaintMatch(message, complaints.latest);
+
+    if (!targetComplaint) {
+      return {
+        agent: 'complaint',
+        summary: 'There is no open complaint available to resolve right now.',
+        tasks: [],
+      };
+    }
+
+    return {
+      agent: 'complaint',
+      summary: `${targetComplaint.category} complaint for Flat ${targetComplaint.flat || 'unknown'} can be marked resolved after confirmation.`,
+      tasks: attachTaskMetadata('complaint', [
+        {
+          type: 'complaint-status-update',
+          title: `Resolve ${targetComplaint.category} complaint`,
+          payload: {
+            complaintId: targetComplaint.id,
+            status: 'resolved',
+            resolutionNote: 'Resolved by AI assistant request.',
+            societyId: mcpContext.actor.societyId,
+          },
+        },
+      ]),
+    };
+  }
 
   return {
     agent: 'complaint',
@@ -329,6 +572,41 @@ function applyExecutedTasksToSnapshot(request, executedTasks, actor) {
       continue;
     }
 
+    if (task.type === 'visitor-create') {
+      contextSnapshot.visitors = upsertById(contextSnapshot.visitors, {
+        id: task.payload?.visitorId,
+        name: task.payload?.visitorName,
+        purpose: task.payload?.purpose || 'Guest visit',
+        flat: task.payload?.flat || null,
+        residentId: task.payload?.residentId || null,
+        residentName: task.payload?.residentName || '',
+        societyId: task.payload?.societyId || actor.societyId || null,
+        status: 'pending',
+        time: task.payload?.time || nowIso(),
+        createdAt: nowIso(),
+        updatedAt: nowIso(),
+      });
+      continue;
+    }
+
+    if (task.type === 'visitor-verify-pass' || task.type === 'visitor-check-in' || task.type === 'visitor-check-out') {
+      const visitorId = task.payload?.visitorId;
+      if (!visitorId) continue;
+
+      const existingVisitor = contextSnapshot.visitors.find((visitor) => visitor.id === visitorId) || {};
+      contextSnapshot.visitors = upsertById(contextSnapshot.visitors, {
+        ...existingVisitor,
+        id: visitorId,
+        name: task.payload?.visitorName || existingVisitor.name,
+        societyId: task.payload?.societyId || existingVisitor.societyId || actor.societyId || null,
+        status: task.payload?.status || existingVisitor.status,
+        checkedInAt: task.payload?.status === 'checked_in' ? nowIso() : existingVisitor.checkedInAt,
+        exitTime: task.payload?.status === 'checked_out' ? nowIso() : existingVisitor.exitTime,
+        updatedAt: nowIso(),
+      });
+      continue;
+    }
+
     if (task.type === 'complaint-create') {
       contextSnapshot.complaints = upsertById(contextSnapshot.complaints, {
         id: task.payload?.complaintId,
@@ -343,6 +621,42 @@ function applyExecutedTasksToSnapshot(request, executedTasks, actor) {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       });
+      continue;
+    }
+
+    if (task.type === 'complaint-status-update') {
+      const complaintId = task.payload?.complaintId;
+      if (!complaintId) continue;
+
+      const existingComplaint = contextSnapshot.complaints.find((complaint) => complaint.id === complaintId) || {};
+      contextSnapshot.complaints = upsertById(contextSnapshot.complaints, {
+        ...existingComplaint,
+        id: complaintId,
+        status: task.payload?.status || existingComplaint.status || 'resolved',
+        resolutionNote: task.payload?.resolutionNote || existingComplaint.resolutionNote || '',
+        updatedAt: nowIso(),
+      });
+      continue;
+    }
+
+    if (task.type === 'payment-create-charge') {
+      const targets = Array.isArray(task.payload?.targetResidents) ? task.payload.targetResidents : [];
+      contextSnapshot.payments = [
+        ...targets.map((resident) => ({
+          id: `${task.id}-${resident.id}`,
+          userId: resident.id,
+          residentName: resident.name,
+          flat: resident.flat,
+          societyId: task.payload?.societyId || actor.societyId || null,
+          title: task.payload?.title || 'Society Charge',
+          amount: Number(task.payload?.amount || 0),
+          dueDate: task.payload?.dueDate || nowIso(),
+          status: 'pending',
+          createdAt: nowIso(),
+          updatedAt: nowIso(),
+        })),
+        ...contextSnapshot.payments,
+      ];
       continue;
     }
 
@@ -434,7 +748,7 @@ async function orchestrateAgentMessage(request, dependencies) {
       case 'delivery':
         return planDeliveryTasks(hydratedRequest.message, initialMcpContext);
       case 'finance':
-        return planFinanceTasks(hydratedRequest.message, initialMcpContext);
+        return planFinanceTasks(hydratedRequest.message, hydratedRequest, initialMcpContext);
       case 'complaint':
         return planComplaintTasks(hydratedRequest.message, initialMcpContext);
       case 'staff':

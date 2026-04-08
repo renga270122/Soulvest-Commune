@@ -5,6 +5,9 @@ const INTENT_DEFINITIONS = [
     patterns: [
       /\b(approve|allow|permit|let in|grant)\b.*\b(visitor|guest|entry|pass|qr|otp)\b/i,
       /\bvisitor\b.*\b(approve|allow|permit)\b/i,
+      /\b(log|add|create)\b.*\b(visitor|walk-?in|entry)\b/i,
+      /\b(verify|scan)\b.*\b(pass|otp|qr)\b/i,
+      /\b(check\s?in|check\s?out|checkout|exit)\b.*\b(visitor|guest|pass)\b/i,
     ],
   },
   {

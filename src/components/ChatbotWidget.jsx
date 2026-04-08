@@ -20,14 +20,20 @@ import CloseIcon from '@mui/icons-material/Close';
 import { useAuthContext } from './auth-context';
 import {
   subscribeToAnnouncements,
+  subscribeToComplaints,
+  subscribeToFacilityBookings,
+  subscribeToPayments,
+  subscribeToResidents,
   subscribeToResidentComplaints,
   subscribeToResidentFacilityBookings,
   subscribeToResidentPayments,
   subscribeToResidentStaff,
   subscribeToResidentStaffAttendance,
+  subscribeToStaffAttendance,
   subscribeToVisitors,
 } from '../services/communityData';
 import { sendAgentMessage } from '../services/aiConcierge';
+import { executeLocalAiTask } from '../services/aiTaskExecutor';
 
 const initialMessages = [
   { sender: 'bot', text: 'Hi! I am your AI assistant. How can I help you today?' },
@@ -74,6 +80,30 @@ const buildTaskOutcomeMessage = (task) => {
         ? `${task.payload?.visitorName || 'The visitor'} has been approved.`
         : `${task.payload?.visitorName || 'The visitor'} has been updated successfully.`;
     }
+
+    if (task.type === 'visitor-create') {
+      return `${task.payload?.visitorName || 'The visitor'} has been logged at the gate.`;
+    }
+
+    if (task.type === 'visitor-verify-pass' || task.type === 'visitor-check-in') {
+      return `${task.payload?.visitorName || 'The visitor'} has been checked in.`;
+    }
+
+    if (task.type === 'visitor-check-out') {
+      return `${task.payload?.visitorName || 'The visitor'} has been checked out.`;
+    }
+
+    if (task.type === 'payment-create-charge') {
+      return 'The maintenance charge has been created successfully.';
+    }
+
+    if (task.type === 'complaint-status-update') {
+      return 'The complaint has been updated successfully.';
+    }
+
+    if (task.type === 'announcement-draft') {
+      return 'The announcement draft has been created successfully.';
+    }
   }
 
   if (task.status === 'queued') {
@@ -116,8 +146,32 @@ const buildPreviewTaskLabel = (task) => {
     return 'Ready to schedule dues reminder';
   }
 
+  if (task.type === 'payment-create-charge') {
+    return 'Ready to create maintenance charge';
+  }
+
   if (task.type === 'announcement-draft') {
     return 'Ready to draft announcement';
+  }
+
+  if (task.type === 'complaint-status-update') {
+    return 'Ready to update complaint status';
+  }
+
+  if (task.type === 'visitor-create') {
+    return 'Ready to log walk-in visitor';
+  }
+
+  if (task.type === 'visitor-verify-pass') {
+    return 'Ready to verify visitor pass';
+  }
+
+  if (task.type === 'visitor-check-in') {
+    return 'Ready to check in visitor';
+  }
+
+  if (task.type === 'visitor-check-out') {
+    return 'Ready to check out visitor';
   }
 
   return task.title || 'Ready for review';
@@ -138,10 +192,51 @@ const buildExecuteReply = (agentResponse) => {
   return tasks.map((task) => buildTaskOutcomeMessage(task)).join(' ');
 };
 
-const getLocalConciergeReply = (input, { payments, complaints, bookings, staffAttendance, visitors, announcements }) => {
+const getLocalConciergeReply = (input, { payments, complaints, bookings, staffAttendance, visitors, announcements, residents }, role = 'resident') => {
   const query = input.toLowerCase();
   if (/(^|\b)(hi|hello|hey|good morning|good evening)(\b|$)/.test(query)) {
+    if (role === 'guard') {
+      return 'Hello! I can help with gate approvals, walk-ins, pass verification, and check-ins.';
+    }
+
+    if (role === 'admin') {
+      return 'Hello! I can help with charges, complaints, announcements, and visitor oversight.';
+    }
+
     return 'Hello! I can help with dues, complaints, amenity bookings, and staff attendance.';
+  }
+
+  if (role === 'guard') {
+    if (query.includes('visitor') || query.includes('gate') || query.includes('pass') || query.includes('otp')) {
+      const preapproved = visitors.filter((visitor) => visitor.status === 'preapproved').length;
+      const approved = visitors.filter((visitor) => visitor.status === 'approved').length;
+      const checkedIn = visitors.filter((visitor) => visitor.status === 'checked_in').length;
+      return `Gate status: ${preapproved} pre-approved pass${preapproved === 1 ? '' : 'es'}, ${approved} approved visitor${approved === 1 ? '' : 's'}, and ${checkedIn} checked-in visitor${checkedIn === 1 ? '' : 's'}.`;
+    }
+
+    return 'I can help with walk-in logging, pass verification, and visitor check-in or check-out.';
+  }
+
+  if (role === 'admin') {
+    if (query.includes('charge') || query.includes('maintenance') || query.includes('dues')) {
+      const totalOutstanding = payments
+        .filter((payment) => payment.derivedStatus !== 'paid')
+        .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+      return `${residents.length} residents are in scope. Outstanding dues total Rs. ${totalOutstanding.toLocaleString('en-IN')}.`;
+    }
+
+    if (query.includes('complaint')) {
+      const openComplaints = complaints.filter((complaint) => complaint.status !== 'resolved');
+      return openComplaints.length
+        ? `${openComplaints.length} complaint${openComplaints.length === 1 ? '' : 's'} are open. Latest issue is ${openComplaints[0].category} for Flat ${openComplaints[0].flat || 'unknown'}.`
+        : 'There are no open complaints right now.';
+    }
+
+    if (query.includes('announcement') || query.includes('notice')) {
+      return announcements.length
+        ? `Latest announcement is ${announcements[0].title}.`
+        : 'No announcements have been posted yet.';
+    }
   }
 
   if (query.includes('due') || query.includes('payment') || query.includes('maintenance')) {
@@ -226,6 +321,7 @@ const ChatbotWidget = ({
   const [staffAttendance, setStaffAttendance] = useState([]);
   const [visitors, setVisitors] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
+  const [residents, setResidents] = useState([]);
   const [executingTaskId, setExecutingTaskId] = useState('');
   const [speechSupported, setSpeechSupported] = useState(false);
   const [isListening, setIsListening] = useState(false);
@@ -239,15 +335,40 @@ const ChatbotWidget = ({
 
   useEffect(() => {
     if (!user?.uid) return undefined;
-    const unsubPayments = subscribeToResidentPayments(user.uid, setPayments, user);
-    const unsubComplaints = subscribeToResidentComplaints(user.uid, setComplaints, user);
-    const unsubBookings = subscribeToResidentFacilityBookings(user.uid, setBookings, user);
-    const unsubStaffMembers = subscribeToResidentStaff(user.uid, setStaffMembers, user);
-    const unsubStaffAttendance = subscribeToResidentStaffAttendance(user.uid, setStaffAttendance, user);
-    const unsubVisitors = subscribeToVisitors((nextVisitors) => {
-      setVisitors(nextVisitors.filter((visitor) => visitor.residentId === user.uid || visitor.flat === user.flat));
-    }, user);
-    const unsubAnnouncements = subscribeToAnnouncements(setAnnouncements, user);
+
+    let unsubPayments = () => {};
+    let unsubComplaints = () => {};
+    let unsubBookings = () => {};
+    let unsubStaffMembers = () => {};
+    let unsubStaffAttendance = () => {};
+    let unsubVisitors = () => {};
+    let unsubAnnouncements = () => {};
+    let unsubResidents = () => {};
+
+    if (user.role === 'admin') {
+      unsubResidents = subscribeToResidents(setResidents);
+      unsubPayments = subscribeToPayments(setPayments, user);
+      unsubComplaints = subscribeToComplaints(setComplaints, { context: user });
+      unsubBookings = subscribeToFacilityBookings(setBookings, user);
+      unsubVisitors = subscribeToVisitors(setVisitors, user);
+      unsubAnnouncements = subscribeToAnnouncements(setAnnouncements, user);
+      unsubStaffAttendance = subscribeToStaffAttendance(setStaffAttendance, user);
+    } else if (user.role === 'guard') {
+      unsubVisitors = subscribeToVisitors(setVisitors, user);
+      unsubAnnouncements = subscribeToAnnouncements(setAnnouncements, user);
+      unsubStaffAttendance = subscribeToStaffAttendance(setStaffAttendance, user);
+    } else {
+      unsubPayments = subscribeToResidentPayments(user.uid, setPayments, user);
+      unsubComplaints = subscribeToResidentComplaints(user.uid, setComplaints, user);
+      unsubBookings = subscribeToResidentFacilityBookings(user.uid, setBookings, user);
+      unsubStaffMembers = subscribeToResidentStaff(user.uid, setStaffMembers, user);
+      unsubStaffAttendance = subscribeToResidentStaffAttendance(user.uid, setStaffAttendance, user);
+      unsubVisitors = subscribeToVisitors((nextVisitors) => {
+        setVisitors(nextVisitors.filter((visitor) => visitor.residentId === user.uid || visitor.flat === user.flat));
+      }, user);
+      unsubAnnouncements = subscribeToAnnouncements(setAnnouncements, user);
+    }
+
     return () => {
       unsubPayments();
       unsubComplaints();
@@ -256,6 +377,7 @@ const ChatbotWidget = ({
       unsubStaffAttendance();
       unsubVisitors();
       unsubAnnouncements();
+      unsubResidents();
     };
   }, [user]);
 
@@ -303,9 +425,15 @@ const ChatbotWidget = ({
   }, [user?.language]);
 
   const conciergeContext = useMemo(
-    () => ({ payments, complaints, bookings, staffMembers, staffAttendance, visitors, announcements }),
-    [announcements, bookings, complaints, payments, staffAttendance, staffMembers, visitors],
+    () => ({ payments, complaints, bookings, staffMembers, staffAttendance, visitors, announcements, residents }),
+    [announcements, bookings, complaints, payments, residents, staffAttendance, staffMembers, visitors],
   );
+
+  const channel = user?.role === 'guard'
+    ? 'guard-dashboard-chat'
+    : user?.role === 'admin'
+      ? 'admin-dashboard-chat'
+      : 'resident-dashboard-chat';
 
   const chatHistory = useMemo(
     () => messages.map((message) => ({ role: message.sender === 'bot' ? 'assistant' : 'user', content: message.text })).slice(-8),
@@ -324,7 +452,7 @@ const ChatbotWidget = ({
       chatHistory,
       authToken: user?.accessToken,
       inputMode: currentInputMode,
-      channel: 'resident-dashboard-chat',
+      channel,
       user: {
         uid: user?.uid,
         name: user?.name,
@@ -336,7 +464,7 @@ const ChatbotWidget = ({
       contextSnapshot: conciergeContext,
       executionMode: 'preview',
     });
-    const localReply = agentResponse ? '' : getLocalConciergeReply(input, conciergeContext);
+    const localReply = agentResponse ? '' : getLocalConciergeReply(input, conciergeContext, user?.role);
     const reply = agentResponse?.reply || localReply || getFallbackReply();
     setMessages((msgs) => [...msgs, {
       sender: 'bot',
@@ -357,25 +485,35 @@ const ChatbotWidget = ({
     if (!task?.id || !requestMessage || !user?.uid) return;
 
     setExecutingTaskId(task.id);
-    const agentResponse = await sendAgentMessage({
-      message: requestMessage,
-      chatHistory,
-      authToken: user?.accessToken,
-      inputMode: 'text',
-      channel: 'resident-dashboard-chat',
-      user: {
-        uid: user?.uid,
-        name: user?.name,
-        role: user?.role,
-        flat: user?.flat,
-        societyId: user?.societyId,
-        language: user?.language,
-      },
-      contextSnapshot: conciergeContext,
-      executionMode: 'execute',
-      approvedTaskIds: [task.id],
-      requireConfirmation: true,
-    });
+    let agentResponse = null;
+
+    if (String(user?.authProvider || '').startsWith('demo')) {
+      agentResponse = await executeLocalAiTask(task, user, conciergeContext);
+    } else {
+      agentResponse = await sendAgentMessage({
+        message: requestMessage,
+        chatHistory,
+        authToken: user?.accessToken,
+        inputMode: 'text',
+        channel,
+        user: {
+          uid: user?.uid,
+          name: user?.name,
+          role: user?.role,
+          flat: user?.flat,
+          societyId: user?.societyId,
+          language: user?.language,
+        },
+        contextSnapshot: conciergeContext,
+        executionMode: 'execute',
+        approvedTaskIds: [task.id],
+        requireConfirmation: true,
+      });
+
+      if (!agentResponse && String(user?.authProvider || '').startsWith('demo')) {
+        agentResponse = await executeLocalAiTask(task, user, conciergeContext);
+      }
+    }
 
     setMessages((msgs) => [...msgs, {
       sender: 'bot',

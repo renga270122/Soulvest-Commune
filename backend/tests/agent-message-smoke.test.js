@@ -105,6 +105,7 @@ async function runPreviewFlow() {
 
 async function runExecuteFlows() {
   const residentSession = await createDemoSession('resident@soulvest.demo', 'resident');
+  const guardSession = await createDemoSession('guard@soulvest.demo', 'guard');
 
   const createdVisitor = await fetchJson(`${baseUrl}/visitors`, {
     method: 'POST',
@@ -121,6 +122,10 @@ async function runExecuteFlows() {
   const residentHeaders = {
     'Content-Type': 'application/json',
     Authorization: `Bearer ${residentSession.token}`,
+  };
+  const guardHeaders = {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${guardSession.token}`,
   };
 
   const deliveryExecute = await fetchJson(`${baseUrl}/agent-message`, {
@@ -188,11 +193,122 @@ async function runExecuteFlows() {
   assert.equal(financeExecute.tasks[0].status, 'completed');
   assert.match(financeExecute.tasks[0].executionNote, /Payment reminder dispatched/i);
 
+  const guardWalkIn = await fetchJson(`${baseUrl}/agent-message`, {
+    method: 'POST',
+    headers: guardHeaders,
+    body: JSON.stringify({
+      message: 'Log visitor Arun Kumar for A-1204 at 7 pm',
+      user: guardSession.user,
+      contextSnapshot: {
+        payments: [],
+        complaints: [],
+        bookings: [],
+        staffMembers: [],
+        staffAttendance: [],
+        visitors: [],
+        announcements: [],
+      },
+      executionMode: 'execute',
+      inputMode: 'text',
+      channel: 'guard-dashboard-chat',
+      approvedTaskIds: ['visitor-visitor-create-1'],
+      requireConfirmation: true,
+    }),
+  });
+
+  assert.equal(guardWalkIn.tasks[0].status, 'completed');
+  assert.match(guardWalkIn.tasks[0].executionNote, /logged/i);
+
   const adminSession = await createDemoSession('admin@soulvest.demo', 'admin');
   const adminHeaders = {
     'Content-Type': 'application/json',
     Authorization: `Bearer ${adminSession.token}`,
   };
+
+  const chargeExecute = await fetchJson(`${baseUrl}/agent-message`, {
+    method: 'POST',
+    headers: adminHeaders,
+    body: JSON.stringify({
+      message: 'Create a maintenance charge of Rs 4200 for all residents',
+      user: adminSession.user,
+      contextSnapshot: {
+        residents: [residentSession.user],
+        payments: [],
+        complaints: [],
+        bookings: [],
+        staffMembers: [],
+        staffAttendance: [],
+        visitors: [],
+        announcements: [],
+      },
+      executionMode: 'execute',
+      inputMode: 'text',
+      channel: 'admin-dashboard-chat',
+      approvedTaskIds: ['finance-payment-create-charge-1'],
+      requireConfirmation: true,
+    }),
+  });
+
+  assert.equal(chargeExecute.tasks[0].status, 'completed');
+  assert.match(chargeExecute.tasks[0].executionNote, /Charge created/i);
+
+  const residentComplaint = await fetchJson(`${baseUrl}/agent-message`, {
+    method: 'POST',
+    headers: residentHeaders,
+    body: JSON.stringify({
+      message: 'Raise a complaint about corridor light flickering near my flat',
+      user: residentSession.user,
+      contextSnapshot: {
+        payments: [],
+        complaints: [],
+        bookings: [],
+        staffMembers: [],
+        staffAttendance: [],
+        visitors: [],
+        announcements: [],
+      },
+      executionMode: 'execute',
+      inputMode: 'text',
+      channel: 'resident-dashboard-chat',
+      approvedTaskIds: ['complaint-complaint-create-1'],
+      requireConfirmation: true,
+    }),
+  });
+
+  assert.equal(residentComplaint.tasks[0].status, 'completed');
+
+  const complaintResolve = await fetchJson(`${baseUrl}/agent-message`, {
+    method: 'POST',
+    headers: adminHeaders,
+    body: JSON.stringify({
+      message: 'Resolve the electrical complaint for A-1204',
+      user: adminSession.user,
+      contextSnapshot: {
+        payments: [],
+        complaints: [{
+          id: residentComplaint.tasks[0].payload.complaintId,
+          category: 'electrical',
+          flat: residentSession.user.flat,
+          status: 'open',
+          aiPriority: 'medium',
+          createdAt: '2026-04-08T09:00:00.000Z',
+        }],
+        bookings: [],
+        staffMembers: [],
+        staffAttendance: [],
+        visitors: [],
+        announcements: [],
+      },
+      executionMode: 'execute',
+      inputMode: 'text',
+      channel: 'admin-dashboard-chat',
+      approvedTaskIds: ['complaint-complaint-status-update-1'],
+      requireConfirmation: true,
+    }),
+  });
+
+  assert.equal(complaintResolve.tasks[0].status, 'completed');
+  assert.match(complaintResolve.tasks[0].executionNote, /marked resolved/i);
 
   const announcementExecute = await fetchJson(`${baseUrl}/agent-message`, {
     method: 'POST',
