@@ -69,7 +69,7 @@ const getLocalConciergeReply = (input, { payments, complaints, bookings }) => {
   return '';
 };
 
-const ChatbotWidget = ({ variant = 'panel', greetingName = 'there' }) => {
+const ChatbotWidget = ({ variant = 'panel', greetingName = 'there', bottomOffset = { xs: 20, md: 24 } }) => {
   const [messages, setMessages] = useState(initialMessages);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -115,7 +115,7 @@ const ChatbotWidget = ({ variant = 'panel', greetingName = 'there' }) => {
 
   const widgetShellSx = {
     position: 'fixed',
-    bottom: { xs: 20, md: 24 },
+    bottom: bottomOffset,
     right: { xs: 16, md: 24 },
     zIndex: 1200,
   };
