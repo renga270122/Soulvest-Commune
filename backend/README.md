@@ -2,6 +2,8 @@
 
 This backend is ready to deploy to Render as a single Node web service.
 
+For the AI task orchestration layer, you can also run a separate background worker process that consumes `aiTaskQueue`.
+
 ## Recommended Host
 
 Use Render for the Express API and keep the frontend on GitHub Pages.
@@ -17,6 +19,7 @@ Why this path:
 - `/health` endpoint for Render health checks
 - env-driven CORS via `FRONTEND_URL` and `ALLOWED_ORIGINS`
 - Firebase Admin auth now supports `FIREBASE_SERVICE_ACCOUNT_JSON`, so you do not need to upload `serviceAccountKey.json`
+- `backend/ai/task-worker.js` as a queue consumer for AI-generated background work
 
 ## Render Setup
 
@@ -42,6 +45,12 @@ For Razorpay sandbox testing, use your `rzp_test_...` key pair here. You do not 
 - `TWILIO_ACCOUNT_SID`
 - `TWILIO_AUTH_TOKEN`
 - `TWILIO_FROM_NUMBER`
+
+Optional worker env vars:
+
+- `AI_TASK_WORKER_POLL_MS`
+- `AI_TASK_WORKER_BATCH_SIZE`
+- `AI_TASK_WORKER_ID`
 
 ## Firebase Credential Format
 
@@ -118,3 +127,26 @@ If you do not want to use the blueprint file, create a Render Web Service manual
 - Health Check Path: `/health`
 - Node Version: `20`
 - Instance Type: `free`
+
+## AI Worker Deployment
+
+The AI queue worker is a separate long-running process from the Express API.
+
+Local commands:
+
+```text
+npm run worker
+npm run worker:once
+```
+
+Recommended hosted setup:
+
+- keep the Express API as the main Render web service
+- add a second Render background worker pointing at the `backend` directory
+- use `npm run worker` as the start command for that worker
+
+Current queued task handlers:
+
+- payment reminders
+- delivery routing to doorstep or security
+- announcement draft creation

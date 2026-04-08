@@ -5,6 +5,8 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
+    "worker": "node ai/task-worker.js",
+    "worker:once": "node ai/task-worker.js --once",
     "seed:demo": "node seed-demo.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },

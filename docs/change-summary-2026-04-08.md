@@ -117,7 +117,28 @@ Outcome:
 - The AI concierge can now safely move two high-value actions from plan generation into confirmed execution, while still defaulting all requests to preview mode.
 - Execution remains guarded by explicit confirmation and role checks, and it degrades back to preview when Firebase is unavailable.
 
-## 8. Validation And Release Readiness
+## 8. AI Task Worker
+
+The task orchestration layer now has a queue consumer so non-immediate AI work can be processed in the background.
+
+Implemented changes:
+
+- Added [backend/ai/task-worker.js](backend/ai/task-worker.js) as a standalone worker process for `aiTaskQueue`.
+- Added [backend/ai/README.md](backend/ai/README.md) to document the backend AI layer and worker commands.
+- Added backend scripts in [backend/package.json](backend/package.json) for `npm run worker` and `npm run worker:once`.
+- Updated [backend/README.md](backend/README.md) with deployment guidance for running the worker as a separate background process.
+
+Current worker handlers:
+
+- payment reminders using the existing notification service
+- delivery routing tasks that update visitor delivery state and notify the relevant resident or guard
+- announcement draft creation for queued admin-facing drafts
+
+Outcome:
+
+- The architecture now includes the first real background task-consumer layer for queued AI work, which is the missing bridge between plan generation and deferred execution.
+
+## 9. Validation And Release Readiness
 
 The implementation was revalidated to ensure the recent changes remain production-build compatible.
 
@@ -132,7 +153,7 @@ Outcome:
 
 - The current frontend and backend code paths are in a releasable state for the present scope.
 
-## 9. Current Constraints And Next Work
+## 10. Current Constraints And Next Work
 
 The new AI layer is intentionally safe and partial rather than fully autonomous.
 
@@ -140,6 +161,7 @@ Current constraints:
 
 - Frontend AI actions are preview-only by default.
 - Execute mode is only implemented for visitor approval and complaint creation; other task types still queue to Firestore when supported.
+- The worker currently handles reminders, delivery routing, and announcement drafts, but not every future agent task type yet.
 - Sensitive actions are not yet protected by an execution approval flow.
 - The frontend remains demo-first, so backend execution and resident-visible state are not fully reconciled yet.
 
