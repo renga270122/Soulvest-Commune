@@ -1,4 +1,6 @@
 import { defineConfig } from 'vite';
+import fs from 'node:fs';
+import path from 'node:path';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
@@ -75,17 +77,16 @@ export default defineConfig({
     {
       name: 'github-pages-spa-fallback',
       apply: 'build',
-      generateBundle(_options, bundle) {
-        const indexAsset = bundle['index.html'];
+      closeBundle() {
+        const distDir = path.resolve(__dirname, 'dist');
+        const indexHtmlPath = path.join(distDir, 'index.html');
+        const fallbackHtmlPath = path.join(distDir, '404.html');
 
-        if (!indexAsset || indexAsset.type !== 'asset') {
+        if (!fs.existsSync(indexHtmlPath)) {
           return;
         }
 
-        bundle['404.html'] = {
-          ...indexAsset,
-          fileName: '404.html',
-        };
+        fs.copyFileSync(indexHtmlPath, fallbackHtmlPath);
       },
     },
   ],
