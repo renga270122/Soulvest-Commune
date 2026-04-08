@@ -299,6 +299,43 @@ const desktopPanelSx = {
   backdropFilter: 'blur(6px)',
 };
 
+const mobileHeroCardSx = {
+  ...softCardSx,
+  position: 'relative',
+  overflow: 'hidden',
+  p: 2,
+  borderRadius: '28px',
+  background: 'linear-gradient(180deg, rgba(255,248,233,0.98) 0%, rgba(248,226,181,0.92) 100%)',
+  border: '1px solid rgba(183, 123, 48, 0.26)',
+  boxShadow: '0 18px 34px rgba(120, 74, 24, 0.16)',
+};
+
+const mobileSectionCardSx = {
+  ...compactCardSx,
+  borderRadius: '28px',
+  background: 'linear-gradient(180deg, rgba(255,250,240,0.96) 0%, rgba(255,244,220,0.92) 100%)',
+  border: '1px solid rgba(194, 137, 64, 0.22)',
+  boxShadow: '0 16px 30px rgba(129, 78, 21, 0.14)',
+};
+
+const mobileSectionTitleSx = {
+  ...templeTitleSx,
+  fontSize: 24,
+  fontWeight: 700,
+};
+
+const mobileActionButtonSx = {
+  minWidth: 0,
+  px: 1,
+  py: 1,
+  borderRadius: 0,
+  color: '#5b2b14',
+  fontWeight: 800,
+  fontFamily: 'Georgia, "Times New Roman", serif',
+  fontSize: 11.5,
+  borderColor: 'rgba(166, 115, 45, 0.16)',
+};
+
 export default function ResidentDashboard() {
   const [visitors, setVisitors] = useState([]);
   const [notifications, setNotifications] = useState([]);
@@ -893,87 +930,78 @@ export default function ResidentDashboard() {
         <Paper
           elevation={0}
           sx={{
-            ...softCardSx,
+            ...mobileHeroCardSx,
             display: { xs: 'block', md: 'none' },
-            p: 1.5,
-            borderRadius: 5,
             mb: 2,
           }}
         >
-          <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1.5}>
-            <Stack direction="row" spacing={1.5} alignItems="center">
-              <Avatar
-                src={residentAvatarSrc || undefined}
-                sx={{
-                  width: 58,
-                  height: 58,
-                  bgcolor: 'rgba(255,255,255,0.94)',
-                  color: 'primary.main',
-                  boxShadow: '0 10px 20px rgba(166, 138, 90, 0.18)',
-                  fontWeight: 800,
-                }}
-              >
-                {residentInitials}
-              </Avatar>
-              <Box>
-                <Typography variant="h5" sx={{ fontSize: 22 }}>{residentName}</Typography>
-                <Typography color="text.secondary">{myFlat ? `Flat ${myFlat}` : 'Flat not assigned'}</Typography>
-                {residentProfileFacts[0] ? (
-                  <Typography color="text.secondary" sx={{ fontSize: 13.5, mt: 0.25 }}>
-                    {residentProfileFacts[0]}
-                  </Typography>
-                ) : null}
-              </Box>
-            </Stack>
+          <Box
+            component="img"
+            src={topIllustration}
+            alt=""
+            sx={{
+              position: 'absolute',
+              left: -54,
+              bottom: 0,
+              width: 180,
+              opacity: 0.34,
+              filter: 'sepia(0.4) saturate(0.9)',
+            }}
+          />
+          <Box
+            component="img"
+            src={topIllustration}
+            alt=""
+            sx={{
+              position: 'absolute',
+              right: -58,
+              bottom: 0,
+              width: 180,
+              opacity: 0.28,
+              transform: 'scaleX(-1)',
+              filter: 'sepia(0.45) saturate(0.85)',
+            }}
+          />
 
-            <Stack direction="row" spacing={0.75} alignItems="center">
-              <IconButton
-                onClick={() => navigate('/profile')}
-                sx={{
-                  bgcolor: 'rgba(36, 86, 166, 0.1)',
-                  color: 'primary.main',
-                  '&:hover': { bgcolor: 'rgba(36, 86, 166, 0.18)' },
-                }}
-              >
-                <PersonIcon fontSize="small" />
-              </IconButton>
-              <IconButton
-                onClick={requestBrowserAlerts}
-                sx={{
-                  bgcolor: 'rgba(243, 160, 72, 0.12)',
-                  color: '#f3a048',
-                  '&:hover': { bgcolor: 'rgba(243, 160, 72, 0.2)' },
-                }}
-              >
-                <NotificationsActiveIcon fontSize="small" />
-              </IconButton>
-              <Button size="small" variant="text" color="secondary" onClick={handleLogout} sx={{ minWidth: 0 }}>
-                Logout
-              </Button>
-            </Stack>
-          </Stack>
-
-          <Stack direction="row" spacing={1} sx={{ mt: 1.75 }}>
+          <Stack direction="row" justifyContent="space-between" alignItems="flex-start" sx={{ position: 'relative', zIndex: 1 }}>
+            <Box sx={{ flex: 1, textAlign: 'center', px: 2 }}>
+              <Typography sx={{ ...templeTitleSx, fontSize: 20, fontWeight: 700 }}>
+                Resident Dashboard
+              </Typography>
+              <Stack direction="row" spacing={1} alignItems="center" justifyContent="center" sx={{ mt: 1 }}>
+                <Avatar
+                  src={residentAvatarSrc || undefined}
+                  sx={{
+                    width: 38,
+                    height: 38,
+                    bgcolor: 'rgba(255,249,240,0.98)',
+                    color: '#8b4b1d',
+                    border: '2px solid rgba(177, 121, 48, 0.24)',
+                    boxShadow: '0 10px 18px rgba(137, 86, 29, 0.16)',
+                    fontWeight: 800,
+                  }}
+                >
+                  {residentInitials}
+                </Avatar>
+                <Typography sx={{ ...templeTitleSx, fontSize: 16, fontWeight: 700 }}>
+                  Namaskara {residentName}{myFlat ? ` · Flat ${myFlat}` : ''}
+                </Typography>
+              </Stack>
+            </Box>
             <Button
-              variant={activeMobileTab === 'visitors' ? 'contained' : 'outlined'}
-              onClick={() => handleMobileTabChange('visitors')}
-              sx={{ flex: 1, borderRadius: 2.5 }}
+              size="small"
+              variant="outlined"
+              onClick={handleLogout}
+              sx={{
+                minWidth: 0,
+                borderRadius: 999,
+                px: 1.4,
+                color: '#8b4b1d',
+                bgcolor: 'rgba(255,248,237,0.92)',
+                borderColor: 'rgba(175, 118, 46, 0.24)',
+              }}
             >
-              Visitors
-            </Button>
-            <Button
-              variant={activeMobileTab === 'staff' ? 'contained' : 'outlined'}
-              onClick={() => handleMobileTabChange('staff')}
-              sx={{ flex: 1, borderRadius: 2.5 }}
-            >
-              Staff
-            </Button>
-            <Button
-              variant={activeMobileTab === 'delivery' ? 'contained' : 'outlined'}
-              onClick={() => handleMobileTabChange('delivery')}
-              sx={{ flex: 1, borderRadius: 2.5 }}
-            >
-              Delivery
+              Logout
             </Button>
           </Stack>
         </Paper>
@@ -1106,46 +1134,37 @@ export default function ResidentDashboard() {
         <Paper
           elevation={0}
           sx={{
-            ...compactCardSx,
+            ...mobileSectionCardSx,
             display: { xs: 'block', md: 'none' },
             mb: 2,
+            p: 1,
           }}
         >
-          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.5 }}>
-            <Typography variant="h5" sx={{ fontSize: 22 }}>Quick Actions</Typography>
-            <Chip label="Mobile" size="small" color="primary" sx={{ borderRadius: 999 }} />
-          </Stack>
-
           <Box
             sx={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
-              gap: 1,
+              gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
+              gap: 0,
+              overflow: 'hidden',
+              borderRadius: 999,
+              border: '1px solid rgba(166, 115, 45, 0.14)',
+              bgcolor: 'rgba(255,250,240,0.88)',
             }}
           >
-            <Button variant="outlined" onClick={() => navigate('/announcements')} sx={{ minHeight: 76, borderRadius: 3, flexDirection: 'column', gap: 0.5 }}>
-              <CampaignIcon fontSize="small" />
-              <Typography variant="caption" sx={{ fontSize: 12, fontWeight: 700 }}>Notices</Typography>
+            <Button variant="text" onClick={() => navigate('/announcements')} sx={mobileActionButtonSx}>
+              Updates
             </Button>
-            <Button variant="outlined" onClick={() => navigate('/bookings')} sx={{ minHeight: 76, borderRadius: 3, flexDirection: 'column', gap: 0.5 }}>
-              <EventAvailableIcon fontSize="small" />
-              <Typography variant="caption" sx={{ fontSize: 12, fontWeight: 700 }}>Amenities</Typography>
+            <Button variant="text" onClick={() => navigate('/bookings')} sx={mobileActionButtonSx}>
+              Bookings
             </Button>
-            <Button variant="outlined" onClick={() => navigate('/expenses')} sx={{ minHeight: 76, borderRadius: 3, flexDirection: 'column', gap: 0.5 }}>
-              <AccountBalanceWalletIcon fontSize="small" />
-              <Typography variant="caption" sx={{ fontSize: 12, fontWeight: 700 }}>Dues</Typography>
+            <Button variant="text" onClick={() => navigate('/expenses')} sx={mobileActionButtonSx}>
+              Dues
             </Button>
-            <Button variant="outlined" onClick={() => navigate('/complaints')} sx={{ minHeight: 76, borderRadius: 3, flexDirection: 'column', gap: 0.5 }}>
-              <BugReportIcon fontSize="small" />
-              <Typography variant="caption" sx={{ fontSize: 12, fontWeight: 700 }}>Complaints</Typography>
+            <Button variant="text" onClick={() => navigate('/complaints')} sx={mobileActionButtonSx}>
+              Complains
             </Button>
-            <Button variant="outlined" onClick={() => navigate('/directory')} sx={{ minHeight: 76, borderRadius: 3, flexDirection: 'column', gap: 0.5 }}>
-              <GroupsIcon fontSize="small" />
-              <Typography variant="caption" sx={{ fontSize: 12, fontWeight: 700 }}>Directory</Typography>
-            </Button>
-            <Button variant="outlined" onClick={() => navigate('/profile')} sx={{ minHeight: 76, borderRadius: 3, flexDirection: 'column', gap: 0.5 }}>
-              <PersonIcon fontSize="small" />
-              <Typography variant="caption" sx={{ fontSize: 12, fontWeight: 700 }}>Profile</Typography>
+            <Button variant="text" onClick={() => navigate('/directory')} sx={mobileActionButtonSx}>
+              Directory
             </Button>
           </Box>
         </Paper>
@@ -1154,9 +1173,46 @@ export default function ResidentDashboard() {
           {activeMobileTab === 'visitors' && (
             <>
               <Paper ref={visitorsSectionRef} elevation={0} sx={compactCardSx}>
-                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.5 }}>
-                  <Typography variant="h5" sx={{ fontSize: 24 }}>Guest Approvals</Typography>
-                  <Chip label={`${approvalOverview.guests} waiting`} color={approvalOverview.guests ? 'warning' : 'default'} sx={{ borderRadius: 999 }} />
+                <Stack direction="row" justifyContent="space-between" alignItems="flex-start" sx={{ mb: 1.75 }}>
+                  <Box>
+                    <Typography sx={mobileSectionTitleSx}>Pre-Approve Visitor</Typography>
+                    <Box sx={{ width: 70, height: 2, bgcolor: 'rgba(207, 140, 58, 0.35)', mt: 0.75 }} />
+                  </Box>
+                  <Box sx={{ ...ornamentOrbSx, width: 84, height: 84, borderRadius: '26px' }}>
+                    <QrCode2Icon sx={{ fontSize: 34 }} />
+                  </Box>
+                </Stack>
+
+                <Typography sx={{ color: '#6a3618', fontSize: 17, maxWidth: 240, mb: 2.25, lineHeight: 1.5 }}>
+                  Generate a QR pass or OTP for your guest.
+                </Typography>
+
+                <Button
+                  variant="contained"
+                  onClick={() => setPassDialogOpen(true)}
+                  sx={{
+                    minWidth: 170,
+                    px: 3,
+                    py: 1.2,
+                    mb: 2,
+                    borderRadius: 999,
+                    alignSelf: 'flex-start',
+                    background: 'linear-gradient(90deg, #c17306 0%, #a85f06 48%, #cf8b19 100%)',
+                    boxShadow: '0 12px 24px rgba(143, 88, 19, 0.24)',
+                  }}
+                >
+                  Create Pass
+                </Button>
+
+                <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.25, pt: 1.5, borderTop: '1px solid rgba(194, 137, 64, 0.18)' }}>
+                  <PersonAddAlt1Icon sx={{ color: '#b76e1e' }} />
+                  <Typography sx={{ ...templeTitleSx, fontSize: 18, fontWeight: 700 }}>Unified Approvals</Typography>
+                </Stack>
+
+                <Stack direction="row" spacing={1} sx={{ mb: 1.5, flexWrap: 'wrap' }}>
+                  <Chip label={`Guests ${approvalOverview.guests}`} sx={{ borderRadius: 999, bgcolor: '#f4c255', color: '#6e3914' }} />
+                  <Chip label={`Staff ${approvalOverview.staff}`} sx={{ borderRadius: 999, bgcolor: '#edd3a0', color: '#6e3914' }} />
+                  <Chip label={`Delivery ${approvalOverview.delivery}`} sx={{ borderRadius: 999, bgcolor: '#f0b649', color: '#6e3914' }} />
                 </Stack>
 
                 {pendingGuestVisitors[0] ? (
@@ -1165,37 +1221,19 @@ export default function ResidentDashboard() {
                     onTouchStart={(event) => handleSwipeStart(pendingGuestVisitors[0].id, event)}
                     onTouchEnd={(event) => handleSwipeEnd(pendingGuestVisitors[0], event)}
                     sx={{
-                      p: 2,
-                      borderRadius: 4,
-                      borderColor: 'rgba(223, 199, 165, 0.48)',
+                      p: 1.6,
+                      borderRadius: '24px',
+                      borderColor: 'rgba(194, 137, 64, 0.18)',
                       bgcolor: 'rgba(255,255,255,0.84)',
-                      boxShadow: '0 12px 24px rgba(188, 155, 104, 0.1)',
                     }}
                   >
                     <Stack direction="row" spacing={1.25} alignItems="flex-start" sx={{ mb: 1.75 }}>
-                      <Box
-                        sx={{
-                          width: 46,
-                          height: 46,
-                          borderRadius: 2.5,
-                          display: 'grid',
-                          placeItems: 'center',
-                          bgcolor: 'rgba(36, 86, 166, 0.12)',
-                          color: 'primary.main',
-                          flexShrink: 0,
-                        }}
-                      >
-                        <QrCode2Icon fontSize="small" />
-                      </Box>
+                      <Avatar sx={{ width: 48, height: 48, bgcolor: 'rgba(230, 176, 80, 0.26)', color: '#7b3a18', fontWeight: 800 }}>
+                        {(formatTextValue(pendingGuestVisitors[0].name, 'V')[0] || 'V').toUpperCase()}
+                      </Avatar>
                       <Box sx={{ minWidth: 0 }}>
-                        <Typography variant="h6">{formatTextValue(pendingGuestVisitors[0].name, 'Visitor')}</Typography>
-                        <Typography color="text.secondary">{formatTextValue(pendingGuestVisitors[0].purpose, 'Guest visit')}</Typography>
-                        <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mt: 1 }}>
-                          <AccessTimeIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
-                          <Typography color="text.secondary">
-                            Arriving, {formatTextValue(pendingGuestVisitors[0].time, formatDateTimeValue(pendingGuestVisitors[0].expectedAt, 'Not specified'))}
-                          </Typography>
-                        </Stack>
+                        <Typography sx={{ ...templeTitleSx, fontSize: 16, fontWeight: 700 }}>{formatTextValue(pendingGuestVisitors[0].name, 'Visitor')}</Typography>
+                        <Typography color="text.secondary">Guest active</Typography>
                       </Box>
                     </Stack>
 
@@ -1231,8 +1269,8 @@ export default function ResidentDashboard() {
                     variant="outlined"
                     sx={{
                       p: 2,
-                      borderRadius: 4,
-                      borderColor: 'rgba(223, 199, 165, 0.48)',
+                      borderRadius: '24px',
+                      borderColor: 'rgba(194, 137, 64, 0.18)',
                       bgcolor: 'rgba(255,255,255,0.84)',
                     }}
                   >
@@ -1242,10 +1280,13 @@ export default function ResidentDashboard() {
                 )}
               </Paper>
 
-              <Paper elevation={0} sx={compactCardSx}>
+              <Paper elevation={0} sx={mobileSectionCardSx}>
                 <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5 }}>
-                  <BoltIcon color="secondary" />
-                  <Typography variant="h5" sx={{ fontSize: 24 }}>Notifications</Typography>
+                  <NotificationsActiveIcon sx={{ color: '#c37d1c' }} />
+                  <Typography sx={mobileSectionTitleSx}>Notifications</Typography>
+                  <Button size="small" onClick={requestBrowserAlerts} sx={{ ml: 'auto', borderRadius: 999, bgcolor: 'rgba(255,246,231,0.8)' }}>
+                    Enable Alerts
+                  </Button>
                 </Stack>
 
                 {leadNotification ? (
@@ -1253,20 +1294,22 @@ export default function ResidentDashboard() {
                     variant="outlined"
                     sx={{
                       p: 1.75,
-                      borderRadius: 4,
-                      borderColor: 'rgba(223, 199, 165, 0.48)',
+                      borderRadius: '24px',
+                      borderColor: 'rgba(194, 137, 64, 0.2)',
                       bgcolor: 'rgba(255,255,255,0.84)',
                     }}
                   >
-                    <Stack direction="row" spacing={1.25} alignItems="flex-start" justifyContent="space-between">
-                      <Stack direction="row" spacing={1.2} alignItems="flex-start" sx={{ minWidth: 0 }}>
-                        <Chip size="small" label={!leadNotification.read ? 'Alert' : 'Update'} color="warning" sx={{ borderRadius: 999, mt: 0.25 }} />
-                        <Typography sx={{ fontSize: 16.5 }}>
-                          {formatTextValue(leadNotification.message, 'No message available.')}
-                        </Typography>
-                      </Stack>
+                    <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.25 }}>
+                      <Chip size="small" label={!leadNotification.read ? 'Alert' : 'Update'} color="warning" sx={{ borderRadius: 999 }} />
+                      <Typography sx={{ fontSize: 16.5, color: '#6a3618' }}>Visitor waiting at the gate</Typography>
+                    </Stack>
+                    <Typography sx={{ fontSize: 16.5, color: '#5d3417', fontWeight: 700, mb: 1.5 }}>
+                      {formatTextValue(leadNotification.message, 'No message available.')}
+                    </Typography>
+                    <Stack direction="row" justifyContent="space-between" alignItems="center">
+                      <Box sx={{ width: 14, height: 14, borderRadius: '50%', bgcolor: '#efa728' }} />
                       {!leadNotification.read && (
-                        <Button size="small" onClick={() => handleMarkNotificationRead(leadNotification.id)} sx={{ flexShrink: 0 }}>
+                        <Button size="small" onClick={() => handleMarkNotificationRead(leadNotification.id)} sx={{ borderRadius: 999 }}>
                           Mark Read
                         </Button>
                       )}
@@ -1298,24 +1341,40 @@ export default function ResidentDashboard() {
                 ref={duesSectionRef}
                 elevation={0}
                 sx={{
-                  ...compactCardSx,
-                  p: 0,
+                  ...mobileSectionCardSx,
+                  p: 2,
+                  position: 'relative',
                   overflow: 'hidden',
-                  background: 'linear-gradient(135deg, rgba(187, 211, 241, 0.95) 0%, rgba(210, 228, 248, 0.92) 48%, rgba(188, 214, 239, 0.86) 100%)',
                 }}
               >
-                <Box sx={{ p: 2.1 }}>
-                  <Typography variant="h5" sx={{ fontSize: 22, color: 'primary.main', textDecoration: 'underline', mb: 1.75 }}>
-                    Maintenance Due
-                  </Typography>
-                  <Typography sx={{ fontSize: 18, mb: 2 }}>
-                    Due: <Box component="span" sx={{ fontWeight: 800 }}>{formatCurrency(dueSummary.nextDue?.amount || dueSummary.outstandingAmount)}</Box>
-                  </Typography>
+                <Box sx={{ position: 'absolute', right: -16, top: 18, width: 108, height: 108, borderRadius: '32px', background: 'radial-gradient(circle at 35% 30%, rgba(255,224,160,0.95) 0%, rgba(190,135,51,0.95) 58%, rgba(122,77,24,0.84) 100%)', opacity: 0.85 }} />
+                <Typography sx={{ ...mobileSectionTitleSx, mb: 1.5 }}>Maintenance Dues</Typography>
+                <Box sx={{ position: 'relative', zIndex: 1 }}>
+                  <Stack spacing={1.1} sx={{ mb: 2 }}>
+                    <Stack direction="row" justifyContent="space-between">
+                      <Typography sx={{ color: '#6a3618', fontSize: 16 }}>{residentName}</Typography>
+                      <Typography sx={{ ...templeTitleSx, fontSize: 18, fontWeight: 800 }}>{formatCurrency(dueSummary.outstandingAmount)}</Typography>
+                    </Stack>
+                    <Stack direction="row" justifyContent="space-between">
+                      <Typography sx={{ color: '#6a3618', fontSize: 16 }}>Next Due</Typography>
+                      <Typography sx={{ color: '#6a3618', fontWeight: 700 }}>{formatCurrency(dueSummary.nextDue?.amount || 0)}</Typography>
+                    </Stack>
+                    <Stack direction="row" justifyContent="space-between">
+                      <Typography sx={{ color: '#6a3618', fontSize: 16 }}>Due Date</Typography>
+                      <Typography sx={{ color: '#6a3618', fontWeight: 700 }}>{formatDateValue(dueSummary.nextDue?.dueDate)}</Typography>
+                    </Stack>
+                  </Stack>
                   <Button
                     variant="contained"
-                    color="success"
                     onClick={() => navigate('/expenses')}
-                    sx={{ minWidth: 150, minHeight: 52, borderRadius: 2.75, fontSize: 18 }}
+                    sx={{
+                      minWidth: 136,
+                      minHeight: 48,
+                      borderRadius: 999,
+                      ml: 'auto',
+                      display: 'flex',
+                      background: 'linear-gradient(90deg, #51693f 0%, #7f8f48 100%)',
+                    }}
                   >
                     Pay Now
                   </Button>
