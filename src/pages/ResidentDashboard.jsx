@@ -27,6 +27,7 @@ import QrCode2Icon from '@mui/icons-material/QrCode2';
 import CampaignIcon from '@mui/icons-material/Campaign';
 import BugReportIcon from '@mui/icons-material/BugReport';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
+import PersonIcon from '@mui/icons-material/Person';
 import EventAvailableIcon from '@mui/icons-material/EventAvailable';
 import GroupsIcon from '@mui/icons-material/Groups';
 import BoltIcon from '@mui/icons-material/Bolt';
@@ -51,6 +52,7 @@ import {
   subscribeToResidentStaff,
   subscribeToResidentStaffAttendance,
   subscribeToVisitors,
+  updateResidentStaff,
   updateVisitorStatus,
 } from '../services/communityData';
 
@@ -247,6 +249,16 @@ const compactCardSx = {
   boxShadow: '0 12px 28px rgba(188, 155, 104, 0.14)',
 };
 
+const defaultStaffForm = {
+  name: '',
+  roleLabel: 'Maid',
+  phone: '',
+  autoApproved: true,
+  accessStartTime: '07:00',
+  accessEndTime: '12:00',
+  notes: '',
+};
+
 export default function ResidentDashboard() {
   const [visitors, setVisitors] = useState([]);
   const [notifications, setNotifications] = useState([]);
@@ -260,6 +272,7 @@ export default function ResidentDashboard() {
   const [staffDialogOpen, setStaffDialogOpen] = useState(false);
   const [creatingPass, setCreatingPass] = useState(false);
   const [creatingStaff, setCreatingStaff] = useState(false);
+  const [editingStaffId, setEditingStaffId] = useState('');
   const [createdPass, setCreatedPass] = useState(null);
   const [passForm, setPassForm] = useState({
     visitorName: '',
@@ -268,15 +281,7 @@ export default function ResidentDashboard() {
     expectedAt: '',
     notes: '',
   });
-  const [staffForm, setStaffForm] = useState({
-    name: '',
-    roleLabel: 'Maid',
-    phone: '',
-    autoApproved: true,
-    accessStartTime: '07:00',
-    accessEndTime: '12:00',
-    notes: '',
-  });
+  const [staffForm, setStaffForm] = useState(defaultStaffForm);
   const [notedStaffAlertIds, setNotedStaffAlertIds] = useState([]);
   const [attendanceHistoryOpen, setAttendanceHistoryOpen] = useState(false);
   const { user, logout } = useAuthContext();
@@ -447,6 +452,26 @@ export default function ResidentDashboard() {
     setPassDialogOpen(true);
   };
 
+  const openStaffDialog = (staffMember = null) => {
+    if (staffMember) {
+      setEditingStaffId(staffMember.id);
+      setStaffForm({
+        name: staffMember.name || '',
+        roleLabel: staffMember.roleLabel || 'Maid',
+        phone: staffMember.phone || '',
+        autoApproved: staffMember.autoApproved !== false,
+        accessStartTime: staffMember.accessStartTime || '07:00',
+        accessEndTime: staffMember.accessEndTime || '12:00',
+        notes: staffMember.notes || '',
+      });
+    } else {
+      setEditingStaffId('');
+      setStaffForm(defaultStaffForm);
+    }
+
+    setStaffDialogOpen(true);
+  };
+
   const handleCreatePass = async () => {
     if (!user?.uid || !myFlat) {
       setBanner({ type: 'error', message: 'Your resident profile needs a flat number before creating visitor passes.' });
@@ -481,7 +506,7 @@ export default function ResidentDashboard() {
     setCreatingPass(false);
   };
 
-  const handleCreateStaff = async () => {
+  const handleSaveStaff = async () => {
     if (!user?.uid || !staffForm.name.trim()) {
       setBanner({ type: 'error', message: 'Staff name is required.' });
       return;
@@ -490,25 +515,30 @@ export default function ResidentDashboard() {
     setCreatingStaff(true);
     setBanner({ type: '', message: '' });
     try {
-      await createResidentStaff({
-        ...staffForm,
-        residentId: user.uid,
-        residentName: residentName,
-        societyId: user.societyId,
-      });
+      if (editingStaffId) {
+        await updateResidentStaff(editingStaffId, {
+          ...staffForm,
+          roleLabel: staffForm.roleLabel,
+          autoApproved: staffForm.autoApproved,
+        });
+      } else {
+        await createResidentStaff({
+          ...staffForm,
+          residentId: user.uid,
+          residentName: residentName,
+          societyId: user.societyId,
+        });
+      }
+
       setStaffDialogOpen(false);
-      setStaffForm({
-        name: '',
-        roleLabel: 'Maid',
-        phone: '',
-        autoApproved: true,
-        accessStartTime: '07:00',
-        accessEndTime: '12:00',
-        notes: '',
+      setEditingStaffId('');
+      setStaffForm(defaultStaffForm);
+      setBanner({
+        type: 'success',
+        message: editingStaffId ? `${staffForm.name.trim()} updated successfully.` : `${staffForm.name.trim()} added to verified staff.`,
       });
-      setBanner({ type: 'success', message: `${staffForm.name.trim()} added to verified staff.` });
     } catch (error) {
-      setBanner({ type: 'error', message: error.message || 'Unable to add this staff member.' });
+      setBanner({ type: 'error', message: error.message || 'Unable to save this staff member.' });
     }
     setCreatingStaff(false);
   };
@@ -656,7 +686,7 @@ export default function ResidentDashboard() {
 
   const handlePrimaryFab = () => {
     if (activeMobileTab === 'staff') {
-      setStaffDialogOpen(true);
+      openStaffDialog();
       return;
     }
 
@@ -747,6 +777,16 @@ export default function ResidentDashboard() {
             </Stack>
 
             <Stack direction="row" spacing={0.75} alignItems="center">
+              <IconButton
+                onClick={() => navigate('/profile')}
+                sx={{
+                  bgcolor: 'rgba(36, 86, 166, 0.1)',
+                  color: 'primary.main',
+                  '&:hover': { bgcolor: 'rgba(36, 86, 166, 0.18)' },
+                }}
+              >
+                <PersonIcon fontSize="small" />
+              </IconButton>
               <IconButton
                 onClick={requestBrowserAlerts}
                 sx={{
@@ -1023,7 +1063,7 @@ export default function ResidentDashboard() {
               <Paper ref={staffSectionRef} elevation={0} sx={compactCardSx}>
                 <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.5 }}>
                   <Typography variant="h5" sx={{ fontSize: 24 }}>Verified Staff</Typography>
-                  <Button variant="outlined" onClick={() => setStaffDialogOpen(true)} sx={{ borderRadius: 999 }}>
+                  <Button variant="outlined" onClick={() => openStaffDialog()} sx={{ borderRadius: 999 }}>
                     Add New Staff
                   </Button>
                 </Stack>
@@ -1043,6 +1083,9 @@ export default function ResidentDashboard() {
                         </Stack>
                         <Stack spacing={0.75} alignItems="flex-end">
                           <Chip label={staffMember.autoApproved ? 'Auto-Entry' : 'Manual Review'} color={staffMember.autoApproved ? 'success' : 'default'} sx={{ borderRadius: 999 }} />
+                          <Button size="small" onClick={() => openStaffDialog(staffMember)}>
+                            Edit
+                          </Button>
                           <Button size="small" color="error" onClick={() => handleDeleteStaff(staffMember.id, staffMember.name)}>
                             Remove
                           </Button>
@@ -1658,10 +1701,10 @@ export default function ResidentDashboard() {
               </Stack>
             </ButtonBase>
 
-            <ButtonBase onClick={() => scrollToSection(duesSectionRef)} sx={{ borderRadius: 3, py: 0.5 }}>
+            <ButtonBase onClick={() => navigate('/profile')} sx={{ borderRadius: 3, py: 0.5 }}>
               <Stack spacing={0.35} alignItems="center">
-                <AccountBalanceWalletIcon sx={{ color: 'primary.main' }} />
-                <Typography variant="caption" sx={{ fontSize: 12.5 }}>Dues</Typography>
+                <PersonIcon sx={{ color: 'primary.main' }} />
+                <Typography variant="caption" sx={{ fontSize: 12.5 }}>Profile</Typography>
               </Stack>
             </ButtonBase>
           </Paper>
@@ -1686,8 +1729,18 @@ export default function ResidentDashboard() {
         </Box>
       </Box>
 
-      <Dialog open={staffDialogOpen} onClose={() => !creatingStaff && setStaffDialogOpen(false)} fullWidth maxWidth="sm">
-        <DialogTitle>Add New Staff</DialogTitle>
+      <Dialog
+        open={staffDialogOpen}
+        onClose={() => {
+          if (creatingStaff) return;
+          setStaffDialogOpen(false);
+          setEditingStaffId('');
+          setStaffForm(defaultStaffForm);
+        }}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle>{editingStaffId ? 'Edit Staff' : 'Add New Staff'}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ pt: 1 }}>
             <TextField label="Staff name" name="name" value={staffForm.name} onChange={handleStaffFormChange} fullWidth />
@@ -1711,9 +1764,18 @@ export default function ResidentDashboard() {
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setStaffDialogOpen(false)} disabled={creatingStaff}>Cancel</Button>
-          <Button variant="contained" onClick={handleCreateStaff} disabled={creatingStaff}>
-            {creatingStaff ? 'Adding...' : 'Add Staff'}
+          <Button
+            onClick={() => {
+              setStaffDialogOpen(false);
+              setEditingStaffId('');
+              setStaffForm(defaultStaffForm);
+            }}
+            disabled={creatingStaff}
+          >
+            Cancel
+          </Button>
+          <Button variant="contained" onClick={handleSaveStaff} disabled={creatingStaff}>
+            {creatingStaff ? (editingStaffId ? 'Saving...' : 'Adding...') : (editingStaffId ? 'Save Changes' : 'Add Staff')}
           </Button>
         </DialogActions>
       </Dialog>
