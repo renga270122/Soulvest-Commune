@@ -2,9 +2,10 @@ import React, { useState } from "react";
 
 import { useNavigate } from "react-router-dom";
 import styles from "./LoginPage.module.css";
-import { useAuthContext } from "../components/AuthContext";
+import { useAuthContext } from "../components/auth-context";
 import ChatbotWidget from "../components/ChatbotWidget";
 import { useTranslation } from "react-i18next";
+import { SUPPORTED_LANGUAGES } from "../i18n";
 import { getDemoAccountList, loginDemoUser, quickDemoAccess, requestDemoPasswordReset } from "../services/demoAuth";
 
 import phoneIcon from "../assets/phone.svg";
@@ -136,9 +137,6 @@ export default function LoginPage() {
     return "/dashboard";
   };
 
-  // Helper: check if input is mobile number (10+ digits)
-  const isMobile = (input) => /^\d{10,}$/.test(input.trim());
-
   const handleLogin = async (e) => {
     e.preventDefault();
     setError("");
@@ -229,8 +227,16 @@ export default function LoginPage() {
         <section className={styles.loginColumn}>
           <div className={styles.loginCard}>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginBottom: 12 }}>
-              <button type="button" className={styles.tabButton} onClick={() => i18n.changeLanguage('en')}>EN</button>
-              <button type="button" className={styles.tabButton} onClick={() => i18n.changeLanguage('kn')}>ಕನ್ನಡ</button>
+              {SUPPORTED_LANGUAGES.map((language) => (
+                <button
+                  key={language.value}
+                  type="button"
+                  className={styles.tabButton}
+                  onClick={() => i18n.changeLanguage(language.value)}
+                >
+                  {language.label}
+                </button>
+              ))}
             </div>
             <div className={styles.tabRow}>
               <button

@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import Navbar from '../components/Navbar';
 import { useNavigate } from 'react-router-dom';
-import { useAuthContext } from '../components/AuthContext';
+import { useAuthContext } from '../components/auth-context';
 import topIllustration from '../assets/top-illustration.png';
 import bottomIllustration from '../assets/bottom-illustration.png';
 

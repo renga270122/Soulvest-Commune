@@ -6,6 +6,8 @@ router.use(express.json());
 console.log('Chatbot LLM route loaded');
 
 const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+const { orchestrateAgentMessage } = require('./ai/agent-orchestrator');
+const { getDb, getFirebaseStatus } = require('./firebase');
 
 // POST /chatbot-llm
 router.post('/chatbot-llm', async (req, res) => {
@@ -37,6 +39,31 @@ router.post('/chatbot-llm', async (req, res) => {
     }
   } catch (err) {
     res.status(500).json({ error: 'Failed to get LLM reply', details: err.message });
+  }
+});
+
+router.post('/agent-message', async (req, res) => {
+  const { message, user = {}, chatHistory = [], contextSnapshot = {}, executionMode = 'preview' } = req.body;
+
+  if (!message) {
+    return res.status(400).json({ error: 'Missing message' });
+  }
+
+  try {
+    const result = await orchestrateAgentMessage(
+      { message, user, chatHistory, contextSnapshot, executionMode },
+      { getDb, getFirebaseStatus },
+    );
+
+    res.json({
+      ok: true,
+      ...result,
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to process agent message',
+      details: error.message,
+    });
   }
 });
 

@@ -17,7 +17,7 @@ import {
 } from '@mui/material';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import Navbar from '../components/Navbar';
-import { useAuthContext } from '../components/AuthContext';
+import { useAuthContext } from '../components/auth-context';
 import {
   markPaymentAsPaid,
   seedResidentPaymentIfMissing,
@@ -29,6 +29,7 @@ import {
   openRazorpayCheckout,
   verifyRazorpayPayment,
 } from '../services/razorpay';
+import { useTranslation } from 'react-i18next';
 
 const formatAmount = (amount) => `₹${Number(amount || 0).toLocaleString('en-IN')}`;
 const upiId = import.meta.env.VITE_UPI_ID || 'payments@soulvest';
@@ -42,6 +43,7 @@ const formatDate = (value) => {
 
 export default function Expenses() {
   const { user } = useAuthContext();
+  const { t } = useTranslation();
   const [payments, setPayments] = useState([]);
   const [selectedPayment, setSelectedPayment] = useState(null);
   const [paymentMethod, setPaymentMethod] = useState('razorpay');
@@ -116,12 +118,16 @@ export default function Expenses() {
 
   const duesInsight = useMemo(() => {
     if (summary.dueCount === 0) {
-      return 'You are fully up to date. No maintenance dues are pending right now.';
+      return t('expenses.insight.clear');
     }
 
     const nextDueDate = summary.nextDue ? formatDate(summary.nextDue.dueDate) : 'the next cycle';
-    return `You have ${summary.dueCount} open bill${summary.dueCount === 1 ? '' : 's'} worth ${formatAmount(summary.outstandingAmount)}. Next due date is ${nextDueDate}.`;
-  }, [summary]);
+    return t('expenses.insight.pending', {
+      count: summary.dueCount,
+      amount: formatAmount(summary.outstandingAmount),
+      nextDueDate,
+    });
+  }, [summary, t]);
 
   const handlePayNow = async () => {
     if (!selectedPayment) return;
@@ -170,7 +176,7 @@ export default function Expenses() {
           societyId: user?.societyId,
         });
 
-        setBanner({ type: 'success', message: 'Razorpay payment verified successfully. Receipt generated instantly.' });
+        setBanner({ type: 'success', message: t('expenses.messages.razorpaySuccess') });
         setActiveReceipt({
           ...currentPayment,
           method: 'razorpay',
@@ -194,7 +200,7 @@ export default function Expenses() {
         amount: currentPayment.amount,
         societyId: user?.societyId,
       });
-      setBanner({ type: 'success', message: 'Payment recorded successfully. Receipt generated instantly.' });
+      setBanner({ type: 'success', message: t('expenses.messages.recorded') });
       setActiveReceipt({
         ...currentPayment,
         method: paymentMethod,
@@ -205,7 +211,7 @@ export default function Expenses() {
       setSelectedPayment(null);
       setPaymentMethod('razorpay');
     } catch (error) {
-      setBanner({ type: 'error', message: error.message || 'Unable to record payment.' });
+      setBanner({ type: 'error', message: error.message || t('expenses.messages.recordFailed') });
     }
     setSubmitting(false);
   };
@@ -214,10 +220,10 @@ export default function Expenses() {
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default', px: 2, py: 3, pb: 11 }}>
       <Box sx={{ maxWidth: 1000, mx: 'auto' }}>
         <Typography variant="h4" sx={{ mb: 1 }}>
-          Expenses & Payments
+          {t('expenses.title')}
         </Typography>
         <Typography color="text.secondary" sx={{ mb: 3 }}>
-          Track maintenance, utility, rent, or clubhouse dues and pay them with instant receipt confirmation.
+          {t('expenses.subtitle')}
         </Typography>
 
         {banner.message && (
@@ -235,37 +241,37 @@ export default function Expenses() {
           }}
         >
           <Paper elevation={1} sx={{ p: 2.5, borderRadius: 3 }}>
-            <Typography color="text.secondary">Outstanding</Typography>
+            <Typography color="text.secondary">{t('expenses.stats.outstanding')}</Typography>
             <Typography variant="h4">{formatAmount(summary.outstandingAmount)}</Typography>
           </Paper>
           <Paper elevation={1} sx={{ p: 2.5, borderRadius: 3 }}>
-            <Typography color="text.secondary">Paid So Far</Typography>
+            <Typography color="text.secondary">{t('expenses.stats.paid')}</Typography>
             <Typography variant="h4">{formatAmount(summary.totalPaid)}</Typography>
           </Paper>
           <Paper elevation={1} sx={{ p: 2.5, borderRadius: 3 }}>
-            <Typography color="text.secondary">Open Bills</Typography>
+            <Typography color="text.secondary">{t('expenses.stats.openBills')}</Typography>
             <Typography variant="h4">{summary.dueCount}</Typography>
           </Paper>
           <Paper elevation={1} sx={{ p: 2.5, borderRadius: 3 }}>
-            <Typography color="text.secondary">Overdue</Typography>
+            <Typography color="text.secondary">{t('expenses.stats.overdue')}</Typography>
             <Typography variant="h4">{summary.overdueCount}</Typography>
           </Paper>
         </Box>
 
         <Paper elevation={2} sx={{ p: 2.5, borderRadius: 3, mb: 3 }}>
-          <Typography variant="h6" sx={{ mb: 1 }}>AI Concierge Insight</Typography>
+          <Typography variant="h6" sx={{ mb: 1 }}>{t('expenses.insightTitle')}</Typography>
           <Typography color="text.secondary" sx={{ mb: 1.5 }}>{duesInsight}</Typography>
           {summary.nextDue && (
-            <Chip label={`Reminder: ${summary.nextDue.title} due on ${formatDate(summary.nextDue.dueDate)}`} color="warning" variant="outlined" />
+            <Chip label={t('expenses.reminder', { title: summary.nextDue.title, dueDate: formatDate(summary.nextDue.dueDate) })} color="warning" variant="outlined" />
           )}
         </Paper>
 
         <Stack spacing={2}>
           {payments.length === 0 && (
             <Paper elevation={1} sx={{ p: 3, borderRadius: 3 }}>
-              <Typography variant="h6">No payment records yet</Typography>
+              <Typography variant="h6">{t('expenses.emptyTitle')}</Typography>
               <Typography color="text.secondary">
-                A starter maintenance bill will appear automatically for signed-in residents.
+                {t('expenses.emptySubtitle')}
               </Typography>
             </Paper>
           )}
@@ -281,27 +287,27 @@ export default function Expenses() {
                 }}
               >
                 <Box>
-                  <Typography variant="h6">{payment.title || 'Maintenance Bill'}</Typography>
+                  <Typography variant="h6">{payment.title || t('expenses.maintenanceBill')}</Typography>
                   <Typography color="text.secondary">
-                    Due on {formatDate(payment.dueDate)}
+                    {t('expenses.dueOn', { dueDate: formatDate(payment.dueDate) })}
                   </Typography>
-                  <Typography sx={{ mt: 1 }}>Flat: {payment.flat || user?.flat || 'Not assigned'}</Typography>
+                  <Typography sx={{ mt: 1 }}>{t('expenses.flatLabel', { flat: payment.flat || user?.flat || t('expenses.notAssigned') })}</Typography>
                 </Box>
 
                 <Stack alignItems={{ xs: 'flex-start', md: 'flex-end' }} spacing={1}>
                   <Typography variant="h5">{formatAmount(payment.amount)}</Typography>
                   <Chip
-                    label={payment.derivedStatus === 'paid' ? 'Paid' : payment.derivedStatus === 'overdue' ? 'Overdue' : 'Pending'}
+                    label={payment.derivedStatus === 'paid' ? t('expenses.status.paid') : payment.derivedStatus === 'overdue' ? t('expenses.status.overdue') : t('expenses.status.pending')}
                     color={payment.derivedStatus === 'paid' ? 'success' : payment.derivedStatus === 'overdue' ? 'error' : 'warning'}
                   />
                   {payment.derivedStatus !== 'paid' && (
                     <Button variant="contained" onClick={() => setSelectedPayment(payment)}>
-                      Pay Now
+                      {t('expenses.payNow')}
                     </Button>
                   )}
                   {payment.derivedStatus === 'paid' && (
                     <Button variant="outlined" startIcon={<ReceiptLongIcon />} onClick={() => setActiveReceipt(payment)}>
-                      View Receipt
+                      {t('expenses.viewReceipt')}
                     </Button>
                   )}
                 </Stack>
@@ -309,9 +315,7 @@ export default function Expenses() {
 
               <Divider sx={{ my: 2 }} />
 
-              <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                Expense Split
-              </Typography>
+              <Typography variant="subtitle2" sx={{ mb: 1 }}>{t('expenses.expenseSplit')}</Typography>
               <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
                 {Object.entries(payment.breakdown || {}).map(([label, value]) => (
                   <Chip key={label} label={`${label}: ${value}%`} variant="outlined" />
@@ -320,7 +324,7 @@ export default function Expenses() {
 
               {payment.derivedStatus === 'paid' && (
                 <Typography color="text.secondary" sx={{ mt: 2 }}>
-                  Paid via {payment.method || 'manual'} {payment.paymentReference ? `(${payment.paymentReference})` : ''}
+                  {t('expenses.paidVia', { method: payment.method || 'manual', reference: payment.paymentReference || '' })}
                 </Typography>
               )}
             </Paper>
@@ -329,81 +333,81 @@ export default function Expenses() {
       </Box>
 
       <Dialog open={Boolean(selectedPayment)} onClose={() => !submitting && setSelectedPayment(null)} fullWidth maxWidth="sm">
-        <DialogTitle>Confirm Payment</DialogTitle>
+        <DialogTitle>{t('expenses.confirmPayment')}</DialogTitle>
         <DialogContent>
           <Typography sx={{ mb: 2 }}>
-            Record payment for {selectedPayment?.title} of {formatAmount(selectedPayment?.amount)}.
+            {t('expenses.confirmPaymentCopy', { title: selectedPayment?.title, amount: formatAmount(selectedPayment?.amount) })}
           </Typography>
           <TextField
             select
             fullWidth
-            label="Payment method"
+            label={t('expenses.paymentMethod')}
             value={paymentMethod}
             onChange={(event) => setPaymentMethod(event.target.value)}
           >
-            <MenuItem value="razorpay">Razorpay Checkout</MenuItem>
+            <MenuItem value="razorpay">{t('expenses.methods.razorpay')}</MenuItem>
             <MenuItem value="upi">UPI</MenuItem>
-            <MenuItem value="cash">Cash</MenuItem>
+            <MenuItem value="cash">{t('expenses.methods.cash')}</MenuItem>
           </TextField>
           {paymentMethod === 'razorpay' && selectedPayment && (
             <Stack spacing={1.5} sx={{ mt: 2 }}>
               <Typography color="text.secondary">
-                Pay securely with UPI, card, net banking, or wallet through Razorpay Checkout.
+                {t('expenses.razorpayCopy')}
               </Typography>
               <Alert severity="info">
-                Razorpay requires the backend API to be running with valid RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET values.
+                {t('expenses.razorpayInfo')}
               </Alert>
             </Stack>
           )}
           {paymentMethod === 'upi' && selectedPayment && (
             <Stack spacing={1.5} sx={{ mt: 2, alignItems: 'center' }}>
               <Typography color="text.secondary">
-                Scan the UPI QR or open your UPI app directly to complete payment.
+                {t('expenses.upiCopy')}
               </Typography>
               <Box sx={{ bgcolor: '#fff', p: 2, borderRadius: 2 }}>
                 <QRCode value={buildUpiUri(selectedPayment)} size={168} />
               </Box>
               <Button variant="outlined" onClick={() => handleOpenUpi(selectedPayment)}>
-                Open UPI App
+                {t('expenses.openUpiApp')}
               </Button>
             </Stack>
           )}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setSelectedPayment(null)} disabled={submitting}>
-            Cancel
+            {t('common.cancel')}
           </Button>
           <Button variant="contained" onClick={handlePayNow} disabled={submitting}>
-            {submitting ? 'Recording...' : 'Confirm Payment'}
+            {submitting ? t('expenses.recording') : t('expenses.confirmPaymentAction')}
           </Button>
         </DialogActions>
       </Dialog>
 
       <Dialog open={Boolean(activeReceipt)} onClose={() => setActiveReceipt(null)} fullWidth maxWidth="sm">
-        <DialogTitle>Payment Receipt</DialogTitle>
+        <DialogTitle>{t('expenses.receiptTitle')}</DialogTitle>
         <DialogContent>
           <Stack spacing={1.5} sx={{ pt: 1 }}>
-            <Typography variant="subtitle2">Receipt Number</Typography>
-            <Typography>{activeReceipt?.receiptNumber || 'Receipt will appear after refresh if just recorded.'}</Typography>
-            <Typography variant="subtitle2">Charge</Typography>
+            <Typography variant="subtitle2">{t('expenses.receipt.number')}</Typography>
+            <Typography>{activeReceipt?.receiptNumber || t('expenses.receipt.pendingReceipt')}</Typography>
+            <Typography variant="subtitle2">{t('expenses.receipt.charge')}</Typography>
             <Typography>{activeReceipt?.title}</Typography>
-            <Typography variant="subtitle2">Amount</Typography>
+            <Typography variant="subtitle2">{t('expenses.receipt.amount')}</Typography>
             <Typography>{formatAmount(activeReceipt?.amount)}</Typography>
-            <Typography variant="subtitle2">Method</Typography>
+            <Typography variant="subtitle2">{t('expenses.receipt.method')}</Typography>
             <Typography>{(activeReceipt?.method || 'manual').toUpperCase()}</Typography>
-            <Typography variant="subtitle2">Reference</Typography>
-            <Typography>{activeReceipt?.paymentReference || 'Pending sync'}</Typography>
+            <Typography variant="subtitle2">{t('expenses.receipt.reference')}</Typography>
+            <Typography>{activeReceipt?.paymentReference || t('expenses.receipt.pendingSync')}</Typography>
             {activeReceipt?.providerOrderId && (
               <>
-                <Typography variant="subtitle2">Gateway Order</Typography>
+                <Typography variant="subtitle2">{t('expenses.receipt.gatewayOrder')}</Typography>
                 <Typography>{activeReceipt.providerOrderId}</Typography>
               </>
             )}
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => activeReceipt && handleDownloadReceipt(activeReceipt)}>Download Receipt</Button>
-          <Button onClick={() => setActiveReceipt(null)}>Close</Button>
+          <Button onClick={() => activeReceipt && handleDownloadReceipt(activeReceipt)}>{t('expenses.downloadReceipt')}</Button>
+          <Button onClick={() => setActiveReceipt(null)}>{t('common.close')}</Button>
         </DialogActions>
       </Dialog>
 

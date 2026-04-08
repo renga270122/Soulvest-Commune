@@ -36,7 +36,7 @@ import CreditCardIcon from '@mui/icons-material/CreditCard';
 import NotificationsNoneIcon from '@mui/icons-material/NotificationsNone';
 import { useNavigate } from 'react-router-dom';
 import QRCode from 'react-qr-code';
-import { useAuthContext } from '../components/AuthContext';
+import { useAuthContext } from '../components/auth-context';
 import ChatbotWidget from '../components/ChatbotWidget';
 import {
   createResidentStaff,

@@ -3,7 +3,8 @@ import { useNavigate } from "react-router-dom";
 import styles from "./LoginPage.module.css";
 import topIllustration from "../assets/top-illustration.png";
 import bottomIllustration from "../assets/bottom-illustration.png";
-import { useAuthContext } from "../components/AuthContext";
+import { SUPPORTED_LANGUAGES } from "../i18n";
+import { useAuthContext } from "../components/auth-context";
 import { registerDemoResident } from "../services/demoAuth";
 
 export default function SignupPage() {
@@ -15,6 +16,7 @@ export default function SignupPage() {
     mobile: "",
     email: "",
     password: "",
+    language: "en",
   });
 
   const handleChange = (e) => {
@@ -32,7 +34,7 @@ export default function SignupPage() {
       const sessionUser = await registerDemoResident(form);
       login(sessionUser);
       setSuccess("Demo signup successful! Redirecting to your resident dashboard.");
-      setForm({ name: "", flat: "", mobile: "", email: "", password: "" });
+      setForm({ name: "", flat: "", mobile: "", email: "", password: "", language: "en" });
       setTimeout(() => navigate("/resident"), 600);
     } catch (err) {
       setError(err.message);
@@ -101,6 +103,19 @@ export default function SignupPage() {
             className={styles.inputField}
             required
           />
+        </div>
+        <div className={styles.label}>Preferred Language</div>
+        <div className={styles.inputGroup}>
+          <select
+            name="language"
+            value={form.language}
+            onChange={handleChange}
+            className={styles.inputField}
+          >
+            {SUPPORTED_LANGUAGES.map((language) => (
+              <option key={language.value} value={language.value}>{language.label}</option>
+            ))}
+          </select>
         </div>
         <div className={styles.label}>Password</div>
         <div className={styles.inputGroup}>

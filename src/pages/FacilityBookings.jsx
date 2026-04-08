@@ -18,7 +18,8 @@ import EventAvailableIcon from '@mui/icons-material/EventAvailable';
 import CancelOutlinedIcon from '@mui/icons-material/CancelOutlined';
 import GroupsIcon from '@mui/icons-material/Groups';
 import Navbar from '../components/Navbar';
-import { useAuthContext } from '../components/AuthContext';
+import { useTranslation } from 'react-i18next';
+import { useAuthContext } from '../components/auth-context';
 import {
   cancelFacilityBooking,
   createFacilityBooking,
@@ -27,11 +28,11 @@ import {
 } from '../services/communityData';
 
 const amenities = [
-  { value: 'Gym', detail: 'Reserve workout slots for peak hours.' },
-  { value: 'Swimming Pool', detail: 'Book family or lane-swim windows.' },
-  { value: 'Clubhouse', detail: 'Reserve indoor gatherings and celebrations.' },
-  { value: 'Community Hall', detail: 'Block event space for parties and meetings.' },
-  { value: 'Tennis Court', detail: 'Reserve coaching or match-time sessions.' },
+  { value: 'Gym', labelKey: 'bookings.amenities.gym.label', detailKey: 'bookings.amenities.gym.detail' },
+  { value: 'Swimming Pool', labelKey: 'bookings.amenities.pool.label', detailKey: 'bookings.amenities.pool.detail' },
+  { value: 'Clubhouse', labelKey: 'bookings.amenities.clubhouse.label', detailKey: 'bookings.amenities.clubhouse.detail' },
+  { value: 'Community Hall', labelKey: 'bookings.amenities.hall.label', detailKey: 'bookings.amenities.hall.detail' },
+  { value: 'Tennis Court', labelKey: 'bookings.amenities.tennis.label', detailKey: 'bookings.amenities.tennis.detail' },
 ];
 
 const slotOptions = [
@@ -44,6 +45,7 @@ const slotOptions = [
 
 export default function FacilityBookings() {
   const { user } = useAuthContext();
+  const { t } = useTranslation();
   const [bookings, setBookings] = useState([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -59,7 +61,7 @@ export default function FacilityBookings() {
   useEffect(() => {
     const unsubscribe = subscribeToResidentFacilityBookings(user?.uid, setBookings, user);
     return () => unsubscribe();
-  }, [user?.uid]);
+  }, [user]);
 
   const summary = useMemo(() => ({
     active: bookings.filter((booking) => booking.status !== 'cancelled').length,
@@ -71,12 +73,12 @@ export default function FacilityBookings() {
 
   const handleCreateBooking = async () => {
     if (!user?.uid || !normalizeFlat(user?.flat)) {
-      setBanner({ type: 'warning', message: 'Add your flat number before reserving amenities.' });
+      setBanner({ type: 'warning', message: t('bookings.messages.addFlat') });
       return;
     }
 
     if (!form.bookingDate || !form.slot || !form.amenity) {
-      setBanner({ type: 'error', message: 'Amenity, date, and slot are required.' });
+      setBanner({ type: 'error', message: t('bookings.messages.required') });
       return;
     }
 
@@ -92,9 +94,9 @@ export default function FacilityBookings() {
       });
       setDialogOpen(false);
       setForm({ amenity: 'Gym', bookingDate: '', slot: slotOptions[0], guestCount: 1, notes: '' });
-      setBanner({ type: 'success', message: `${form.amenity} booked successfully. Booking code: ${booking.bookingCode}.` });
+      setBanner({ type: 'success', message: t('bookings.messages.success', { amenity: form.amenity, code: booking.bookingCode }) });
     } catch (error) {
-      setBanner({ type: 'error', message: error.message || 'Unable to create booking.' });
+      setBanner({ type: 'error', message: error.message || t('bookings.messages.createFailed') });
     }
     setSaving(false);
   };
@@ -102,9 +104,9 @@ export default function FacilityBookings() {
   const handleCancelBooking = async (bookingId) => {
     try {
       await cancelFacilityBooking(bookingId, user);
-      setBanner({ type: 'success', message: 'Amenity booking cancelled.' });
+      setBanner({ type: 'success', message: t('bookings.messages.cancelled') });
     } catch (error) {
-      setBanner({ type: 'error', message: error.message || 'Unable to cancel the booking.' });
+      setBanner({ type: 'error', message: error.message || t('bookings.messages.cancelFailed') });
     }
   };
 
@@ -113,13 +115,13 @@ export default function FacilityBookings() {
       <Box sx={{ maxWidth: 1100, mx: 'auto' }}>
         <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', md: 'center' }} spacing={2} sx={{ mb: 3 }}>
           <Box>
-            <Typography variant="h4">Facility Booking</Typography>
+            <Typography variant="h4">{t('bookings.title')}</Typography>
             <Typography color="text.secondary">
-              Reserve shared amenities like the gym, pool, clubhouse, or community hall without waiting for manual confirmation.
+              {t('bookings.subtitle')}
             </Typography>
           </Box>
           <Button variant="contained" startIcon={<EventAvailableIcon />} onClick={() => setDialogOpen(true)}>
-            Reserve Amenity
+            {t('bookings.reserveAmenity')}
           </Button>
         </Stack>
 
@@ -127,32 +129,32 @@ export default function FacilityBookings() {
 
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' }, gap: 2, mb: 3 }}>
           <Paper elevation={1} sx={{ p: 2.5, borderRadius: 3 }}>
-            <Typography color="text.secondary">Active Bookings</Typography>
+            <Typography color="text.secondary">{t('bookings.stats.active')}</Typography>
             <Typography variant="h4">{summary.active}</Typography>
           </Paper>
           <Paper elevation={1} sx={{ p: 2.5, borderRadius: 3 }}>
-            <Typography color="text.secondary">Cancelled</Typography>
+            <Typography color="text.secondary">{t('bookings.stats.cancelled')}</Typography>
             <Typography variant="h4">{summary.cancelled}</Typography>
           </Paper>
           <Paper elevation={1} sx={{ p: 2.5, borderRadius: 3 }}>
-            <Typography color="text.secondary">Next Reservation</Typography>
+            <Typography color="text.secondary">{t('bookings.stats.nextReservation')}</Typography>
             <Typography variant="h6">{summary.nextBooking?.amenity || 'None'}</Typography>
-            <Typography color="text.secondary">{summary.nextBooking ? new Date(summary.nextBooking.bookingDate).toLocaleDateString() : 'Reserve your first slot'}</Typography>
+            <Typography color="text.secondary">{summary.nextBooking ? new Date(summary.nextBooking.bookingDate).toLocaleDateString() : t('bookings.reserveFirstSlot')}</Typography>
           </Paper>
         </Box>
 
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1fr 1.1fr' }, gap: 2 }}>
           <Paper elevation={2} sx={{ p: 2.5, borderRadius: 3 }}>
-            <Typography variant="h6" sx={{ mb: 2 }}>Available Amenities</Typography>
+            <Typography variant="h6" sx={{ mb: 2 }}>{t('bookings.availableAmenities')}</Typography>
             <Stack spacing={1.5}>
               {amenities.map((amenity) => (
                 <Paper key={amenity.value} variant="outlined" sx={{ p: 2, borderRadius: 3 }}>
                   <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
                     <Box>
-                      <Typography variant="subtitle1">{amenity.value}</Typography>
-                      <Typography color="text.secondary">{amenity.detail}</Typography>
+                      <Typography variant="subtitle1">{t(amenity.labelKey)}</Typography>
+                      <Typography color="text.secondary">{t(amenity.detailKey)}</Typography>
                     </Box>
-                    <Chip label="Open" color="success" variant="outlined" />
+                    <Chip label={t('bookings.openChip')} color="success" variant="outlined" />
                   </Stack>
                 </Paper>
               ))}
@@ -160,10 +162,10 @@ export default function FacilityBookings() {
           </Paper>
 
           <Paper elevation={2} sx={{ p: 2.5, borderRadius: 3 }}>
-            <Typography variant="h6" sx={{ mb: 2 }}>My Bookings</Typography>
+            <Typography variant="h6" sx={{ mb: 2 }}>{t('bookings.myBookings')}</Typography>
             <Stack spacing={1.5}>
               {bookings.length === 0 && (
-                <Typography color="text.secondary">No amenity bookings yet. Reserve a slot to see it here.</Typography>
+                <Typography color="text.secondary">{t('bookings.empty')}</Typography>
               )}
               {bookings.map((booking) => (
                 <Paper key={booking.id} variant="outlined" sx={{ p: 2, borderRadius: 3 }}>
@@ -177,17 +179,17 @@ export default function FacilityBookings() {
                       </Box>
                       <Stack alignItems={{ xs: 'flex-start', md: 'flex-end' }} spacing={1}>
                         <Chip label={booking.status || 'confirmed'} color={booking.status === 'cancelled' ? 'default' : 'success'} />
-                        <Chip label={booking.bookingCode || 'Pending code'} variant="outlined" />
+                        <Chip label={booking.bookingCode || t('bookings.pendingCode')} variant="outlined" />
                       </Stack>
                     </Stack>
                     <Stack direction="row" spacing={1} alignItems="center">
                       <GroupsIcon fontSize="small" color="action" />
-                      <Typography color="text.secondary">Guests: {booking.guestCount || 1}</Typography>
+                      <Typography color="text.secondary">{t('bookings.guests', { count: booking.guestCount || 1 })}</Typography>
                     </Stack>
-                    {booking.notes && <Typography color="text.secondary">Notes: {booking.notes}</Typography>}
+                    {booking.notes && <Typography color="text.secondary">{t('bookings.notes', { notes: booking.notes })}</Typography>}
                     {booking.status !== 'cancelled' && (
                       <Button variant="outlined" color="error" startIcon={<CancelOutlinedIcon />} onClick={() => handleCancelBooking(booking.id)}>
-                        Cancel Booking
+                        {t('bookings.cancelBooking')}
                       </Button>
                     )}
                   </Stack>
@@ -199,35 +201,35 @@ export default function FacilityBookings() {
       </Box>
 
       <Dialog open={dialogOpen} onClose={() => !saving && setDialogOpen(false)} fullWidth maxWidth="sm">
-        <DialogTitle>Reserve Amenity</DialogTitle>
+        <DialogTitle>{t('bookings.dialogTitle')}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ pt: 1 }}>
-            <TextField select label="Amenity" value={form.amenity} onChange={(event) => setForm((current) => ({ ...current, amenity: event.target.value }))}>
+            <TextField select label={t('bookings.fields.amenity')} value={form.amenity} onChange={(event) => setForm((current) => ({ ...current, amenity: event.target.value }))}>
               {amenities.map((amenity) => (
-                <MenuItem key={amenity.value} value={amenity.value}>{amenity.value}</MenuItem>
+                <MenuItem key={amenity.value} value={amenity.value}>{t(amenity.labelKey)}</MenuItem>
               ))}
             </TextField>
             <TextField
-              label="Booking date"
+              label={t('bookings.fields.bookingDate')}
               type="date"
               value={form.bookingDate}
               onChange={(event) => setForm((current) => ({ ...current, bookingDate: event.target.value }))}
               InputLabelProps={{ shrink: true }}
               fullWidth
             />
-            <TextField select label="Slot" value={form.slot} onChange={(event) => setForm((current) => ({ ...current, slot: event.target.value }))}>
+            <TextField select label={t('bookings.fields.slot')} value={form.slot} onChange={(event) => setForm((current) => ({ ...current, slot: event.target.value }))}>
               {slotOptions.map((slot) => (
                 <MenuItem key={slot} value={slot}>{slot}</MenuItem>
               ))}
             </TextField>
-            <TextField label="Guest count" type="number" value={form.guestCount} onChange={(event) => setForm((current) => ({ ...current, guestCount: event.target.value }))} fullWidth />
-            <TextField label="Notes" value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} multiline minRows={3} fullWidth />
+            <TextField label={t('bookings.fields.guestCount')} type="number" value={form.guestCount} onChange={(event) => setForm((current) => ({ ...current, guestCount: event.target.value }))} fullWidth />
+            <TextField label={t('bookings.fields.notes')} value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} multiline minRows={3} fullWidth />
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDialogOpen(false)} disabled={saving}>Cancel</Button>
+          <Button onClick={() => setDialogOpen(false)} disabled={saving}>{t('common.cancel')}</Button>
           <Button variant="contained" onClick={handleCreateBooking} disabled={saving}>
-            {saving ? 'Reserving...' : 'Confirm Booking'}
+            {saving ? t('bookings.reserving') : t('bookings.confirmBooking')}
           </Button>
         </DialogActions>
       </Dialog>

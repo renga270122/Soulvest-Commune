@@ -58,6 +58,7 @@ export async function registerDemoResident(form) {
     mobile,
     email,
     password: form.password,
+    language: form.language || 'en',
     role: 'resident',
   });
 

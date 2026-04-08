@@ -6,7 +6,7 @@ import EventAvailableIcon from '@mui/icons-material/EventAvailable';
 import PersonIcon from '@mui/icons-material/Person';
 import CampaignIcon from '@mui/icons-material/Campaign';
 import DashboardIcon from '@mui/icons-material/Dashboard';
-import { useAuthContext } from '../components/AuthContext';
+import { useAuthContext } from '../components/auth-context';
 import { useFeatureFlags } from '../hooks/useFeatureFlags';
 
 export default function Navbar() {

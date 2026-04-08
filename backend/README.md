@@ -80,6 +80,8 @@ These endpoints should respond after deploy:
 
 `GET /health` is the Render health check target.
 
+If Firebase credentials are missing, the backend now stays up and reports `firebaseConfigured: false` in the health payload. Routes that require Firestore return `503` with a configuration error instead of crashing the whole service.
+
 ## Razorpay Go-Live Checklist
 
 1. Backend deployed and healthy on Render.

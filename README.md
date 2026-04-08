@@ -54,6 +54,8 @@ For backend startup you need either:
 - `GOOGLE_APPLICATION_CREDENTIALS` pointing to a local Firebase service account file, or
 - `FIREBASE_SERVICE_ACCOUNT_JSON` containing the full service account JSON string
 
+If Firebase credentials are missing, the backend still starts and `/health` stays available, but Firebase-backed routes return `503` until credentials are configured.
+
 For live Razorpay payments you also need:
 
 - `RAZORPAY_KEY_ID`

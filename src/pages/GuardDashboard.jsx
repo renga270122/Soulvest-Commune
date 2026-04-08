@@ -18,7 +18,7 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import QrCode2Icon from '@mui/icons-material/QrCode2';
 import ShieldIcon from '@mui/icons-material/Shield';
 import { useNavigate } from 'react-router-dom';
-import { useAuthContext } from '../components/AuthContext';
+import { useAuthContext } from '../components/auth-context';
 import ChatbotWidget from '../components/ChatbotWidget';
 import { useFeatureFlags } from '../hooks/useFeatureFlags';
 import {

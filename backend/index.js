@@ -45,38 +45,47 @@ function getRazorpayMode() {
   return 'unknown';
 }
 
+const { getDb, getFirebaseStatus } = require('./firebase');
+
 // LLM Chatbot route
 const chatbotLLM = require('./chatbot-llm');
 app.use(chatbotLLM);
 
 // Health check
 app.get('/', (req, res) => {
+  const firebaseStatus = getFirebaseStatus();
+
   res.json({
     ok: true,
     service: 'soulvest-commune-backend',
     razorpayConfigured: Boolean(razorpay),
     razorpayMode: getRazorpayMode(),
+    firebaseConfigured: firebaseStatus.configured,
+    firebaseMessage: firebaseStatus.message,
     allowedOrigins,
   });
 });
 
 app.get('/health', (req, res) => {
+  const firebaseStatus = getFirebaseStatus();
+
   res.json({
     ok: true,
     service: 'soulvest-commune-backend',
     razorpayConfigured: Boolean(razorpay),
     razorpayMode: getRazorpayMode(),
+    firebaseConfigured: firebaseStatus.configured,
+    firebaseMessage: firebaseStatus.message,
   });
 });
 
 
 
 // Firestore
-const db = require('./firebase');
 const { dispatchNotifications } = require('./notification-service');
 
 function getSocietyCollection(societyId, collectionName) {
-  return db.collection('societies').doc(societyId).collection(collectionName);
+  return getDb().collection('societies').doc(societyId).collection(collectionName);
 }
 
 function ensureRazorpayConfigured(res) {
@@ -85,6 +94,17 @@ function ensureRazorpayConfigured(res) {
   res.status(503).json({
     error: 'Razorpay is not configured on the backend.',
     details: 'Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET before using the payment gateway.',
+  });
+  return false;
+}
+
+function ensureFirebaseConfigured(res) {
+  const firebaseStatus = getFirebaseStatus();
+  if (firebaseStatus.configured) return true;
+
+  res.status(503).json({
+    error: 'Firebase is not configured on the backend.',
+    details: firebaseStatus.message,
   });
   return false;
 }
@@ -106,7 +126,10 @@ function mapFeedbackDocument(doc) {
 }
 
 app.get('/feedback', async (req, res) => {
+  if (!ensureFirebaseConfigured(res)) return;
+
   const limit = Math.min(Math.max(Number(req.query.limit || 100), 1), 200);
+  const db = getDb();
 
   try {
     const snapshot = await withTimeout(
@@ -126,6 +149,8 @@ app.get('/feedback', async (req, res) => {
 });
 
 app.post('/feedback', async (req, res) => {
+  if (!ensureFirebaseConfigured(res)) return;
+
   const {
     name = '',
     flat = '',
@@ -143,6 +168,8 @@ app.post('/feedback', async (req, res) => {
   if (!Number.isInteger(normalizedRating) || normalizedRating < 1 || normalizedRating > 5) {
     return res.status(400).json({ error: 'rating must be an integer between 1 and 5.' });
   }
+
+  const db = getDb();
 
   try {
     const created = await withTimeout(
@@ -171,10 +198,14 @@ app.post('/feedback', async (req, res) => {
 });
 
 app.post('/notifications/dispatch', async (req, res) => {
+  if (!ensureFirebaseConfigured(res)) return;
+
   const { userId, societyId = 'brigade-metropolis', title, message, channels = {}, meta = {} } = req.body;
   if (!userId || !title || !message) {
     return res.status(400).json({ error: 'userId, title, and message are required' });
   }
+
+  const db = getDb();
 
   try {
     const userSnapshot = await db.collection('users').doc(userId).get();
@@ -204,6 +235,8 @@ app.post('/notifications/dispatch', async (req, res) => {
 
 // Log a new visitor (Firestore)
 app.post('/visitors', async (req, res) => {
+  if (!ensureFirebaseConfigured(res)) return;
+
   const { name, flat, purpose, time, societyId = 'brigade-metropolis' } = req.body;
   if (!name || !flat || !purpose || !time) {
     return res.status(400).json({ error: 'Missing required fields' });
@@ -227,6 +260,8 @@ app.post('/visitors', async (req, res) => {
 
 // Get all visitors (optionally filter by status)
 app.get('/visitors', async (req, res) => {
+  if (!ensureFirebaseConfigured(res)) return;
+
   const { status, societyId = 'brigade-metropolis' } = req.query;
   try {
     let query = getSocietyCollection(societyId, 'visitors').orderBy('createdAt', 'desc');
@@ -244,6 +279,8 @@ app.get('/visitors', async (req, res) => {
 
 // Update visitor status (approve/deny)
 app.patch('/visitors/:id', async (req, res) => {
+  if (!ensureFirebaseConfigured(res)) return;
+
   const { id } = req.params;
   const { status, societyId = 'brigade-metropolis' } = req.body;
   if (!['approved', 'denied'].includes(status)) {
@@ -335,16 +372,22 @@ app.post('/payments/razorpay/verify', async (req, res) => {
       return res.status(400).json({ error: 'Invalid Razorpay signature.' });
     }
 
-    await db.collection('paymentGatewayLogs').add({
-      gateway: 'razorpay',
-      paymentId: paymentId || '',
-      userId: userId || '',
-      societyId,
-      razorpayOrderId,
-      razorpayPaymentId,
-      verified: true,
-      createdAt: new Date().toISOString(),
-    });
+    if (getFirebaseStatus().configured) {
+      try {
+        await getDb().collection('paymentGatewayLogs').add({
+          gateway: 'razorpay',
+          paymentId: paymentId || '',
+          userId: userId || '',
+          societyId,
+          razorpayOrderId,
+          razorpayPaymentId,
+          verified: true,
+          createdAt: new Date().toISOString(),
+        });
+      } catch (error) {
+        console.warn('Failed to persist Razorpay verification log:', error.message);
+      }
+    }
 
     res.json({
       verified: true,

@@ -14,7 +14,7 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import BadgeIcon from '@mui/icons-material/Badge';
 import DirectionsWalkIcon from '@mui/icons-material/DirectionsWalk';
 import Navbar from '../components/Navbar';
-import { useAuthContext } from '../components/AuthContext';
+import { useAuthContext } from '../components/auth-context';
 import {
   clockInStaff,
   clockOutStaff,
@@ -64,7 +64,7 @@ export default function SecurityLogs() {
       unsubMyAttendance();
       unsubVisitors();
     };
-  }, [user?.uid]);
+  }, [user]);
 
   const activeShift = useMemo(
     () => myAttendance.find((entry) => entry.status === 'clocked_in'),

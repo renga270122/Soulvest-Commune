@@ -15,7 +15,7 @@ import {
   Typography,
 } from '@mui/material';
 import Navbar from '../components/Navbar';
-import { useAuthContext } from '../components/AuthContext';
+import { useAuthContext } from '../components/auth-context';
 import {
   createComplaint,
   subscribeToComplaints,
@@ -23,19 +23,23 @@ import {
   updateComplaintStatus,
 } from '../services/communityData';
 import { useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 const complaintCategories = [
-  { value: 'plumbing', label: 'Plumbing' },
-  { value: 'electrical', label: 'Electrical' },
-  { value: 'lift', label: 'Lift' },
-  { value: 'security', label: 'Security' },
-  { value: 'housekeeping', label: 'Housekeeping' },
-  { value: 'delivery', label: 'Delivery' },
-  { value: 'staff-access', label: 'Staff Access' },
-  { value: 'general', label: 'General' },
+  { value: 'plumbing', labelKey: 'complaints.categories.plumbing' },
+  { value: 'electrical', labelKey: 'complaints.categories.electrical' },
+  { value: 'lift', labelKey: 'complaints.categories.lift' },
+  { value: 'security', labelKey: 'complaints.categories.security' },
+  { value: 'housekeeping', labelKey: 'complaints.categories.housekeeping' },
+  { value: 'delivery', labelKey: 'complaints.categories.delivery' },
+  { value: 'staff-access', labelKey: 'complaints.categories.staffAccess' },
+  { value: 'general', labelKey: 'complaints.categories.general' },
 ];
 
-const getCategoryLabel = (value) => complaintCategories.find((entry) => entry.value === value)?.label || value;
+const getCategoryLabel = (value, t) => {
+  const match = complaintCategories.find((entry) => entry.value === value);
+  return match ? t(match.labelKey) : value;
+};
 
 const priorityColor = {
   high: 'error',
@@ -59,13 +63,20 @@ const formatTimestamp = (value) => {
 
 export default function Complaints() {
   const { user } = useAuthContext();
+  const { t } = useTranslation();
   const location = useLocation();
   const isAdmin = user?.role === 'admin';
+  const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
+  const prefilledCategory = searchParams.get('category');
+  const prefilledSource = searchParams.get('source');
   const [complaints, setComplaints] = useState([]);
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(() => Boolean(prefilledCategory && !isAdmin));
   const [saving, setSaving] = useState(false);
   const [banner, setBanner] = useState({ type: '', message: '' });
-  const [form, setForm] = useState({ category: 'plumbing', description: '' });
+  const [form, setForm] = useState(() => ({
+    category: prefilledCategory || 'plumbing',
+    description: prefilledSource ? t('complaints.issueNoticedInFlow', { source: prefilledSource.replace('-', ' ') }) : '',
+  }));
   const [statusFilter, setStatusFilter] = useState('all');
 
   useEffect(() => {
@@ -73,25 +84,7 @@ export default function Complaints() {
       ? subscribeToComplaints(setComplaints, { context: user })
       : subscribeToResidentComplaints(user?.uid, setComplaints, user);
     return () => unsubscribe();
-  }, [isAdmin, user?.uid]);
-
-  useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const category = params.get('category');
-    const source = params.get('source');
-
-    if (!category) return;
-
-    setForm((current) => ({
-      ...current,
-      category,
-      description: current.description || (source ? `Issue noticed in ${source.replace('-', ' ')} flow.` : ''),
-    }));
-
-    if (!isAdmin) {
-      setDialogOpen(true);
-    }
-  }, [isAdmin, location.search]);
+  }, [isAdmin, user]);
 
   const summary = useMemo(() => ({
     total: complaints.length,
@@ -115,7 +108,7 @@ export default function Complaints() {
 
   const handleCreateComplaint = async () => {
     if (!form.description) {
-      setBanner({ type: 'error', message: 'Describe the issue before submitting.' });
+      setBanner({ type: 'error', message: t('complaints.messages.describeIssue') });
       return;
     }
 
@@ -131,9 +124,9 @@ export default function Complaints() {
       });
       setForm({ category: 'plumbing', description: '' });
       setDialogOpen(false);
-      setBanner({ type: 'success', message: 'Complaint submitted successfully.' });
+      setBanner({ type: 'success', message: t('complaints.messages.submitted') });
     } catch (error) {
-      setBanner({ type: 'error', message: error.message || 'Unable to submit complaint.' });
+      setBanner({ type: 'error', message: error.message || t('complaints.messages.submitFailed') });
     }
     setSaving(false);
   };
@@ -145,9 +138,9 @@ export default function Complaints() {
         name: user?.name || 'Admin',
         societyId: user?.societyId,
       });
-      setBanner({ type: 'success', message: `Complaint moved to ${status}.` });
+      setBanner({ type: 'success', message: t('complaints.messages.statusMoved', { status }) });
     } catch (error) {
-      setBanner({ type: 'error', message: error.message || 'Unable to update complaint status.' });
+      setBanner({ type: 'error', message: error.message || t('complaints.messages.statusFailed') });
     }
   };
 
@@ -156,12 +149,12 @@ export default function Complaints() {
       <Box sx={{ maxWidth: 1100, mx: 'auto' }}>
         <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', md: 'center' }} spacing={2} sx={{ mb: 3 }}>
           <Box>
-            <Typography variant="h4">Complaint Desk</Typography>
+            <Typography variant="h4">{t('complaints.title')}</Typography>
             <Typography color="text.secondary">
-              Residents can raise issues with categories and admins can move them transparently from open to resolved.
+              {t('complaints.subtitle')}
             </Typography>
           </Box>
-          {!isAdmin && <Button variant="contained" onClick={() => handleOpenComplaintDialog(form.category)}>Raise Complaint</Button>}
+          {!isAdmin && <Button variant="contained" onClick={() => handleOpenComplaintDialog(form.category)}>{t('complaints.raiseComplaint')}</Button>}
         </Stack>
 
         {banner.message && <Alert severity={banner.type} sx={{ mb: 3 }}>{banner.message}</Alert>}
@@ -169,8 +162,8 @@ export default function Complaints() {
         {!isAdmin && (
           <Paper elevation={1} sx={{ p: 2, borderRadius: 3, mb: 3, display: { xs: 'block', md: 'none' } }}>
             <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.25 }}>
-              <Typography variant="h6">Quick Report</Typography>
-              <Chip label="Mobile" size="small" color="primary" sx={{ borderRadius: 999 }} />
+              <Typography variant="h6">{t('complaints.quickReport')}</Typography>
+              <Chip label={t('complaints.mobileChip')} size="small" color="primary" sx={{ borderRadius: 999 }} />
             </Stack>
             <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 1 }}>
               {['security', 'staff-access', 'delivery', 'housekeeping'].map((category) => (
@@ -180,7 +173,7 @@ export default function Complaints() {
                   onClick={() => handleOpenComplaintDialog(category)}
                   sx={{ minHeight: 58, borderRadius: 3 }}
                 >
-                  {getCategoryLabel(category)}
+                  {getCategoryLabel(category, t)}
                 </Button>
               ))}
             </Box>
@@ -189,29 +182,29 @@ export default function Complaints() {
 
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }, gap: 2, mb: 3 }}>
           <Paper elevation={1} sx={{ p: 2.5, borderRadius: 3 }}>
-            <Typography color="text.secondary">Total Complaints</Typography>
+            <Typography color="text.secondary">{t('complaints.stats.total')}</Typography>
             <Typography variant="h4">{summary.total}</Typography>
           </Paper>
           <Paper elevation={1} sx={{ p: 2.5, borderRadius: 3 }}>
-            <Typography color="text.secondary">Open</Typography>
+            <Typography color="text.secondary">{t('complaints.stats.open')}</Typography>
             <Typography variant="h4">{summary.open}</Typography>
           </Paper>
           <Paper elevation={1} sx={{ p: 2.5, borderRadius: 3 }}>
-            <Typography color="text.secondary">In Progress</Typography>
+            <Typography color="text.secondary">{t('complaints.stats.inprogress')}</Typography>
             <Typography variant="h4">{summary.inprogress}</Typography>
           </Paper>
           <Paper elevation={1} sx={{ p: 2.5, borderRadius: 3 }}>
-            <Typography color="text.secondary">Resolved</Typography>
+            <Typography color="text.secondary">{t('complaints.stats.resolved')}</Typography>
             <Typography variant="h4">{summary.resolved}</Typography>
           </Paper>
         </Box>
 
         <Stack direction="row" spacing={1} sx={{ mb: 2, overflowX: 'auto', pb: 0.5 }}>
           {[
-            { value: 'all', label: 'All' },
-            { value: 'open', label: 'Open' },
-            { value: 'inprogress', label: 'In Progress' },
-            { value: 'resolved', label: 'Resolved' },
+            { value: 'all', label: t('complaints.filters.all') },
+            { value: 'open', label: t('complaints.filters.open') },
+            { value: 'inprogress', label: t('complaints.filters.inprogress') },
+            { value: 'resolved', label: t('complaints.filters.resolved') },
           ].map((entry) => (
             <Chip
               key={entry.value}
@@ -227,8 +220,8 @@ export default function Complaints() {
         <Stack spacing={2}>
           {filteredComplaints.length === 0 && (
             <Paper elevation={2} sx={{ p: 3, borderRadius: 3 }}>
-              <Typography variant="h6">No complaints in this view</Typography>
-              <Typography color="text.secondary">Switch filters or raise a new issue to start tracking it here.</Typography>
+              <Typography variant="h6">{t('complaints.emptyTitle')}</Typography>
+              <Typography color="text.secondary">{t('complaints.emptySubtitle')}</Typography>
             </Paper>
           )}
 
@@ -237,29 +230,29 @@ export default function Complaints() {
               <Stack spacing={1.5}>
                 <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={1}>
                   <Box>
-                    <Typography variant="h6">{getCategoryLabel(complaint.category)}</Typography>
+                    <Typography variant="h6">{getCategoryLabel(complaint.category, t)}</Typography>
                     <Typography color="text.secondary">
-                      {complaint.residentName || 'Resident'}{complaint.flat ? ` • Flat ${complaint.flat}` : ''}
+                      {complaint.residentName || t('complaints.residentFallback')}{complaint.flat ? ` • ${t('complaints.flatLabel', { flat: complaint.flat })}` : ''}
                     </Typography>
                   </Box>
                   <Stack direction="row" spacing={1}>
-                    <Chip label={complaint.status} color={statusColor[complaint.status] || 'default'} />
-                    <Chip label={`${complaint.aiPriority || 'low'} priority`} color={priorityColor[complaint.aiPriority] || 'default'} variant="outlined" />
+                    <Chip label={t(`complaints.status.${complaint.status}`, { defaultValue: complaint.status })} color={statusColor[complaint.status] || 'default'} />
+                    <Chip label={t(`complaints.priority.${complaint.aiPriority || 'low'}`)} color={priorityColor[complaint.aiPriority] || 'default'} variant="outlined" />
                   </Stack>
                 </Stack>
                 <Typography>{complaint.description}</Typography>
-                <Typography color="text.secondary">Opened {formatTimestamp(complaint.createdAt)}</Typography>
-                {complaint.adminNotes && <Typography color="text.secondary">Admin note: {complaint.adminNotes}</Typography>}
-                {complaint.resolutionNote && <Typography color="text.secondary">Resolution: {complaint.resolutionNote}</Typography>}
+                <Typography color="text.secondary">{t('complaints.openedAt', { time: formatTimestamp(complaint.createdAt) })}</Typography>
+                {complaint.adminNotes && <Typography color="text.secondary">{t('complaints.adminNote', { note: complaint.adminNotes })}</Typography>}
+                {complaint.resolutionNote && <Typography color="text.secondary">{t('complaints.resolutionNote', { note: complaint.resolutionNote })}</Typography>}
                 {isAdmin && complaint.status !== 'resolved' && (
                   <Stack direction={{ xs: 'column', md: 'row' }} spacing={1}>
                     {complaint.status === 'open' && (
                       <Button variant="outlined" onClick={() => handleStatusChange(complaint.id, 'inprogress')}>
-                        Move To In Progress
+                        {t('complaints.actions.moveToInprogress')}
                       </Button>
                     )}
                     <Button variant="contained" color="success" onClick={() => handleStatusChange(complaint.id, 'resolved')}>
-                      Mark Resolved
+                      {t('complaints.actions.markResolved')}
                     </Button>
                   </Stack>
                 )}
@@ -270,16 +263,16 @@ export default function Complaints() {
       </Box>
 
       <Dialog open={dialogOpen} onClose={() => !saving && setDialogOpen(false)} fullWidth maxWidth="sm">
-        <DialogTitle>Raise New Complaint</DialogTitle>
+        <DialogTitle>{t('complaints.dialogTitle')}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ pt: 1 }}>
-            <TextField select label="Category" value={form.category} onChange={(event) => setForm((current) => ({ ...current, category: event.target.value }))}>
+            <TextField select label={t('complaints.fields.category')} value={form.category} onChange={(event) => setForm((current) => ({ ...current, category: event.target.value }))}>
               {complaintCategories.map((category) => (
-                <MenuItem key={category.value} value={category.value}>{category.label}</MenuItem>
+                <MenuItem key={category.value} value={category.value}>{t(category.labelKey)}</MenuItem>
               ))}
             </TextField>
             <TextField
-              label="Describe the issue"
+              label={t('complaints.fields.description')}
               value={form.description}
               onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
               multiline
@@ -289,9 +282,9 @@ export default function Complaints() {
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDialogOpen(false)} disabled={saving}>Cancel</Button>
+          <Button onClick={() => setDialogOpen(false)} disabled={saving}>{t('common.cancel')}</Button>
           <Button variant="contained" onClick={handleCreateComplaint} disabled={saving}>
-            {saving ? 'Submitting...' : 'Submit Complaint'}
+            {saving ? t('complaints.submitting') : t('complaints.submitComplaint')}
           </Button>
         </DialogActions>
       </Dialog>

@@ -676,7 +676,7 @@ export const resetDemoState = () => {
 
 export const sanitizeUser = (user) => {
   if (!user) return null;
-  const { password, ...safeUser } = user;
+  const { password: _PASSWORD, ...safeUser } = user;
   return safeUser;
 };
 

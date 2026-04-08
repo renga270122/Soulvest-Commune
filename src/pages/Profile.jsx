@@ -18,7 +18,8 @@ import PhoneInTalkIcon from '@mui/icons-material/PhoneInTalk';
 import HomeWorkIcon from '@mui/icons-material/HomeWork';
 import TranslateIcon from '@mui/icons-material/Translate';
 import Navbar from '../components/Navbar';
-import { useAuthContext } from '../components/AuthContext';
+import { SUPPORTED_LANGUAGES } from '../i18n';
+import { useAuthContext } from '../components/auth-context';
 import { getUserProfileByUid, normalizeFlat, upsertUserProfile } from '../services/communityData';
 
 const profileShellSx = {
@@ -47,25 +48,18 @@ const defaultForm = {
   photoDataUrl: '',
 };
 
-const languageOptions = [
-  { value: 'en', label: 'English' },
-  { value: 'kn', label: 'Kannada' },
-  { value: 'ta', label: 'Tamil' },
-];
+const languageOptions = SUPPORTED_LANGUAGES;
 
 export default function Profile() {
   const { user, updateUser } = useAuthContext();
   const [form, setForm] = useState(defaultForm);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => Boolean(user?.uid));
   const [saving, setSaving] = useState(false);
   const [banner, setBanner] = useState({ type: '', message: '' });
   const fileInputRef = useRef(null);
 
   useEffect(() => {
-    if (!user?.uid) {
-      setLoading(false);
-      return;
-    }
+    if (!user?.uid) return undefined;
 
     let active = true;
     void getUserProfileByUid(user.uid)
@@ -96,7 +90,7 @@ export default function Profile() {
     return () => {
       active = false;
     };
-  }, [user?.email, user?.flat, user?.language, user?.mobile, user?.name, user?.uid]);
+  }, [user?.email, user?.flat, user?.language, user?.mobile, user?.name, user?.photoDataUrl, user?.uid]);
 
   const residentInitials = useMemo(() => {
     const name = form.name || user?.name || 'Resident';

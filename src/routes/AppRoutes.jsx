@@ -2,7 +2,7 @@ import React, { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 
 import { Box, CircularProgress } from '@mui/material';
-import { useAuthContext } from '../components/AuthContext';
+import { useAuthContext } from '../components/auth-context';
 import { useFeatureFlags } from '../hooks/useFeatureFlags';
 import ResidentDashboard from '../pages/ResidentDashboard';
 

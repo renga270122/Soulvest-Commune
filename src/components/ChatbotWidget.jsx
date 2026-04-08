@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  Chip,
   Avatar,
   Box,
   ButtonBase,
@@ -14,59 +15,22 @@ import {
 import SendIcon from '@mui/icons-material/Send';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import CloseIcon from '@mui/icons-material/Close';
-import { useAuthContext } from './AuthContext';
+import { useAuthContext } from './auth-context';
 import {
+  subscribeToAnnouncements,
   subscribeToResidentComplaints,
   subscribeToResidentFacilityBookings,
   subscribeToResidentPayments,
   subscribeToResidentStaffAttendance,
+  subscribeToVisitors,
 } from '../services/communityData';
-
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV ? 'http://localhost:4000' : '')).replace(/\/$/, '');
-const CHATBOT_TIMEOUT_MS = 5000;
+import { sendAgentMessage } from '../services/aiConcierge';
 
 const initialMessages = [
-  { sender: 'bot', text: 'Hi! I am your AI assistant. How can I help you today?' }
+  { sender: 'bot', text: 'Hi! I am your AI assistant. How can I help you today?' },
 ];
 
-function createTimeoutSignal(timeoutMs) {
-  const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
-  return {
-    signal: controller.signal,
-    cleanup: () => window.clearTimeout(timeoutId),
-  };
-}
-
-const getLLMReply = async (input) => {
-  if (!API_BASE_URL) {
-    return '';
-  }
-
-  const { signal, cleanup } = createTimeoutSignal(CHATBOT_TIMEOUT_MS);
-
-  try {
-    const res = await fetch(`${API_BASE_URL}/chatbot-llm`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: input }),
-      signal,
-    });
-
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      return '';
-    }
-
-    return data.reply || '';
-  } catch {
-    return '';
-  } finally {
-    cleanup();
-  }
-};
-
-const getLocalConciergeReply = (input, { payments, complaints, bookings, staffAttendance }) => {
+const getLocalConciergeReply = (input, { payments, complaints, bookings, staffAttendance, visitors, announcements }) => {
   const query = input.toLowerCase();
   if (/(^|\b)(hi|hello|hey|good morning|good evening)(\b|$)/.test(query)) {
     return 'Hello! I can help with dues, complaints, amenity bookings, and staff attendance.';
@@ -114,6 +78,23 @@ const getLocalConciergeReply = (input, { payments, complaints, bookings, staffAt
     return `${presentCount} staff member${presentCount === 1 ? '' : 's'} are marked present today.`;
   }
 
+  if (query.includes('visitor') || query.includes('guest') || query.includes('delivery') || query.includes('parcel')) {
+    const pendingVisitors = visitors.filter((visitor) => visitor.status === 'pending');
+    if (!pendingVisitors.length) {
+      return 'There are no pending visitors or deliveries waiting for your approval right now.';
+    }
+
+    return `${pendingVisitors.length} visitor or delivery request${pendingVisitors.length === 1 ? '' : 's'} are pending. Latest request is ${pendingVisitors[0].name} for ${pendingVisitors[0].purpose}.`;
+  }
+
+  if (query.includes('announcement') || query.includes('notice')) {
+    if (!announcements.length) {
+      return 'There are no recent announcements for your society.';
+    }
+
+    return `Latest announcement: ${announcements[0].title}.`;
+  }
+
   return '';
 };
 
@@ -134,6 +115,8 @@ const ChatbotWidget = ({
   const [complaints, setComplaints] = useState([]);
   const [bookings, setBookings] = useState([]);
   const [staffAttendance, setStaffAttendance] = useState([]);
+  const [visitors, setVisitors] = useState([]);
+  const [announcements, setAnnouncements] = useState([]);
   const { user } = useAuthContext();
 
   useEffect(() => {
@@ -146,17 +129,28 @@ const ChatbotWidget = ({
     const unsubComplaints = subscribeToResidentComplaints(user.uid, setComplaints, user);
     const unsubBookings = subscribeToResidentFacilityBookings(user.uid, setBookings, user);
     const unsubStaffAttendance = subscribeToResidentStaffAttendance(user.uid, setStaffAttendance, user);
+    const unsubVisitors = subscribeToVisitors((nextVisitors) => {
+      setVisitors(nextVisitors.filter((visitor) => visitor.residentId === user.uid || visitor.flat === user.flat));
+    }, user);
+    const unsubAnnouncements = subscribeToAnnouncements(setAnnouncements, user);
     return () => {
       unsubPayments();
       unsubComplaints();
       unsubBookings();
       unsubStaffAttendance();
+      unsubVisitors();
+      unsubAnnouncements();
     };
-  }, [user?.uid]);
+  }, [user]);
 
   const conciergeContext = useMemo(
-    () => ({ payments, complaints, bookings, staffAttendance }),
-    [bookings, complaints, payments, staffAttendance],
+    () => ({ payments, complaints, bookings, staffAttendance, visitors, announcements }),
+    [announcements, bookings, complaints, payments, staffAttendance, visitors],
+  );
+
+  const chatHistory = useMemo(
+    () => messages.map((message) => ({ role: message.sender === 'bot' ? 'assistant' : 'user', content: message.text })).slice(-8),
+    [messages],
   );
 
   const handleSend = async () => {
@@ -165,10 +159,30 @@ const ChatbotWidget = ({
     setMessages((msgs) => [...msgs, userMsg]);
     setLoading(true);
     setInput('');
-    const localReply = getLocalConciergeReply(input, conciergeContext);
-    const llmReply = localReply ? '' : await getLLMReply(input);
-    const reply = localReply || llmReply || getFallbackReply();
-    setMessages((msgs) => [...msgs, { sender: 'bot', text: reply }]);
+    const agentResponse = await sendAgentMessage({
+      message: input,
+      chatHistory,
+      user: {
+        uid: user?.uid,
+        name: user?.name,
+        role: user?.role,
+        flat: user?.flat,
+        societyId: user?.societyId,
+        language: user?.language,
+      },
+      contextSnapshot: conciergeContext,
+      executionMode: 'preview',
+    });
+    const localReply = agentResponse ? '' : getLocalConciergeReply(input, conciergeContext);
+    const reply = agentResponse?.reply || localReply || getFallbackReply();
+    setMessages((msgs) => [...msgs, {
+      sender: 'bot',
+      text: reply,
+      meta: agentResponse ? {
+        agents: agentResponse.routing?.agents || [],
+        tasks: (agentResponse.tasks || []).map((task) => `${task.title}: ${task.status}`),
+      } : null,
+    }]);
     setLoading(false);
   };
 
@@ -228,7 +242,25 @@ const ChatbotWidget = ({
         {messages.map((msg, idx) => (
           <ListItem key={idx} sx={{ px: 0, alignItems: 'flex-start', justifyContent: msg.sender === 'bot' ? 'flex-start' : 'flex-end' }}>
             <ListItemText
-              primary={msg.text}
+              primary={(
+                <Box>
+                  <Typography sx={{ fontSize: 15, lineHeight: 1.45 }}>{msg.text}</Typography>
+                  {msg.meta?.agents?.length ? (
+                    <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap', mt: 1 }}>
+                      {msg.meta.agents.map((agent) => (
+                        <Chip key={agent} label={`${agent} agent`} size="small" variant="outlined" />
+                      ))}
+                    </Box>
+                  ) : null}
+                  {msg.meta?.tasks?.length ? (
+                    <Box sx={{ mt: 1 }}>
+                      {msg.meta.tasks.slice(0, 3).map((task) => (
+                        <Typography key={task} sx={{ fontSize: 12, color: 'text.secondary' }}>{task}</Typography>
+                      ))}
+                    </Box>
+                  ) : null}
+                </Box>
+              )}
               sx={{
                 maxWidth: '88%',
                 m: 0,
@@ -242,7 +274,6 @@ const ChatbotWidget = ({
                   boxShadow: '0 4px 12px rgba(120, 108, 88, 0.08)',
                 },
               }}
-              primaryTypographyProps={{ fontSize: 15, lineHeight: 1.45 }}
             />
           </ListItem>
         ))}

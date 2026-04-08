@@ -18,7 +18,8 @@ import {
 import CampaignIcon from '@mui/icons-material/Campaign';
 import PushPinIcon from '@mui/icons-material/PushPin';
 import Navbar from '../components/Navbar';
-import { useAuthContext } from '../components/AuthContext';
+import { SUPPORTED_LANGUAGES } from '../i18n';
+import { useAuthContext } from '../components/auth-context';
 import {
   acknowledgeAnnouncement,
   createAnnouncement,
@@ -190,9 +191,9 @@ export default function Announcements() {
             <TextField label="Title" value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} fullWidth />
             <TextField label="Message" value={form.body} onChange={(event) => setForm((current) => ({ ...current, body: event.target.value }))} multiline minRows={4} fullWidth />
             <TextField select label="Language" value={form.language} onChange={(event) => setForm((current) => ({ ...current, language: event.target.value }))}>
-              <MenuItem value="en">English</MenuItem>
-              <MenuItem value="kn">Kannada</MenuItem>
-              <MenuItem value="ta">Tamil</MenuItem>
+              {SUPPORTED_LANGUAGES.map((language) => (
+                <MenuItem key={language.value} value={language.value}>{language.label}</MenuItem>
+              ))}
             </TextField>
             <Stack direction="row" spacing={1} alignItems="center">
               <Switch checked={form.pinned} onChange={(event) => setForm((current) => ({ ...current, pinned: event.target.checked }))} />

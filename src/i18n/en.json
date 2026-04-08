@@ -41,5 +41,194 @@
     "announcements": "Announcements",
     "complaints": "Complaints",
     "aiChatbot": "AI Chatbot"
+  },
+  "common": {
+    "cancel": "Cancel",
+    "close": "Close"
+  },
+  "complaints": {
+    "title": "Complaint Desk",
+    "subtitle": "Residents can raise issues with categories and admins can move them transparently from open to resolved.",
+    "raiseComplaint": "Raise Complaint",
+    "quickReport": "Quick Report",
+    "mobileChip": "Mobile",
+    "stats": {
+      "total": "Total Complaints",
+      "open": "Open",
+      "inprogress": "In Progress",
+      "resolved": "Resolved"
+    },
+    "filters": {
+      "all": "All",
+      "open": "Open",
+      "inprogress": "In Progress",
+      "resolved": "Resolved"
+    },
+    "emptyTitle": "No complaints in this view",
+    "emptySubtitle": "Switch filters or raise a new issue to start tracking it here.",
+    "residentFallback": "Resident",
+    "flatLabel": "Flat {{flat}}",
+    "openedAt": "Opened {{time}}",
+    "adminNote": "Admin note: {{note}}",
+    "resolutionNote": "Resolution: {{note}}",
+    "dialogTitle": "Raise New Complaint",
+    "fields": {
+      "category": "Category",
+      "description": "Describe the issue"
+    },
+    "submitComplaint": "Submit Complaint",
+    "submitting": "Submitting...",
+    "issueNoticedInFlow": "Issue noticed in {{source}} flow.",
+    "messages": {
+      "describeIssue": "Describe the issue before submitting.",
+      "submitted": "Complaint submitted successfully.",
+      "submitFailed": "Unable to submit complaint.",
+      "statusMoved": "Complaint moved to {{status}}.",
+      "statusFailed": "Unable to update complaint status."
+    },
+    "actions": {
+      "moveToInprogress": "Move To In Progress",
+      "markResolved": "Mark Resolved"
+    },
+    "status": {
+      "open": "Open",
+      "inprogress": "In Progress",
+      "resolved": "Resolved"
+    },
+    "priority": {
+      "high": "High priority",
+      "medium": "Medium priority",
+      "low": "Low priority"
+    },
+    "categories": {
+      "plumbing": "Plumbing",
+      "electrical": "Electrical",
+      "lift": "Lift",
+      "security": "Security",
+      "housekeeping": "Housekeeping",
+      "delivery": "Delivery",
+      "staffAccess": "Staff Access",
+      "general": "General"
+    }
+  },
+  "expenses": {
+    "title": "Expenses & Payments",
+    "subtitle": "Track maintenance, utility, rent, or clubhouse dues and pay them with instant receipt confirmation.",
+    "stats": {
+      "outstanding": "Outstanding",
+      "paid": "Paid So Far",
+      "openBills": "Open Bills",
+      "overdue": "Overdue"
+    },
+    "insightTitle": "AI Concierge Insight",
+    "reminder": "Reminder: {{title}} due on {{dueDate}}",
+    "emptyTitle": "No payment records yet",
+    "emptySubtitle": "A starter maintenance bill will appear automatically for signed-in residents.",
+    "maintenanceBill": "Maintenance Bill",
+    "dueOn": "Due on {{dueDate}}",
+    "flatLabel": "Flat: {{flat}}",
+    "notAssigned": "Not assigned",
+    "status": {
+      "paid": "Paid",
+      "overdue": "Overdue",
+      "pending": "Pending"
+    },
+    "payNow": "Pay Now",
+    "viewReceipt": "View Receipt",
+    "expenseSplit": "Expense Split",
+    "paidVia": "Paid via {{method}} {{reference}}",
+    "confirmPayment": "Confirm Payment",
+    "confirmPaymentCopy": "Record payment for {{title}} of {{amount}}.",
+    "paymentMethod": "Payment method",
+    "methods": {
+      "razorpay": "Razorpay Checkout",
+      "cash": "Cash"
+    },
+    "razorpayCopy": "Pay securely with UPI, card, net banking, or wallet through Razorpay Checkout.",
+    "razorpayInfo": "Razorpay requires the backend API to be running with valid RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET values.",
+    "upiCopy": "Scan the UPI QR or open your UPI app directly to complete payment.",
+    "openUpiApp": "Open UPI App",
+    "recording": "Recording...",
+    "confirmPaymentAction": "Confirm Payment",
+    "receiptTitle": "Payment Receipt",
+    "downloadReceipt": "Download Receipt",
+    "receipt": {
+      "number": "Receipt Number",
+      "pendingReceipt": "Receipt will appear after refresh if just recorded.",
+      "charge": "Charge",
+      "amount": "Amount",
+      "method": "Method",
+      "reference": "Reference",
+      "pendingSync": "Pending sync",
+      "gatewayOrder": "Gateway Order"
+    },
+    "messages": {
+      "razorpaySuccess": "Razorpay payment verified successfully. Receipt generated instantly.",
+      "recorded": "Payment recorded successfully. Receipt generated instantly.",
+      "recordFailed": "Unable to record payment."
+    },
+    "insight": {
+      "clear": "You are fully up to date. No maintenance dues are pending right now.",
+      "pending": "You have {{count}} open bill worth {{amount}}. Next due date is {{nextDueDate}}."
+    }
+  },
+  "bookings": {
+    "title": "Facility Booking",
+    "subtitle": "Reserve shared amenities like the gym, pool, clubhouse, or community hall without waiting for manual confirmation.",
+    "reserveAmenity": "Reserve Amenity",
+    "stats": {
+      "active": "Active Bookings",
+      "cancelled": "Cancelled",
+      "nextReservation": "Next Reservation"
+    },
+    "reserveFirstSlot": "Reserve your first slot",
+    "availableAmenities": "Available Amenities",
+    "openChip": "Open",
+    "myBookings": "My Bookings",
+    "empty": "No amenity bookings yet. Reserve a slot to see it here.",
+    "pendingCode": "Pending code",
+    "guests": "Guests: {{count}}",
+    "notes": "Notes: {{notes}}",
+    "cancelBooking": "Cancel Booking",
+    "dialogTitle": "Reserve Amenity",
+    "fields": {
+      "amenity": "Amenity",
+      "bookingDate": "Booking date",
+      "slot": "Slot",
+      "guestCount": "Guest count",
+      "notes": "Notes"
+    },
+    "reserving": "Reserving...",
+    "confirmBooking": "Confirm Booking",
+    "messages": {
+      "addFlat": "Add your flat number before reserving amenities.",
+      "required": "Amenity, date, and slot are required.",
+      "success": "{{amenity}} booked successfully. Booking code: {{code}}.",
+      "createFailed": "Unable to create booking.",
+      "cancelled": "Amenity booking cancelled.",
+      "cancelFailed": "Unable to cancel the booking."
+    },
+    "amenities": {
+      "gym": {
+        "label": "Gym",
+        "detail": "Reserve workout slots for peak hours."
+      },
+      "pool": {
+        "label": "Swimming Pool",
+        "detail": "Book family or lane-swim windows."
+      },
+      "clubhouse": {
+        "label": "Clubhouse",
+        "detail": "Reserve indoor gatherings and celebrations."
+      },
+      "hall": {
+        "label": "Community Hall",
+        "detail": "Block event space for parties and meetings."
+      },
+      "tennis": {
+        "label": "Tennis Court",
+        "detail": "Reserve coaching or match-time sessions."
+      }
+    }
   }
 }
