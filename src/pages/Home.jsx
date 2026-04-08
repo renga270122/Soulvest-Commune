@@ -1,15 +1,17 @@
 
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Navbar from '../components/Navbar';
 import { useNavigate } from 'react-router-dom';
 import { useAuthContext } from '../components/auth-context';
 import topIllustration from '../assets/top-illustration.png';
 import bottomIllustration from '../assets/bottom-illustration.png';
+import { getUserProfileByUid, normalizeFlat } from '../services/communityData';
 
 
 export default function Home() {
   const navigate = useNavigate();
   const { logout, user } = useAuthContext();
+  const [residentProfile, setResidentProfile] = useState(null);
   const [announcement, setAnnouncement] = useState('Water Tank Cleaning Tomorrow');
   const [showDropdown, setShowDropdown] = useState(false);
   const announcements = [
@@ -20,6 +22,34 @@ export default function Home() {
   const event = { title: 'Diwali Celebration', date: 'Nov 15, 7 PM' };
   const pendingComplaints = 2;
   const currentDues = 3500;
+
+  useEffect(() => {
+    if (!user?.uid) {
+      setResidentProfile(null);
+      return undefined;
+    }
+
+    let active = true;
+    void getUserProfileByUid(user.uid)
+      .then((profile) => {
+        if (!active) return;
+        setResidentProfile(profile || null);
+      })
+      .catch(() => {
+        if (!active) return;
+        setResidentProfile(null);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [user?.uid]);
+
+  const residentUser = useMemo(() => ({
+    ...(user || {}),
+    ...(residentProfile || {}),
+    flat: normalizeFlat(residentProfile?.flat || user?.flat),
+  }), [residentProfile, user]);
 
   const handleLogout = async () => {
     logout();
@@ -34,8 +64,8 @@ export default function Home() {
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8, padding: '0 16px' }}>
         <img
-          src={user?.photoDataUrl || undefined}
-          alt={user?.name || 'Resident'}
+          src={residentUser?.photoDataUrl || undefined}
+          alt={residentUser?.name || 'Resident'}
           style={{
             width: 52,
             height: 52,
@@ -47,7 +77,8 @@ export default function Home() {
         />
         <div>
           <div style={{ fontSize: 13, fontWeight: 600, color: '#a67c2d', letterSpacing: '0.04em', textTransform: 'uppercase' }}>Namaskara</div>
-          <div style={{ fontSize: 22, fontWeight: 'bold', color: '#5a3a0a' }}>{user?.name || 'Resident'}</div>
+          <div style={{ fontSize: 22, fontWeight: 'bold', color: '#5a3a0a' }}>{residentUser?.name || 'Resident'}</div>
+          <div style={{ fontSize: 13, color: '#8d6d2a' }}>{residentUser?.flat ? `Flat ${residentUser.flat}` : 'Flat not assigned'}</div>
         </div>
       </div>
 

@@ -4,9 +4,11 @@ import topIllustration from "../assets/top-illustration.png";
 import bottomIllustration from "../assets/bottom-illustration.png";
 import Navbar from "../components/Navbar";
 import { useAuthContext } from "../components/auth-context";
+import { getUserProfileByUid, normalizeFlat } from "../services/communityData";
 
 export default function UserDashboard() {
   const { user } = useAuthContext();
+  const [residentProfile, setResidentProfile] = useState(null);
   // Simulate user info and onboarding state
   const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem("soulvest_onboarded"));
   const [showFlatPrompt, setShowFlatPrompt] = useState(() => !localStorage.getItem("soulvest_flat_verified"));
@@ -18,9 +20,36 @@ export default function UserDashboard() {
     if (!showFlatPrompt) localStorage.setItem("soulvest_flat_verified", "1");
   }, [showOnboarding, showFlatPrompt]);
 
+  useEffect(() => {
+    if (!user?.uid) {
+      setResidentProfile(null);
+      return undefined;
+    }
+
+    let active = true;
+    void getUserProfileByUid(user.uid)
+      .then((profile) => {
+        if (!active) return;
+        setResidentProfile(profile || null);
+      })
+      .catch(() => {
+        if (!active) return;
+        setResidentProfile(null);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [user?.uid]);
+
   // Simulated data
-  const userName = name || user?.name || "Rahul";
-  const userFlat = flat || user?.flat || "A-101";
+  const residentUser = {
+    ...(user || {}),
+    ...(residentProfile || {}),
+    flat: normalizeFlat(residentProfile?.flat || user?.flat),
+  };
+  const userName = name || residentUser?.name || "Rahul";
+  const userFlat = flat || residentUser?.flat || "A-101";
   const currentDues = 3500;
   const pendingComplaints = 2;
   const announcements = [
@@ -84,7 +113,7 @@ export default function UserDashboard() {
       <div className={styles.dashboardCard}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
           <img
-            src={user?.photoDataUrl || undefined}
+            src={residentUser?.photoDataUrl || undefined}
             alt={userName}
             style={{
               width: 52,
