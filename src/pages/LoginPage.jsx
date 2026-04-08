@@ -27,62 +27,87 @@ const getQuickAccessLabel = (selectedRole, loading, t) => {
 
 function PalaceIllustration() {
   return (
-    <svg viewBox="0 0 720 520" className={styles.palaceArt} role="img" aria-label="Royal palace illustration inspired by Vidhana Soudha">
+    <svg viewBox="0 0 720 520" className={styles.palaceArt} role="img" aria-label="Modern apartment community illustration">
       <defs>
-        <linearGradient id="skyGradient" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0%" stopColor="#f5d98e" />
-          <stop offset="45%" stopColor="#d97a52" />
-          <stop offset="100%" stopColor="#5f1f2c" />
+        <linearGradient id="apartmentSky" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0%" stopColor="#f6dca6" />
+          <stop offset="42%" stopColor="#f2a36f" />
+          <stop offset="100%" stopColor="#7f2e40" />
         </linearGradient>
-        <linearGradient id="waterGradient" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0%" stopColor="#1a6874" />
-          <stop offset="100%" stopColor="#0d3340" />
+        <linearGradient id="towerCream" x1="0" x2="1" y1="0" y2="1">
+          <stop offset="0%" stopColor="#fff6df" />
+          <stop offset="100%" stopColor="#d8b57a" />
         </linearGradient>
-        <linearGradient id="palaceGradient" x1="0" x2="1" y1="0" y2="1">
-          <stop offset="0%" stopColor="#fff2cf" />
-          <stop offset="100%" stopColor="#d4aa63" />
+        <linearGradient id="glassBlue" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0%" stopColor="#d7ecff" />
+          <stop offset="100%" stopColor="#7ca7cf" />
+        </linearGradient>
+        <linearGradient id="gardenGreen" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0%" stopColor="#91c483" />
+          <stop offset="100%" stopColor="#356a49" />
         </linearGradient>
       </defs>
-      <rect width="720" height="520" fill="url(#skyGradient)" rx="28" />
-      <circle cx="565" cy="112" r="44" fill="#ffd96b" opacity="0.85" />
-      <path d="M0 250 L110 175 L205 246 L314 168 L430 244 L552 155 L720 250 L720 340 L0 340 Z" fill="#864150" opacity="0.35" />
-      <path d="M0 290 L120 220 L225 280 L320 208 L420 283 L560 198 L720 292 L720 360 L0 360 Z" fill="#5e2c3b" opacity="0.5" />
-      <rect x="0" y="360" width="720" height="160" fill="url(#waterGradient)" />
-      <g opacity="0.16" transform="translate(0 362) scale(1 -1)">
-        <rect x="136" y="140" width="448" height="128" fill="#fff3d9" rx="8" />
-        <rect x="168" y="176" width="384" height="92" fill="#f4d8a8" />
-        <rect x="198" y="216" width="324" height="52" fill="#e2c081" />
+      <rect width="720" height="520" fill="url(#apartmentSky)" rx="28" />
+      <circle cx="574" cy="102" r="40" fill="#ffe08a" opacity="0.88" />
+      <path d="M0 282 L110 230 L205 266 L320 216 L424 262 L548 206 L720 278 L720 520 L0 520 Z" fill="#723347" opacity="0.26" />
+      <path d="M0 318 L132 264 L230 304 L332 250 L452 306 L582 244 L720 320 L720 520 L0 520 Z" fill="#5d2638" opacity="0.38" />
+      <rect x="0" y="380" width="720" height="140" fill="url(#gardenGreen)" />
+      <rect x="0" y="356" width="720" height="34" fill="#c8a56f" opacity="0.92" />
+      <path d="M0 373 C92 360 146 360 236 373 C318 385 394 384 485 370 C563 358 637 357 720 371" fill="none" stroke="#e8d0aa" strokeWidth="6" strokeLinecap="round" opacity="0.78" />
+
+      <g stroke="#8a5b34" strokeWidth="3.5">
+        <rect x="120" y="186" width="132" height="170" rx="10" fill="url(#towerCream)" />
+        <rect x="264" y="126" width="184" height="230" rx="12" fill="url(#towerCream)" />
+        <rect x="468" y="164" width="132" height="192" rx="10" fill="url(#towerCream)" />
       </g>
-      <g fill="url(#palaceGradient)" stroke="#8e5c24" strokeWidth="4">
-        <rect x="136" y="206" width="448" height="126" rx="7" />
-        <rect x="170" y="168" width="380" height="52" rx="5" />
-        <rect x="207" y="132" width="306" height="50" rx="5" />
-        <rect x="326" y="92" width="68" height="65" rx="8" />
-        <path d="M360 56 C385 56 401 72 401 92 H319 C319 72 335 56 360 56 Z" />
-        <path d="M344 56 L376 56 L371 34 L349 34 Z" fill="#d6a143" />
-        <path d="M235 118 C255 118 269 131 269 149 H201 C201 131 215 118 235 118 Z" />
-        <path d="M485 118 C505 118 519 131 519 149 H451 C451 131 465 118 485 118 Z" />
-        <rect x="189" y="116" width="92" height="16" rx="4" fill="#e1b162" />
-        <rect x="439" y="116" width="92" height="16" rx="4" fill="#e1b162" />
+
+      <g fill="#c89557">
+        <rect x="168" y="168" width="36" height="18" rx="4" />
+        <rect x="338" y="102" width="36" height="24" rx="5" />
+        <rect x="516" y="146" width="36" height="18" rx="4" />
       </g>
-      <g fill="#8d5b2a">
-        {Array.from({ length: 14 }).map((_, index) => (
-          <rect key={`col-${index}`} x={160 + index * 28} y={220} width="12" height="110" rx="4" />
+
+      <g fill="url(#glassBlue)">
+        {Array.from({ length: 4 }).map((_, row) => (
+          Array.from({ length: 3 }).map((__, col) => (
+            <rect key={`left-window-${row}-${col}`} x={138 + col * 34} y={206 + row * 34} width="20" height="22" rx="4" />
+          ))
         ))}
-        <rect x="338" y="236" width="44" height="96" rx="14" fill="#71391f" />
-      </g>
-      <g fill="#fff0cb" opacity="0.8">
-        {Array.from({ length: 10 }).map((_, index) => (
-          <rect key={`window-${index}`} x={198 + index * 34} y={184} width="16" height="18" rx="4" />
+        {Array.from({ length: 5 }).map((_, row) => (
+          Array.from({ length: 4 }).map((__, col) => (
+            <rect key={`center-window-${row}-${col}`} x={286 + col * 38} y={144 + row * 34} width="22" height="22" rx="4" />
+          ))
         ))}
-        {Array.from({ length: 8 }).map((_, index) => (
-          <rect key={`window-lower-${index}`} x={214 + index * 36} y={248} width="18" height="26" rx="5" />
+        {Array.from({ length: 4 }).map((_, row) => (
+          Array.from({ length: 3 }).map((__, col) => (
+            <rect key={`right-window-${row}-${col}`} x={486 + col * 34} y={184 + row * 34} width="20" height="22" rx="4" />
+          ))
         ))}
       </g>
-      <path d="M82 102 C96 93 105 95 118 106" stroke="#43232b" strokeWidth="4" fill="none" strokeLinecap="round" />
-      <path d="M108 96 C120 87 132 89 145 100" stroke="#43232b" strokeWidth="4" fill="none" strokeLinecap="round" />
-      <path d="M590 136 C604 128 613 129 624 140" stroke="#43232b" strokeWidth="4" fill="none" strokeLinecap="round" />
-      <path d="M616 130 C627 122 639 124 651 135" stroke="#43232b" strokeWidth="4" fill="none" strokeLinecap="round" />
+
+      <g fill="#7a4a28">
+        <rect x="177" y="306" width="20" height="50" rx="5" />
+        <rect x="346" y="296" width="24" height="60" rx="6" />
+        <rect x="525" y="314" width="20" height="42" rx="5" />
+      </g>
+
+      <g>
+        <rect x="304" y="346" width="104" height="22" rx="11" fill="#7a8c54" opacity="0.95" />
+        <circle cx="292" cy="352" r="20" fill="#4f7d51" />
+        <circle cx="420" cy="352" r="20" fill="#4f7d51" />
+        <circle cx="104" cy="370" r="22" fill="#4f7d51" />
+        <circle cx="618" cy="370" r="22" fill="#4f7d51" />
+        <rect x="100" y="370" width="8" height="20" rx="4" fill="#6b4228" />
+        <rect x="614" y="370" width="8" height="20" rx="4" fill="#6b4228" />
+        <rect x="288" y="352" width="8" height="18" rx="4" fill="#6b4228" />
+        <rect x="416" y="352" width="8" height="18" rx="4" fill="#6b4228" />
+      </g>
+
+      <g fill="#f5ede1" opacity="0.84">
+        <rect x="146" y="392" width="84" height="10" rx="5" />
+        <rect x="318" y="392" width="84" height="10" rx="5" />
+        <rect x="490" y="392" width="84" height="10" rx="5" />
+      </g>
     </svg>
   );
 }
