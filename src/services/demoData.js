@@ -106,7 +106,7 @@ export async function getUserProfileByUid(uid) {
 
 export async function upsertUserProfile(uid, data) {
   mutateDemoState((state) => {
-    const existing = state.users.find((user) => user.id === uid);
+    const existing = state.users.find((user) => user.id === uid || user.uid === uid);
     if (existing) {
       Object.assign(existing, {
         ...data,
@@ -118,6 +118,7 @@ export async function upsertUserProfile(uid, data) {
 
     state.users.push({
       id: uid,
+      uid,
       role: 'resident',
       language: 'en',
       societyId: data.societyId || DEFAULT_SOCIETY_ID,

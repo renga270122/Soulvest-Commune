@@ -75,6 +75,11 @@ const buildSessionUser = (user, auth = {}) => ({
   cityId: user.cityId || DEFAULT_CITY_ID,
   societyId: user.societyId || DEFAULT_SOCIETY_ID,
   language: user.language || 'en',
+  emergencyContactName: user.emergencyContactName || '',
+  emergencyContactPhone: user.emergencyContactPhone || '',
+  householdSize: user.householdSize || 1,
+  vehicleNumber: user.vehicleNumber || '',
+  photoDataUrl: user.photoDataUrl || '',
   accessToken: auth.token || '',
   authProvider: auth.user?.authProvider || auth.authProvider || 'demo-local',
 });

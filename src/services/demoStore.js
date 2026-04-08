@@ -677,10 +677,13 @@ export const resetDemoState = () => {
 export const sanitizeUser = (user) => {
   if (!user) return null;
   const { password: _PASSWORD, ...safeUser } = user;
-  return safeUser;
+  return {
+    uid: user.id,
+    ...safeUser,
+  };
 };
 
-export const findDemoUserById = (userId) => getDemoState().users.find((user) => user.id === userId) || null;
+export const findDemoUserById = (userId) => getDemoState().users.find((user) => user.id === userId || user.uid === userId) || null;
 
 export const findDemoUserByIdentifier = (identifier) => {
   const normalized = String(identifier || '').trim().toLowerCase();

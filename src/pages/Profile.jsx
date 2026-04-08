@@ -50,6 +50,39 @@ const defaultForm = {
 
 const languageOptions = SUPPORTED_LANGUAGES;
 
+function loadImage(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = () => reject(new Error('Unable to read the selected image.'));
+      image.src = typeof reader.result === 'string' ? reader.result : '';
+    };
+    reader.onerror = () => reject(new Error('Unable to read the selected image.'));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function compressProfilePhoto(file) {
+  const image = await loadImage(file);
+  const maxDimension = 512;
+  const scale = Math.min(1, maxDimension / Math.max(image.width, image.height));
+  const width = Math.max(1, Math.round(image.width * scale));
+  const height = Math.max(1, Math.round(image.height * scale));
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext('2d');
+
+  if (!context) {
+    throw new Error('Unable to prepare the selected image.');
+  }
+
+  context.drawImage(image, 0, 0, width, height);
+  return canvas.toDataURL('image/jpeg', 0.82);
+}
+
 export default function Profile() {
   const { user, updateUser } = useAuthContext();
   const [form, setForm] = useState(defaultForm);
@@ -133,7 +166,7 @@ export default function Profile() {
     }));
   };
 
-  const handlePhotoSelect = (event) => {
+  const handlePhotoSelect = async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -149,18 +182,16 @@ export default function Profile() {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
+    try {
+      const photoDataUrl = await compressProfilePhoto(file);
       setForm((current) => ({
         ...current,
-        photoDataUrl: typeof reader.result === 'string' ? reader.result : current.photoDataUrl,
+        photoDataUrl,
       }));
       setBanner({ type: 'success', message: 'Profile photo ready. Save changes to keep it.' });
-    };
-    reader.onerror = () => {
-      setBanner({ type: 'error', message: 'Unable to read the selected image.' });
-    };
-    reader.readAsDataURL(file);
+    } catch (error) {
+      setBanner({ type: 'error', message: error.message || 'Unable to read the selected image.' });
+    }
     event.target.value = '';
   };
 
@@ -184,6 +215,12 @@ export default function Profile() {
     try {
       await upsertUserProfile(user.uid, {
         ...form,
+        name: form.name.trim(),
+        email: form.email.trim(),
+        mobile: form.mobile.trim(),
+        emergencyContactName: form.emergencyContactName.trim(),
+        emergencyContactPhone: form.emergencyContactPhone.trim(),
+        vehicleNumber: form.vehicleNumber.trim(),
         flat: normalizeFlat(form.flat),
         householdSize: Number(form.householdSize || 1),
         role: user.role,
