@@ -53,7 +53,7 @@ export default function FeedbackForm() {
         rating: Number(form.rating),
       });
 
-      setBanner({ type: 'success', message: 'Thank you. Your feedback has been submitted to the community team.' });
+      setBanner({ type: 'success', message: 'Thank you. Your feedback has been submitted.' });
       setReferenceId(result.id || '');
       setForm(initialForm);
     } catch (error) {
