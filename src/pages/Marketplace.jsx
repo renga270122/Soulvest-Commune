@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
+  CardMedia,
   Box,
   Button,
   Chip,
@@ -8,6 +9,7 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  IconButton,
   MenuItem,
   Paper,
   Stack,
@@ -15,6 +17,8 @@ import {
   Typography,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import PhotoCameraIcon from '@mui/icons-material/PhotoCamera';
 import SellIcon from '@mui/icons-material/Sell';
 import ShoppingBagIcon from '@mui/icons-material/ShoppingBag';
 import StorefrontIcon from '@mui/icons-material/Storefront';
@@ -48,6 +52,41 @@ const listingTypeOptions = [
   { value: 'buy', label: 'Wanted' },
 ];
 
+const MAX_MARKETPLACE_PHOTOS = 4;
+
+function loadImageFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = () => reject(new Error('Unable to read one of the selected photos.'));
+      image.src = typeof reader.result === 'string' ? reader.result : '';
+    };
+    reader.onerror = () => reject(new Error('Unable to read one of the selected photos.'));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function compressMarketplacePhoto(file) {
+  const image = await loadImageFile(file);
+  const maxDimension = 1280;
+  const scale = Math.min(1, maxDimension / Math.max(image.width, image.height));
+  const width = Math.max(1, Math.round(image.width * scale));
+  const height = Math.max(1, Math.round(image.height * scale));
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext('2d');
+
+  if (!context) {
+    throw new Error('Unable to prepare marketplace photos right now.');
+  }
+
+  context.drawImage(image, 0, 0, width, height);
+  return canvas.toDataURL('image/jpeg', 0.82);
+}
+
 const formatTimestamp = (value) => {
   if (!value) return 'Just now';
   const date = new Date(value);
@@ -74,7 +113,9 @@ export default function Marketplace() {
     condition: 'good',
     listingType: 'sell',
     price: '',
+    photos: [],
   });
+  const photoInputRef = useRef(null);
   const { user } = useAuthContext();
   const canPost = ['resident', 'admin'].includes(user?.role);
 
@@ -121,6 +162,7 @@ export default function Marketplace() {
         condition: form.condition,
         listingType: form.listingType,
         price: form.price,
+        photos: form.photos,
         residentId: user?.uid,
         residentName: user?.name || 'Resident',
         flat: user?.flat || '',
@@ -134,6 +176,7 @@ export default function Marketplace() {
         condition: 'good',
         listingType: 'sell',
         price: '',
+        photos: [],
       });
       setDialogOpen(false);
       setBanner({ type: 'success', message: 'Marketplace listing posted successfully.' });
@@ -142,6 +185,42 @@ export default function Marketplace() {
     }
 
     setSaving(false);
+  };
+
+  const handlePhotoSelection = async (event) => {
+    const files = Array.from(event.target.files || []);
+    if (!files.length) return;
+
+    const remainingSlots = MAX_MARKETPLACE_PHOTOS - form.photos.length;
+    if (remainingSlots <= 0) {
+      setBanner({ type: 'error', message: `You can upload up to ${MAX_MARKETPLACE_PHOTOS} photos per listing.` });
+      event.target.value = '';
+      return;
+    }
+
+    const selectedFiles = files.slice(0, remainingSlots);
+
+    try {
+      const nextPhotos = await Promise.all(selectedFiles.map((file) => compressMarketplacePhoto(file)));
+      setForm((current) => ({
+        ...current,
+        photos: [...current.photos, ...nextPhotos],
+      }));
+      if (files.length > remainingSlots) {
+        setBanner({ type: 'info', message: `Only the first ${MAX_MARKETPLACE_PHOTOS} photos were added.` });
+      }
+    } catch (error) {
+      setBanner({ type: 'error', message: error.message || 'Unable to add marketplace photos.' });
+    }
+
+    event.target.value = '';
+  };
+
+  const handleRemovePhoto = (photoIndex) => {
+    setForm((current) => ({
+      ...current,
+      photos: current.photos.filter((_, index) => index !== photoIndex),
+    }));
   };
 
   return (
@@ -245,9 +324,40 @@ export default function Marketplace() {
 
           {filteredListings.map((listing) => {
             const isOwnListing = listing.residentId === user?.uid;
+            const listingPhotos = Array.isArray(listing.photos) ? listing.photos : [];
             return (
               <Paper key={listing.id} elevation={2} sx={{ p: 2.5, borderRadius: 3 }}>
                 <Stack spacing={1.5}>
+                  {listingPhotos.length > 0 ? (
+                    <Box
+                      sx={{
+                        display: 'grid',
+                        gridTemplateColumns: listingPhotos.length === 1 ? '1fr' : { xs: '1fr 1fr', md: '1.4fr 1fr' },
+                        gap: 1,
+                      }}
+                    >
+                      <CardMedia
+                        component="img"
+                        image={listingPhotos[0]}
+                        alt={listing.title}
+                        sx={{ height: 220, borderRadius: 2, objectFit: 'cover' }}
+                      />
+                      {listingPhotos.length > 1 ? (
+                        <Box sx={{ display: 'grid', gridTemplateColumns: '1fr', gap: 1 }}>
+                          {listingPhotos.slice(1, 3).map((photo, index) => (
+                            <CardMedia
+                              key={`${listing.id}-photo-${index + 1}`}
+                              component="img"
+                              image={photo}
+                              alt={`${listing.title} ${index + 2}`}
+                              sx={{ height: 106, borderRadius: 2, objectFit: 'cover' }}
+                            />
+                          ))}
+                        </Box>
+                      ) : null}
+                    </Box>
+                  ) : null}
+
                   <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={1.5}>
                     <Box>
                       <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.75, flexWrap: 'wrap' }}>
@@ -286,6 +396,58 @@ export default function Marketplace() {
           <Stack spacing={2} sx={{ pt: 1 }}>
             <TextField label="Title" value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} fullWidth />
             <TextField label="Description" value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} multiline minRows={4} fullWidth />
+            <Stack spacing={1.25}>
+              <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={1.5} alignItems={{ xs: 'flex-start', sm: 'center' }}>
+                <Box>
+                  <Typography variant="subtitle1">Photos</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Add up to {MAX_MARKETPLACE_PHOTOS} photos to help residents understand the item faster.
+                  </Typography>
+                </Box>
+                <Button
+                  variant="outlined"
+                  startIcon={<PhotoCameraIcon />}
+                  onClick={() => photoInputRef.current?.click()}
+                >
+                  Upload Photos
+                </Button>
+              </Stack>
+              <input
+                ref={photoInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                hidden
+                onChange={handlePhotoSelection}
+              />
+              {form.photos.length > 0 ? (
+                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(4, 1fr)' }, gap: 1.25 }}>
+                  {form.photos.map((photo, index) => (
+                    <Box key={`photo-preview-${index}`} sx={{ position: 'relative' }}>
+                      <CardMedia
+                        component="img"
+                        image={photo}
+                        alt={`Listing photo ${index + 1}`}
+                        sx={{ height: 112, borderRadius: 2, objectFit: 'cover' }}
+                      />
+                      <IconButton
+                        size="small"
+                        onClick={() => handleRemovePhoto(index)}
+                        sx={{
+                          position: 'absolute',
+                          top: 6,
+                          right: 6,
+                          bgcolor: 'rgba(255,255,255,0.94)',
+                          '&:hover': { bgcolor: '#fff' },
+                        }}
+                      >
+                        <DeleteOutlineIcon fontSize="small" />
+                      </IconButton>
+                    </Box>
+                  ))}
+                </Box>
+              ) : null}
+            </Stack>
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
               <TextField select label="Listing type" value={form.listingType} onChange={(event) => setForm((current) => ({ ...current, listingType: event.target.value }))} fullWidth>
                 {listingTypeOptions.map((option) => (

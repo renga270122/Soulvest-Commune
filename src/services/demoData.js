@@ -772,6 +772,7 @@ export async function createMarketplaceListing(listing) {
     societyId: resolveSocietyId(listing),
     title: String(listing.title || 'Marketplace listing').trim(),
     description: String(listing.description || '').trim(),
+    photos: Array.isArray(listing.photos) ? listing.photos.filter(Boolean).slice(0, 4) : [],
     category: listing.category || 'general',
     condition: listing.condition || 'good',
     listingType: listing.listingType || 'sell',
