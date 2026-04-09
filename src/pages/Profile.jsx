@@ -49,6 +49,7 @@ const defaultForm = {
 };
 
 const languageOptions = SUPPORTED_LANGUAGES;
+const MAX_PROFILE_PHOTO_BYTES = 10 * 1024 * 1024;
 
 function loadImage(file) {
   return new Promise((resolve, reject) => {
@@ -176,8 +177,8 @@ export default function Profile() {
       return;
     }
 
-    if (file.size > 2 * 1024 * 1024) {
-      setBanner({ type: 'error', message: 'Profile photo must be smaller than 2 MB.' });
+    if (file.size > MAX_PROFILE_PHOTO_BYTES) {
+      setBanner({ type: 'error', message: 'Profile photo must be 10 MB or smaller.' });
       event.target.value = '';
       return;
     }
