@@ -18,6 +18,7 @@ import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import CampaignIcon from '@mui/icons-material/Campaign';
 import BugReportIcon from '@mui/icons-material/BugReport';
 import InboxIcon from '@mui/icons-material/Inbox';
+import StorefrontIcon from '@mui/icons-material/Storefront';
 import ShieldIcon from '@mui/icons-material/Shield';
 import { useNavigate } from 'react-router-dom';
 import { useAuthContext } from '../components/auth-context';

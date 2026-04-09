@@ -111,6 +111,8 @@ const ensureResidentDemoExtensions = (state) => {
   const residentId = resident?.id || state.users?.find((user) => user.role === 'resident')?.id;
   const societyId = resident?.societyId || DEFAULT_SOCIETY_ID;
   const createdAt = state.meta?.initializedAt || nowIso();
+  const twoHoursAhead = new Date(Date.now() + 2 * 60 * 60 * 1000);
+  const threeHoursAhead = new Date(Date.now() + 3 * 60 * 60 * 1000);
 
   if (!residentId) {
     state.residentStaff = state.residentStaff || [];
