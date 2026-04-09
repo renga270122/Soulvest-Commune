@@ -168,6 +168,17 @@ export function subscribeToAnnouncements(callback, context = DEFAULT_SOCIETY_ID)
   );
 }
 
+export function subscribeToMarketplaceListings(callback, context = DEFAULT_SOCIETY_ID) {
+  const societyId = resolveSocietyId(context);
+  return subscribeDemoState(
+    (state) => (state.marketplaceListings || [])
+      .filter((listing) => listing.societyId === societyId)
+      .filter((listing) => String(listing.status || 'active').toLowerCase() !== 'archived')
+      .sort((left, right) => getComparableTime(right.createdAt) - getComparableTime(left.createdAt)),
+    callback,
+  );
+}
+
 export function subscribeToComplaints(callback, filters = {}) {
   const societyId = resolveSocietyId(filters.context);
   return subscribeDemoState(
@@ -290,6 +301,10 @@ export async function createVisitorPass(pass) {
     throw new Error('Expected arrival time must be in the future.');
   }
 
+  const deliveryPass = /delivery|courier|parcel/i.test(String(pass.purpose || ''));
+  const resolvedVendorName = deliveryPass ? String(pass.vendorName || '').trim() : '';
+  const resolvedVisitorName = String(pass.visitorName || '').trim() || (resolvedVendorName ? `${resolvedVendorName} Delivery` : 'Delivery Partner');
+
   const otp = createOtp();
   const passToken = createPassToken();
   const qrPayload = buildQrPayload(passToken, otp);
@@ -297,10 +312,11 @@ export async function createVisitorPass(pass) {
   const societyId = resolveSocietyId(pass);
   const created = {
     id: createId('visitor'),
-    visitorName: pass.visitorName,
-    name: pass.visitorName,
+    visitorName: resolvedVisitorName,
+    name: resolvedVisitorName,
     phone: pass.phone || '',
-    purpose: pass.purpose,
+    purpose: deliveryPass ? 'Delivery' : pass.purpose,
+    vendorName: resolvedVendorName,
     notes: pass.notes || '',
     flat: normalizeFlat(pass.flat),
     residentId: pass.residentId,
@@ -323,8 +339,8 @@ export async function createVisitorPass(pass) {
     state.visitors.push(created);
     appendNotification(state, {
       userId: pass.residentId,
-      title: 'Visitor pass created',
-      message: `OTP ${otp} is ready for ${pass.visitorName}.`,
+      title: deliveryPass ? 'Pre-approved delivery pass created' : 'Visitor pass created',
+      message: `OTP ${otp} is ready for ${resolvedVisitorName}.`,
       type: 'visitor-pass-created',
       visitorId: created.id,
       flat: created.flat,
@@ -748,6 +764,34 @@ export async function createAnnouncement(announcement) {
     state.announcements.push(created);
     return state;
   });
+}
+
+export async function createMarketplaceListing(listing) {
+  const created = {
+    id: createId('marketplace'),
+    societyId: resolveSocietyId(listing),
+    title: String(listing.title || 'Marketplace listing').trim(),
+    description: String(listing.description || '').trim(),
+    category: listing.category || 'general',
+    condition: listing.condition || 'good',
+    listingType: listing.listingType || 'sell',
+    price: Number(listing.price || 0) || null,
+    residentId: listing.residentId || listing.userId || '',
+    residentName: listing.residentName || 'Resident',
+    flat: normalizeFlat(listing.flat),
+    status: 'active',
+    currency: 'INR',
+    createdAt: nowIso(),
+    updatedAt: nowIso(),
+  };
+
+  mutateDemoState((state) => {
+    state.marketplaceListings = Array.isArray(state.marketplaceListings) ? state.marketplaceListings : [];
+    state.marketplaceListings.push(created);
+    return state;
+  });
+
+  return clone(created);
 }
 
 export async function acknowledgeAnnouncement(announcementId, user) {

@@ -6,6 +6,7 @@ import EventAvailableIcon from '@mui/icons-material/EventAvailable';
 import PersonIcon from '@mui/icons-material/Person';
 import CampaignIcon from '@mui/icons-material/Campaign';
 import DashboardIcon from '@mui/icons-material/Dashboard';
+import StorefrontIcon from '@mui/icons-material/Storefront';
 import { useAuthContext } from '../components/auth-context';
 import { useFeatureFlags } from '../hooks/useFeatureFlags';
 
@@ -20,6 +21,7 @@ export default function Navbar() {
   const tabs = [
     { label: 'Dashboard', to: dashboardRoute, icon: <DashboardIcon /> },
     ...(featureFlags.ANNOUNCEMENTS ? [{ label: 'Notices', to: '/announcements', icon: <CampaignIcon /> }] : []),
+    ...(featureFlags.MARKETPLACE ? [{ label: 'Marketplace', to: '/marketplace', icon: <StorefrontIcon /> }] : []),
     ...(featureFlags.AMENITY_BOOKINGS ? [{ label: 'Amenities', to: '/bookings', icon: <EventAvailableIcon /> }] : []),
     ...(featureFlags.COMPLAINTS ? [{ label: 'Complaints', to: '/complaints', icon: <ReportIcon /> }] : []),
     { label: 'Dues', to: '/expenses', icon: <AccountBalanceWalletIcon /> },

@@ -725,6 +725,63 @@ async function executeAnnouncementDraft(task, actor, dependencies) {
   };
 }
 
+async function executeMarketplaceListingCreate(task, actor, dependencies) {
+  const roleError = ensureRole(actor, ['resident', 'admin'], task.title);
+  if (roleError) {
+    return { ...task, ...roleError };
+  }
+
+  const { getFirebaseStatus, getDb } = dependencies;
+  const firebaseStatus = getFirebaseStatus();
+  if (!firebaseStatus.configured) {
+    return {
+      ...task,
+      status: 'preview',
+      executionNote: 'Firebase is not configured, so marketplace posting remains a preview only.',
+    };
+  }
+
+  const societyId = task.payload?.societyId || actor.societyId;
+  const title = String(task.payload?.title || '').trim();
+  if (!societyId || !title) {
+    return {
+      ...task,
+      status: 'failed',
+      executionNote: 'Marketplace posting is missing listing title or society context.',
+    };
+  }
+
+  const db = getDb();
+  const createdAt = nowIso();
+  const created = await getSocietyCollection(db, societyId, 'marketplaceListings').add({
+    title,
+    description: String(task.payload?.description || '').trim(),
+    category: task.payload?.category || 'general',
+    condition: task.payload?.condition || 'good',
+    listingType: task.payload?.listingType || 'sell',
+    price: Number(task.payload?.price || 0) || null,
+    residentId: task.payload?.residentId || actor.uid || null,
+    residentName: task.payload?.residentName || actor.name || 'Resident',
+    flat: task.payload?.flat || actor.flat || null,
+    societyId,
+    status: 'active',
+    currency: 'INR',
+    createdAt,
+    updatedAt: createdAt,
+    createdByAgent: true,
+  });
+
+  return {
+    ...task,
+    status: 'completed',
+    executionNote: `Marketplace listing created with id ${created.id}.`,
+    payload: {
+      ...task.payload,
+      listingId: created.id,
+    },
+  };
+}
+
 async function queueTask(task, dependencies) {
   const { getFirebaseStatus, getDb } = dependencies;
   const firebaseStatus = getFirebaseStatus();
@@ -802,6 +859,10 @@ async function executeOneTask(task, options, dependencies) {
 
   if (task.type === 'announcement-draft') {
     return executeAnnouncementDraft(task, options.actor, dependencies);
+  }
+
+  if (task.type === 'marketplace-listing-create') {
+    return executeMarketplaceListingCreate(task, options.actor, dependencies);
   }
 
   return queueTask(task, dependencies);

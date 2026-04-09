@@ -3,6 +3,7 @@ import {
   checkOutVisitor,
   createAnnouncement,
   createComplaint,
+  createMarketplaceListing,
   createPaymentRecord,
   createVisitor,
   routeDelivery,
@@ -204,6 +205,31 @@ export async function executeLocalAiTask(task, actor, contextSnapshot = {}) {
       tasks: [cloneTask(task, {
         status: 'completed',
         executionNote: 'Reminder scheduled in demo mode.',
+      })],
+    };
+  }
+
+  if (task.type === 'marketplace-listing-create') {
+    const created = await createMarketplaceListing({
+      title: task.payload?.title,
+      description: task.payload?.description,
+      category: task.payload?.category,
+      condition: task.payload?.condition,
+      listingType: task.payload?.listingType,
+      price: task.payload?.price,
+      residentId: task.payload?.residentId || actor?.uid,
+      residentName: task.payload?.residentName || actor?.name || 'Resident',
+      flat: task.payload?.flat || actor?.flat || '',
+      societyId: task.payload?.societyId || actor?.societyId,
+    });
+
+    return {
+      tasks: [cloneTask(task, {
+        status: 'completed',
+        executionNote: `Marketplace listing ${created.title} created successfully.`,
+        payload: {
+          listingId: created.id,
+        },
       })],
     };
   }

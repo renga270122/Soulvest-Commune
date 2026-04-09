@@ -101,6 +101,50 @@ async function runPreviewFlow() {
   assert.equal(preview.gateway.inputMode, 'voice');
   assert.equal(preview.tasks[0].status, 'preview');
   assert.equal(preview.tasks[1].status, 'preview');
+
+  const marketplacePreview = await fetchJson(`${baseUrl}/agent-message`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      message: 'Sell my study table on the marketplace for Rs 4500',
+      user: {
+        uid: 'resident-demo-1',
+        name: 'Ananya Rao',
+        role: 'resident',
+        flat: 'A-1204',
+        societyId: 'brigade-metropolis',
+        language: 'en',
+      },
+      contextSnapshot: {
+        payments: [],
+        complaints: [],
+        bookings: [],
+        staffMembers: [],
+        staffAttendance: [],
+        visitors: [],
+        announcements: [],
+        marketplaceListings: [
+          {
+            id: 'marketplace-preview-1',
+            title: 'Office chair',
+            category: 'furniture',
+            price: 2500,
+            status: 'active',
+            societyId: 'brigade-metropolis',
+            createdAt: '2026-04-08T09:00:00.000Z',
+          },
+        ],
+      },
+      executionMode: 'preview',
+      inputMode: 'text',
+      channel: 'resident-dashboard-chat',
+    }),
+  });
+
+  assert.equal(marketplacePreview.ok, true);
+  assert.deepEqual(marketplacePreview.routing.agents, ['marketplace']);
+  assert.equal(marketplacePreview.tasks[0].type, 'marketplace-listing-create');
+  assert.equal(marketplacePreview.tasks[0].status, 'preview');
 }
 
 async function runExecuteFlows() {
@@ -335,6 +379,34 @@ async function runExecuteFlows() {
 
   assert.equal(announcementExecute.tasks[0].status, 'completed');
   assert.match(announcementExecute.tasks[0].executionNote, /Announcement draft created/i);
+
+  const marketplaceExecute = await fetchJson(`${baseUrl}/agent-message`, {
+    method: 'POST',
+    headers: residentHeaders,
+    body: JSON.stringify({
+      message: 'Sell my coffee table on the marketplace for Rs 3200',
+      user: residentSession.user,
+      contextSnapshot: {
+        payments: [],
+        complaints: [],
+        bookings: [],
+        staffMembers: [],
+        staffAttendance: [],
+        visitors: [],
+        announcements: [],
+        marketplaceListings: [],
+      },
+      executionMode: 'execute',
+      inputMode: 'text',
+      channel: 'resident-dashboard-chat',
+      approvedTaskIds: ['marketplace-marketplace-listing-create-1'],
+      requireConfirmation: true,
+    }),
+  });
+
+  assert.equal(marketplaceExecute.tasks[0].status, 'completed');
+  assert.match(marketplaceExecute.tasks[0].executionNote, /Marketplace listing created/i);
+  assert.equal(marketplaceExecute.mcpContext.liveData.marketplace.ownCount >= 1, true);
 }
 
 async function main() {

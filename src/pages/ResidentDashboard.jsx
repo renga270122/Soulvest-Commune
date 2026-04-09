@@ -31,6 +31,7 @@ import PersonIcon from '@mui/icons-material/Person';
 import EventAvailableIcon from '@mui/icons-material/EventAvailable';
 import GroupsIcon from '@mui/icons-material/Groups';
 import BoltIcon from '@mui/icons-material/Bolt';
+import StorefrontIcon from '@mui/icons-material/Storefront';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import CreditCardIcon from '@mui/icons-material/CreditCard';
 import NotificationsNoneIcon from '@mui/icons-material/NotificationsNone';
@@ -83,6 +84,21 @@ const vendorStyleMap = {
   blinkit: { label: 'Blinkit', bg: 'rgba(234, 179, 8, 0.18)', color: '#a16207' },
   zepto: { label: 'Zepto', bg: 'rgba(99, 102, 241, 0.16)', color: '#4338ca' },
 };
+
+const deliveryVendorOptions = [
+  { value: 'Amazon', label: 'Amazon' },
+  { value: 'Swiggy', label: 'Swiggy' },
+  { value: 'Blinkit', label: 'Blinkit' },
+  { value: 'Zepto', label: 'Zepto' },
+  { value: 'Other', label: 'Other courier' },
+];
+
+const gateAlertNotificationTypes = new Set([
+  'visitor-entered',
+  'visitor-exited',
+  'visitor-awaiting-approval',
+  'delivery-awaiting-instruction',
+]);
 
 const staffRolePattern = /(maid|driver|cook|nanny|caretaker|cleaner|staff|helper)/i;
 
@@ -198,6 +214,51 @@ const matchesStaffMember = (visitor, staffMember) => {
 };
 
 const isDeliveryVisitor = (visitor) => /delivery|courier|parcel|amazon|swiggy|zomato|dunzo|blinkit|zepto/i.test(`${visitor?.purpose || ''} ${visitor?.name || ''} ${visitor?.vendorName || ''}`);
+
+const isDeliveryPurpose = (purpose) => /delivery|courier|parcel/i.test(String(purpose || ''));
+
+const buildDeliveryVisitorName = (vendorName) => {
+  const vendorLabel = formatTextValue(vendorName, '');
+  return vendorLabel ? `${vendorLabel} Delivery` : '';
+};
+
+const playGateAlertTone = () => {
+  if (typeof window === 'undefined') return;
+
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass) return;
+
+  try {
+    const audioContext = new AudioContextClass();
+    const startTime = audioContext.currentTime;
+    const masterGain = audioContext.createGain();
+    masterGain.gain.setValueAtTime(0.0001, startTime);
+    masterGain.gain.exponentialRampToValueAtTime(0.16, startTime + 0.03);
+    masterGain.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.58);
+    masterGain.connect(audioContext.destination);
+
+    [880, 1174].forEach((frequency, index) => {
+      const oscillator = audioContext.createOscillator();
+      const gain = audioContext.createGain();
+      const toneStart = startTime + index * 0.18;
+      oscillator.type = 'sine';
+      oscillator.frequency.setValueAtTime(frequency, toneStart);
+      gain.gain.setValueAtTime(0.0001, toneStart);
+      gain.gain.exponentialRampToValueAtTime(0.12, toneStart + 0.03);
+      gain.gain.exponentialRampToValueAtTime(0.0001, toneStart + 0.2);
+      oscillator.connect(gain);
+      gain.connect(masterGain);
+      oscillator.start(toneStart);
+      oscillator.stop(toneStart + 0.22);
+    });
+
+    window.setTimeout(() => {
+      void audioContext.close().catch(() => {});
+    }, 900);
+  } catch {
+    // Ignore browsers that block synthesized audio before user activation.
+  }
+};
 
 const isWithinStaffWindow = (staffMember) => {
   if (!staffMember?.autoApproved) return false;
@@ -336,6 +397,14 @@ const mobileActionButtonSx = {
   borderColor: 'rgba(166, 115, 45, 0.16)',
 };
 
+const featureHighlightChipSx = {
+  borderRadius: 999,
+  bgcolor: 'rgba(255,247,236,0.9)',
+  color: '#774018',
+  border: '1px solid rgba(177, 121, 48, 0.18)',
+  '& .MuiChip-label': { fontWeight: 700 },
+};
+
 export default function ResidentDashboard() {
   const [visitors, setVisitors] = useState([]);
   const [notifications, setNotifications] = useState([]);
@@ -355,6 +424,7 @@ export default function ResidentDashboard() {
   const [passForm, setPassForm] = useState({
     visitorName: '',
     purpose: 'Guest visit',
+    vendorName: '',
     phone: '',
     expectedAt: '',
     notes: '',
@@ -415,12 +485,12 @@ export default function ResidentDashboard() {
       if (knownNotificationIds.current.has(notification.id)) return;
       knownNotificationIds.current.add(notification.id);
 
-      if (
-        ['visitor-entered', 'visitor-exited', 'visitor-awaiting-approval'].includes(notification.type)
-        && typeof Notification !== 'undefined'
-        && Notification.permission === 'granted'
-      ) {
-        new Notification(notification.title, { body: notification.message });
+      if (gateAlertNotificationTypes.has(notification.type)) {
+        playGateAlertTone();
+
+        if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+          new Notification(notification.title, { body: notification.message });
+        }
       }
     });
   }, [notifications]);
@@ -550,6 +620,14 @@ export default function ResidentDashboard() {
 
     return items;
   }, [residentUser?.emergencyContactName, residentUser?.emergencyContactPhone, residentUser?.householdSize, residentUser?.language, residentUser?.vehicleNumber]);
+  const residentDemoHighlights = useMemo(() => ([
+    'Visitor passes',
+    'Delivery approvals',
+    'Maintenance dues',
+    'Complaint desk',
+    'Amenity booking',
+    'AI concierge',
+  ]), []);
   const activeStaffAlert = useMemo(
     () => staffAttendance.find((entry) => entry.alertType && !notedStaffAlertIds.includes(entry.id)) || null,
     [notedStaffAlertIds, staffAttendance],
@@ -564,10 +642,31 @@ export default function ResidentDashboard() {
   );
 
   const handlePassFormChange = (event) => {
-    setPassForm((currentForm) => ({
-      ...currentForm,
-      [event.target.name]: event.target.value,
-    }));
+    const { name, value } = event.target;
+    setPassForm((currentForm) => {
+      const nextForm = {
+        ...currentForm,
+        [name]: value,
+      };
+
+      if (name === 'vendorName') {
+        nextForm.purpose = 'Delivery';
+        const previousDefault = buildDeliveryVisitorName(currentForm.vendorName === 'Other' ? '' : currentForm.vendorName);
+        const shouldAutofillVisitorName = !currentForm.visitorName || currentForm.visitorName === previousDefault;
+
+        if (value === 'Other') {
+          if (shouldAutofillVisitorName) nextForm.visitorName = '';
+        } else if (shouldAutofillVisitorName) {
+          nextForm.visitorName = buildDeliveryVisitorName(value);
+        }
+      }
+
+      if (name === 'purpose' && !isDeliveryPurpose(value)) {
+        nextForm.vendorName = '';
+      }
+
+      return nextForm;
+    });
   };
 
   const handleStaffFormChange = (event) => {
@@ -580,7 +679,9 @@ export default function ResidentDashboard() {
   const openPassDialog = (purpose = 'Guest visit') => {
     setPassForm((currentForm) => ({
       ...currentForm,
+      visitorName: isDeliveryPurpose(purpose) ? '' : currentForm.visitorName,
       purpose,
+      vendorName: isDeliveryPurpose(purpose) ? '' : currentForm.vendorName,
     }));
     setPassDialogOpen(true);
   };
@@ -610,8 +711,21 @@ export default function ResidentDashboard() {
       setBanner({ type: 'error', message: 'Your resident profile needs a flat number before creating visitor passes.' });
       return;
     }
-    if (!passForm.visitorName || !passForm.purpose || !passForm.expectedAt) {
-      setBanner({ type: 'error', message: 'Visitor name, purpose, and expected time are required.' });
+    const deliveryPass = isDeliveryPurpose(passForm.purpose);
+    const resolvedVendorName = deliveryPass
+      ? (passForm.vendorName === 'Other' ? formatTextValue(passForm.visitorName, '') : formatTextValue(passForm.vendorName, ''))
+      : '';
+    const resolvedVisitorName = deliveryPass
+      ? formatTextValue(passForm.visitorName, buildDeliveryVisitorName(resolvedVendorName))
+      : formatTextValue(passForm.visitorName, '');
+
+    if (!resolvedVisitorName || !passForm.purpose || !passForm.expectedAt) {
+      setBanner({ type: 'error', message: deliveryPass ? 'Delivery partner name and expected time are required.' : 'Visitor name, purpose, and expected time are required.' });
+      return;
+    }
+
+    if (deliveryPass && !resolvedVendorName) {
+      setBanner({ type: 'error', message: 'Choose a delivery service or enter the courier name before creating the pass.' });
       return;
     }
 
@@ -620,6 +734,9 @@ export default function ResidentDashboard() {
     try {
       const pass = await createVisitorPass({
         ...passForm,
+        visitorName: resolvedVisitorName,
+        purpose: deliveryPass ? 'Delivery' : passForm.purpose,
+        vendorName: resolvedVendorName,
         residentId: user.uid,
         residentName: user.name || 'Resident',
         flat: myFlat,
@@ -627,12 +744,17 @@ export default function ResidentDashboard() {
       });
       setCreatedPass({
         ...pass,
-        visitorName: passForm.visitorName,
+        visitorName: resolvedVisitorName,
         expectedAt: passForm.expectedAt,
       });
       setPassDialogOpen(false);
-      setPassForm({ visitorName: '', purpose: 'Guest visit', phone: '', expectedAt: '', notes: '' });
-      setBanner({ type: 'success', message: `Visitor pass created for ${passForm.visitorName}. Share the OTP or QR with your guest.` });
+      setPassForm({ visitorName: '', purpose: 'Guest visit', vendorName: '', phone: '', expectedAt: '', notes: '' });
+      setBanner({
+        type: 'success',
+        message: deliveryPass
+          ? `Pre-approved delivery entry created for ${resolvedVendorName}. Share the OTP or QR with the rider.`
+          : `Visitor pass created for ${resolvedVisitorName}. Share the OTP or QR with your guest.`,
+      });
     } catch (error) {
       setBanner({ type: 'error', message: error.message || 'Unable to create the visitor pass.' });
     }
@@ -881,17 +1003,18 @@ export default function ResidentDashboard() {
       <Box ref={topSectionRef} sx={{ maxWidth: 1180, mx: 'auto' }}>
         <Box sx={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'hidden' }}>
           <Box
-            component="img"
-            src={topIllustration}
-            alt=""
             sx={{
               display: { xs: 'none', md: 'block' },
               position: 'absolute',
-              top: 18,
-              left: -100,
-              width: 320,
-              opacity: 0.22,
-              filter: 'sepia(0.35) saturate(0.9)',
+              top: 112,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              width: 'min(92%, 1140px)',
+              height: 340,
+              borderRadius: '56px',
+              background: 'linear-gradient(180deg, rgba(255,247,231,0.7) 0%, rgba(246,223,180,0.4) 100%)',
+              border: '1px solid rgba(194, 137, 64, 0.16)',
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.7)',
             }}
           />
           <Box
@@ -901,12 +1024,26 @@ export default function ResidentDashboard() {
             sx={{
               display: { xs: 'none', md: 'block' },
               position: 'absolute',
-              top: 22,
-              right: -95,
-              width: 320,
-              opacity: 0.18,
+              top: 6,
+              left: -84,
+              width: 378,
+              opacity: 0.44,
+              filter: 'sepia(0.18) saturate(1.08) contrast(1.02) drop-shadow(0 20px 28px rgba(126, 83, 26, 0.18))',
+            }}
+          />
+          <Box
+            component="img"
+            src={topIllustration}
+            alt=""
+            sx={{
+              display: { xs: 'none', md: 'block' },
+              position: 'absolute',
+              top: 10,
+              right: -82,
+              width: 372,
+              opacity: 0.4,
               transform: 'scaleX(-1)',
-              filter: 'sepia(0.45) saturate(0.9)',
+              filter: 'sepia(0.24) saturate(1.04) contrast(1.02) drop-shadow(0 20px 28px rgba(126, 83, 26, 0.16))',
             }}
           />
           <Box
@@ -916,13 +1053,14 @@ export default function ResidentDashboard() {
             sx={{
               display: { xs: 'none', md: 'block' },
               position: 'absolute',
-              top: 160,
+              top: 144,
               left: '50%',
               transform: 'translateX(-50%)',
-              width: '105%',
+              width: '100%',
               maxWidth: 1400,
-              opacity: 0.18,
-              filter: 'sepia(0.55) saturate(0.8)',
+              opacity: 0.34,
+              filter: 'sepia(0.25) saturate(1.04) contrast(1.04)',
+              mixBlendMode: 'multiply',
             }}
           />
         </Box>
@@ -943,9 +1081,9 @@ export default function ResidentDashboard() {
               position: 'absolute',
               left: -54,
               bottom: 0,
-              width: 180,
-              opacity: 0.34,
-              filter: 'sepia(0.4) saturate(0.9)',
+              width: 214,
+              opacity: 0.5,
+              filter: 'sepia(0.2) saturate(1.05) contrast(1.04) drop-shadow(0 14px 20px rgba(126, 83, 26, 0.18))',
             }}
           />
           <Box
@@ -956,10 +1094,10 @@ export default function ResidentDashboard() {
               position: 'absolute',
               right: -58,
               bottom: 0,
-              width: 180,
-              opacity: 0.28,
+              width: 214,
+              opacity: 0.44,
               transform: 'scaleX(-1)',
-              filter: 'sepia(0.45) saturate(0.85)',
+              filter: 'sepia(0.24) saturate(1.02) contrast(1.04) drop-shadow(0 14px 20px rgba(126, 83, 26, 0.18))',
             }}
           />
 
@@ -986,6 +1124,11 @@ export default function ResidentDashboard() {
                 <Typography sx={{ ...templeTitleSx, fontSize: 16, fontWeight: 700 }}>
                   Namaskara {residentName}{myFlat ? ` · Flat ${myFlat}` : ''}
                 </Typography>
+              </Stack>
+              <Stack direction="row" spacing={0.75} justifyContent="center" sx={{ mt: 1.2, flexWrap: 'wrap' }}>
+                {residentDemoHighlights.slice(0, 4).map((highlight) => (
+                  <Chip key={highlight} label={highlight} size="small" sx={featureHighlightChipSx} />
+                ))}
               </Stack>
             </Box>
             <Button
@@ -1050,17 +1193,16 @@ export default function ResidentDashboard() {
                     key={fact}
                     label={fact}
                     size="small"
-                    sx={{
-                      borderRadius: 999,
-                      bgcolor: 'rgba(255,247,236,0.84)',
-                      color: '#774018',
-                      border: '1px solid rgba(177, 121, 48, 0.18)',
-                      '& .MuiChip-label': { fontWeight: 700 },
-                    }}
+                    sx={featureHighlightChipSx}
                   />
                 ))}
               </Stack>
             ) : null}
+            <Stack direction="row" spacing={1} justifyContent="center" sx={{ mt: 1.25, flexWrap: 'wrap' }}>
+              {residentDemoHighlights.map((highlight) => (
+                <Chip key={highlight} label={highlight} size="small" sx={featureHighlightChipSx} />
+              ))}
+            </Stack>
           </Box>
           <Button
             variant="outlined"
@@ -1095,6 +1237,39 @@ export default function ResidentDashboard() {
         <Paper
           elevation={0}
           sx={{
+            ...softCardSx,
+            mb: 2.25,
+            p: { xs: 2, md: 2.25 },
+            position: 'relative',
+            zIndex: 1,
+            background: 'linear-gradient(180deg, rgba(255,251,243,0.96) 0%, rgba(255,244,223,0.94) 100%)',
+          }}
+        >
+          <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} justifyContent="space-between" alignItems={{ xs: 'flex-start', md: 'center' }}>
+            <Box>
+              <Typography sx={{ ...templeTitleSx, fontSize: { xs: 22, md: 26 }, fontWeight: 700, mb: 0.5 }}>
+                Demo-ready resident essentials
+              </Typography>
+              <Typography color="text.secondary">
+                Residents can already demo visitor access, delivery handling, dues, complaints, amenities, notices, directory, marketplace, profile, and the AI concierge from one dashboard.
+              </Typography>
+            </Box>
+            <Chip
+              icon={<SmartToyIcon />}
+              label="AI concierge live"
+              sx={{
+                borderRadius: 999,
+                bgcolor: 'rgba(36, 86, 166, 0.12)',
+                color: '#2456A6',
+                '& .MuiChip-icon': { color: '#2456A6' },
+              }}
+            />
+          </Stack>
+        </Paper>
+
+        <Paper
+          elevation={0}
+          sx={{
             display: { xs: 'none', md: 'block' },
             mb: 3,
             p: 0.9,
@@ -1106,9 +1281,12 @@ export default function ResidentDashboard() {
             zIndex: 1,
           }}
         >
-          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 0.75 }}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(6, minmax(0, 1fr))', gap: 0.75 }}>
           <Button variant="outlined" startIcon={<CampaignIcon />} onClick={() => navigate('/announcements')} sx={pillButtonSx}>
             Community Updates
+          </Button>
+          <Button variant="outlined" startIcon={<StorefrontIcon />} onClick={() => navigate('/marketplace')} sx={pillButtonSx}>
+            Marketplace
           </Button>
           <Button variant="outlined" startIcon={<EventAvailableIcon />} onClick={() => navigate('/bookings')} sx={pillButtonSx}>
             Facility Booking
@@ -1143,7 +1321,7 @@ export default function ResidentDashboard() {
           <Box
             sx={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
+              gridTemplateColumns: 'repeat(6, minmax(0, 1fr))',
               gap: 0,
               overflow: 'hidden',
               borderRadius: 999,
@@ -1154,6 +1332,9 @@ export default function ResidentDashboard() {
             <Button variant="text" onClick={() => navigate('/announcements')} sx={mobileActionButtonSx}>
               Updates
             </Button>
+            <Button variant="text" onClick={() => navigate('/marketplace')} sx={mobileActionButtonSx}>
+              Market
+            </Button>
             <Button variant="text" onClick={() => navigate('/bookings')} sx={mobileActionButtonSx}>
               Bookings
             </Button>
@@ -1161,7 +1342,7 @@ export default function ResidentDashboard() {
               Dues
             </Button>
             <Button variant="text" onClick={() => navigate('/complaints')} sx={mobileActionButtonSx}>
-              Complains
+              Complaints
             </Button>
             <Button variant="text" onClick={() => navigate('/directory')} sx={mobileActionButtonSx}>
               Directory
@@ -1301,7 +1482,7 @@ export default function ResidentDashboard() {
                   >
                     <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.25 }}>
                       <Chip size="small" label={!leadNotification.read ? 'Alert' : 'Update'} color="warning" sx={{ borderRadius: 999 }} />
-                      <Typography sx={{ fontSize: 16.5, color: '#6a3618' }}>Visitor waiting at the gate</Typography>
+                      <Typography sx={{ fontSize: 16.5, color: '#6a3618' }}>{formatTextValue(leadNotification.title, 'Notification')}</Typography>
                     </Stack>
                     <Typography sx={{ fontSize: 16.5, color: '#5d3417', fontWeight: 700, mb: 1.5 }}>
                       {formatTextValue(leadNotification.message, 'No message available.')}
@@ -2153,10 +2334,24 @@ export default function ResidentDashboard() {
       </Dialog>
 
       <Dialog open={passDialogOpen} onClose={() => !creatingPass && setPassDialogOpen(false)} fullWidth maxWidth="sm">
-        <DialogTitle>Create Visitor Pass</DialogTitle>
+        <DialogTitle>{isDeliveryPurpose(passForm.purpose) ? 'Create Pre-Approved Delivery Entry' : 'Create Visitor Pass'}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ pt: 1 }}>
-            <TextField label="Visitor name" name="visitorName" value={passForm.visitorName} onChange={handlePassFormChange} fullWidth />
+            {isDeliveryPurpose(passForm.purpose) && (
+              <TextField select label="Delivery service" name="vendorName" value={passForm.vendorName} onChange={handlePassFormChange} fullWidth>
+                {deliveryVendorOptions.map((option) => (
+                  <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>
+                ))}
+              </TextField>
+            )}
+            <TextField
+              label={isDeliveryPurpose(passForm.purpose) ? 'Delivery partner name' : 'Visitor name'}
+              name="visitorName"
+              value={passForm.visitorName}
+              onChange={handlePassFormChange}
+              placeholder={isDeliveryPurpose(passForm.purpose) ? 'Amazon Delivery or rider name' : ''}
+              fullWidth
+            />
             <TextField label="Purpose" name="purpose" value={passForm.purpose} onChange={handlePassFormChange} fullWidth />
             <TextField label="Phone" name="phone" value={passForm.phone} onChange={handlePassFormChange} fullWidth />
             <TextField
@@ -2174,16 +2369,19 @@ export default function ResidentDashboard() {
         <DialogActions>
           <Button onClick={() => setPassDialogOpen(false)} disabled={creatingPass}>Cancel</Button>
           <Button variant="contained" onClick={handleCreatePass} disabled={creatingPass}>
-            {creatingPass ? 'Creating...' : 'Generate Pass'}
+            {creatingPass ? 'Creating...' : isDeliveryPurpose(passForm.purpose) ? 'Generate Delivery Pass' : 'Generate Pass'}
           </Button>
         </DialogActions>
       </Dialog>
 
       <Dialog open={Boolean(createdPass)} onClose={() => setCreatedPass(null)} fullWidth maxWidth="sm">
-        <DialogTitle>Visitor Pass Ready</DialogTitle>
+        <DialogTitle>{isDeliveryPurpose(createdPass?.purpose) ? 'Delivery Pass Ready' : 'Visitor Pass Ready'}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ pt: 1, alignItems: 'center', textAlign: 'center' }}>
             <Typography variant="h6">{formatTextValue(createdPass?.visitorName, 'Visitor')}</Typography>
+            {createdPass?.vendorName && (
+              <Chip label={createdPass.vendorName} sx={{ borderRadius: 999, bgcolor: 'rgba(36, 86, 166, 0.12)', color: '#2456A6' }} />
+            )}
             <Typography color="text.secondary">
               Expected at {formatDateTimeValue(createdPass?.expectedAt, 'the scheduled time')}
             </Typography>

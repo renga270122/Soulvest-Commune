@@ -25,6 +25,7 @@ import {
   createAnnouncement,
   subscribeToAnnouncements,
 } from '../services/communityData';
+import { useNavigate } from 'react-router-dom';
 
 const formatTimestamp = (value) => {
   if (!value) return 'Just now';
@@ -35,6 +36,7 @@ const formatTimestamp = (value) => {
 };
 
 export default function Announcements() {
+  const navigate = useNavigate();
   const [announcements, setAnnouncements] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -123,6 +125,18 @@ export default function Announcements() {
 
         {banner.message && <Alert severity={banner.type} sx={{ mb: 3 }}>{banner.message}</Alert>}
 
+        <Paper elevation={2} sx={{ p: 2.5, borderRadius: 3, mb: 3 }}>
+          <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={2} alignItems={{ xs: 'flex-start', md: 'center' }}>
+            <Box>
+              <Typography variant="h6" sx={{ mb: 0.75 }}>Keep every resident aligned</Typography>
+              <Typography color="text.secondary">
+                Pinned notices stay visible, routine updates are easy to scan, and residents can acknowledge important communication in one tap.
+              </Typography>
+            </Box>
+            <Chip label={isAdmin ? 'Admin communication console' : 'Resident notice feed'} color="primary" variant="outlined" />
+          </Stack>
+        </Paper>
+
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' }, gap: 2, mb: 3 }}>
           <Paper elevation={1} sx={{ p: 2.5, borderRadius: 3 }}>
             <Typography color="text.secondary">Total Notices</Typography>
@@ -141,10 +155,17 @@ export default function Announcements() {
         <Stack spacing={2}>
           {!loading && announcements.length === 0 && (
             <Paper elevation={2} sx={{ p: 3, borderRadius: 3 }}>
-              <Typography variant="h6">No announcements yet</Typography>
-              <Typography color="text.secondary">
-                Admin notices will appear here and residents can acknowledge them with one tap.
+              <Typography variant="h6" sx={{ mb: 0.75 }}>No announcements yet</Typography>
+              <Typography color="text.secondary" sx={{ mb: 2 }}>
+                {isAdmin
+                  ? 'Post the first demo notice to show residents how updates, acknowledgments, and pinned alerts work.'
+                  : 'Community updates, service notices, and urgent alerts will appear here as soon as the admin posts them.'}
               </Typography>
+              {isAdmin ? (
+                <Button variant="contained" onClick={() => setDialogOpen(true)}>Post first notice</Button>
+              ) : (
+                <Button variant="outlined" onClick={() => navigate('/resident')}>Back to dashboard</Button>
+              )}
             </Paper>
           )}
 
@@ -169,7 +190,7 @@ export default function Announcements() {
                   <Typography>{announcement.body || announcement.content}</Typography>
                   <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={1} alignItems={{ xs: 'flex-start', md: 'center' }}>
                     <Typography color="text.secondary">
-                      Ack count: {(announcement.acknowledgements || []).length}
+                      Acknowledged by {(announcement.acknowledgements || []).length} resident{(announcement.acknowledgements || []).length === 1 ? '' : 's'}
                     </Typography>
                     {!isAdmin && !acknowledged && (
                       <Button variant="contained" onClick={() => handleAcknowledge(announcement.id)}>

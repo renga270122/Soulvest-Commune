@@ -57,6 +57,15 @@ const INTENT_DEFINITIONS = [
       /\b(gym|pool|clubhouse|hall|tennis|amenity)\b.*\b(book|booking|reserve|slot)\b/i,
     ],
   },
+  {
+    id: 'marketplace_listing',
+    agent: 'marketplace',
+    patterns: [
+      /\b(market\s?place|classified|listing|sell|selling|buy|buying|resell|second hand|pre-?owned)\b/i,
+      /\b(post|list|add|create)\b.*\b(listing|market\s?place|classified)\b/i,
+      /\b(sofa|table|chair|bed|fridge|refrigerator|washing machine|laptop|bike|car|stroller|furniture|appliance)\b.*\b(sell|buy)\b/i,
+    ],
+  },
 ];
 
 function dedupeById(items) {

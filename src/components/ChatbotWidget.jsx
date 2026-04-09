@@ -22,6 +22,7 @@ import {
   subscribeToAnnouncements,
   subscribeToComplaints,
   subscribeToFacilityBookings,
+  subscribeToMarketplaceListings,
   subscribeToPayments,
   subscribeToResidents,
   subscribeToResidentComplaints,
@@ -104,6 +105,10 @@ const buildTaskOutcomeMessage = (task) => {
     if (task.type === 'announcement-draft') {
       return 'The announcement draft has been created successfully.';
     }
+
+    if (task.type === 'marketplace-listing-create') {
+      return 'Your marketplace listing has been posted successfully.';
+    }
   }
 
   if (task.status === 'queued') {
@@ -154,6 +159,10 @@ const buildPreviewTaskLabel = (task) => {
     return 'Ready to draft announcement';
   }
 
+  if (task.type === 'marketplace-listing-create') {
+    return 'Ready to post marketplace listing';
+  }
+
   if (task.type === 'complaint-status-update') {
     return 'Ready to update complaint status';
   }
@@ -192,7 +201,7 @@ const buildExecuteReply = (agentResponse) => {
   return tasks.map((task) => buildTaskOutcomeMessage(task)).join(' ');
 };
 
-const getLocalConciergeReply = (input, { payments, complaints, bookings, staffAttendance, visitors, announcements, residents }, role = 'resident') => {
+const getLocalConciergeReply = (input, { payments, complaints, bookings, staffAttendance, visitors, announcements, residents, marketplaceListings }, role = 'resident') => {
   const query = input.toLowerCase();
   if (/(^|\b)(hi|hello|hey|good morning|good evening)(\b|$)/.test(query)) {
     if (role === 'guard') {
@@ -298,6 +307,16 @@ const getLocalConciergeReply = (input, { payments, complaints, bookings, staffAt
     return `Latest announcement: ${announcements[0].title}.`;
   }
 
+  if (query.includes('marketplace') || query.includes('listing') || query.includes('sell') || query.includes('buy')) {
+    const activeListings = marketplaceListings.filter((listing) => String(listing.status || 'active').toLowerCase() === 'active');
+    if (!activeListings.length) {
+      return 'There are no active marketplace listings right now.';
+    }
+
+    const latestListing = activeListings[0];
+    return `${activeListings.length} marketplace listing${activeListings.length === 1 ? '' : 's'} are active. Latest is ${latestListing.title}${latestListing.price ? ` for Rs. ${Number(latestListing.price).toLocaleString('en-IN')}` : ''}.`;
+  }
+
   return '';
 };
 
@@ -322,6 +341,7 @@ const ChatbotWidget = ({
   const [visitors, setVisitors] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
   const [residents, setResidents] = useState([]);
+  const [marketplaceListings, setMarketplaceListings] = useState([]);
   const [executingTaskId, setExecutingTaskId] = useState('');
   const [speechSupported, setSpeechSupported] = useState(false);
   const [isListening, setIsListening] = useState(false);
@@ -344,6 +364,7 @@ const ChatbotWidget = ({
     let unsubVisitors = () => {};
     let unsubAnnouncements = () => {};
     let unsubResidents = () => {};
+    let unsubMarketplaceListings = () => {};
 
     if (user.role === 'admin') {
       unsubResidents = subscribeToResidents(setResidents);
@@ -353,10 +374,12 @@ const ChatbotWidget = ({
       unsubVisitors = subscribeToVisitors(setVisitors, user);
       unsubAnnouncements = subscribeToAnnouncements(setAnnouncements, user);
       unsubStaffAttendance = subscribeToStaffAttendance(setStaffAttendance, user);
+      unsubMarketplaceListings = subscribeToMarketplaceListings(setMarketplaceListings, user);
     } else if (user.role === 'guard') {
       unsubVisitors = subscribeToVisitors(setVisitors, user);
       unsubAnnouncements = subscribeToAnnouncements(setAnnouncements, user);
       unsubStaffAttendance = subscribeToStaffAttendance(setStaffAttendance, user);
+      unsubMarketplaceListings = subscribeToMarketplaceListings(setMarketplaceListings, user);
     } else {
       unsubPayments = subscribeToResidentPayments(user.uid, setPayments, user);
       unsubComplaints = subscribeToResidentComplaints(user.uid, setComplaints, user);
@@ -367,6 +390,7 @@ const ChatbotWidget = ({
         setVisitors(nextVisitors.filter((visitor) => visitor.residentId === user.uid || visitor.flat === user.flat));
       }, user);
       unsubAnnouncements = subscribeToAnnouncements(setAnnouncements, user);
+      unsubMarketplaceListings = subscribeToMarketplaceListings(setMarketplaceListings, user);
     }
 
     return () => {
@@ -378,6 +402,7 @@ const ChatbotWidget = ({
       unsubVisitors();
       unsubAnnouncements();
       unsubResidents();
+      unsubMarketplaceListings();
     };
   }, [user]);
 
@@ -425,8 +450,8 @@ const ChatbotWidget = ({
   }, [user?.language]);
 
   const conciergeContext = useMemo(
-    () => ({ payments, complaints, bookings, staffMembers, staffAttendance, visitors, announcements, residents }),
-    [announcements, bookings, complaints, payments, residents, staffAttendance, staffMembers, visitors],
+    () => ({ payments, complaints, bookings, staffMembers, staffAttendance, visitors, announcements, residents, marketplaceListings }),
+    [announcements, bookings, complaints, marketplaceListings, payments, residents, staffAttendance, staffMembers, visitors],
   );
 
   const channel = user?.role === 'guard'
@@ -709,33 +734,40 @@ const ChatbotWidget = ({
               elevation={8}
               sx={{
                 px: 2,
-                py: 1.25,
-                borderRadius: 999,
-                bgcolor: 'rgba(255,255,255,0.96)',
+                py: 1.35,
+                borderRadius: 4,
+                bgcolor: 'rgba(255,255,255,0.97)',
                 boxShadow: '0 16px 34px rgba(104, 126, 166, 0.22)',
+                border: '1px solid rgba(214, 223, 240, 0.9)',
               }}
             >
-              <Typography sx={{ fontSize: { xs: 16, md: 18 } }}>
-                Hi {greetingName}! How can I assist you today?
+              <Typography sx={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#2456A6', mb: 0.35 }}>
+                AI Concierge
+              </Typography>
+              <Typography sx={{ fontSize: { xs: 15, md: 16 }, fontWeight: 700 }}>
+                Hi {greetingName}! Ask about dues, visitors, bookings, or complaints.
+              </Typography>
+              <Typography sx={{ fontSize: 12.5, color: 'text.secondary', mt: 0.25 }}>
+                Voice and text support are ready for your demo.
               </Typography>
             </Paper>
             <ButtonBase
               onClick={handleToggleOpen}
               sx={{
-                width: 62,
-                height: 62,
+                width: 68,
+                height: 68,
                 borderRadius: '50%',
                 overflow: 'hidden',
               }}
             >
               <Avatar
                 sx={{
-                  width: 62,
-                  height: 62,
+                  width: 68,
+                  height: 68,
                   bgcolor: '#fff1df',
                   color: '#d48b33',
                   border: '4px solid rgba(255,255,255,0.8)',
-                  boxShadow: '0 14px 30px rgba(104, 126, 166, 0.24)',
+                  boxShadow: '0 18px 36px rgba(104, 126, 166, 0.28)',
                 }}
               >
                 <SmartToyIcon />

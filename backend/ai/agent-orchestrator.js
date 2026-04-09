@@ -12,6 +12,7 @@ const AGENT_PRIORITY = {
   complaint: 5,
   announcement: 6,
   booking: 7,
+  marketplace: 8,
   concierge: 99,
 };
 
@@ -72,6 +73,71 @@ function inferChargeTitle(message) {
   if (/water/i.test(message)) return 'Water Charge';
   if (/maintenance/i.test(message)) return 'Monthly Maintenance';
   return 'Society Charge';
+}
+
+function inferMarketplaceCategory(message) {
+  const text = String(message || '').toLowerCase();
+  if (/sofa|table|chair|bed|mattress|wardrobe|desk|dining/.test(text)) return 'furniture';
+  if (/fridge|refrigerator|washing machine|microwave|air fryer|ac|appliance/.test(text)) return 'appliance';
+  if (/laptop|tablet|phone|tv|television|speaker|monitor|electronics?/.test(text)) return 'electronics';
+  if (/bike|bicycle|scooter|car|vehicle/.test(text)) return 'vehicle';
+  if (/stroller|crib|toy|kids|baby/.test(text)) return 'kids';
+  return 'general';
+}
+
+function inferMarketplaceCondition(message) {
+  const text = String(message || '').toLowerCase();
+  if (/brand new|unused/.test(text)) return 'new';
+  if (/like new/.test(text)) return 'like-new';
+  if (/excellent/.test(text)) return 'excellent';
+  if (/good/.test(text)) return 'good';
+  if (/fair/.test(text)) return 'fair';
+  if (/used|pre-?owned|second hand/.test(text)) return 'used';
+  return 'good';
+}
+
+function inferMarketplaceTitle(message) {
+  const patterns = [
+    /(?:sell|selling|list|post|add|put up)\s+(?:my\s+)?(.+?)(?:\s+(?:for|at)\s+(?:rs\.?|₹)?\s*[\d,]+|$)/i,
+    /(?:buy|buying|looking for|need)\s+(?:a|an|the\s+)?(.+?)(?:\s+(?:under|below)\s+(?:rs\.?|₹)?\s*[\d,]+|$)/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = message.match(pattern)?.[1]?.trim();
+    if (match) {
+      return match.replace(/\b(on|in)\s+the\s+market\s?place\b/i, '').replace(/\s+/g, ' ').trim();
+    }
+  }
+
+  const category = inferMarketplaceCategory(message);
+  if (category === 'furniture') return 'Furniture item';
+  if (category === 'appliance') return 'Home appliance';
+  if (category === 'electronics') return 'Electronic item';
+  if (category === 'vehicle') return 'Vehicle listing';
+  if (category === 'kids') return 'Kids item';
+  return 'Marketplace listing';
+}
+
+function isMarketplaceCreateFlow(message) {
+  return /\b(sell|selling|list|post|add|put up)\b/i.test(message);
+}
+
+function findMarketplaceMatches(message, listings = []) {
+  const text = normalizeText(message);
+  const category = inferMarketplaceCategory(message);
+
+  return listings.filter((listing) => {
+    if (String(listing.status || 'active').toLowerCase() !== 'active') {
+      return false;
+    }
+
+    const haystack = normalizeText(`${listing.title || ''} ${listing.description || ''} ${listing.category || ''}`);
+    if (haystack && text && haystack.includes(text)) {
+      return true;
+    }
+
+    return category !== 'general' && normalizeText(listing.category) === category;
+  });
 }
 
 function findResidentTargets(message, residents = []) {
@@ -482,6 +548,70 @@ function planBookingTasks(mcpContext) {
   };
 }
 
+function planMarketplaceTasks(message, mcpContext) {
+  const marketplace = mcpContext.liveData.marketplace;
+  const matchingListings = findMarketplaceMatches(message, marketplace.latest);
+  const isCreateFlow = isMarketplaceCreateFlow(message);
+
+  if (isCreateFlow) {
+    if (!['resident', 'admin'].includes(mcpContext.actor.role)) {
+      return {
+        agent: 'marketplace',
+        summary: 'Marketplace posting is available for residents and admins only.',
+        tasks: [],
+      };
+    }
+
+    const title = inferMarketplaceTitle(message);
+    const price = extractAmountReference(message);
+
+    return {
+      agent: 'marketplace',
+      summary: `${title} can be posted to the society marketplace${price ? ` for ${formatCurrency(price)}` : ''} after confirmation.`,
+      tasks: attachTaskMetadata('marketplace', [
+        {
+          type: 'marketplace-listing-create',
+          title: `Create marketplace listing for ${title}`,
+          payload: {
+            title,
+            description: message,
+            category: inferMarketplaceCategory(message),
+            condition: inferMarketplaceCondition(message),
+            price,
+            listingType: 'sell',
+            residentId: mcpContext.actor.uid,
+            residentName: mcpContext.actor.name,
+            flat: mcpContext.actor.flat,
+            societyId: mcpContext.actor.societyId,
+            language: mcpContext.actor.language,
+          },
+        },
+      ]),
+    };
+  }
+
+  if (matchingListings.length) {
+    const listingSummary = matchingListings
+      .slice(0, 2)
+      .map((listing) => `${listing.title}${listing.price ? ` for ${formatCurrency(listing.price)}` : ''}`)
+      .join(' and ');
+
+    return {
+      agent: 'marketplace',
+      summary: `${matchingListings.length} marketplace listing${matchingListings.length === 1 ? '' : 's'} match this request, including ${listingSummary}.`,
+      tasks: [],
+    };
+  }
+
+  return {
+    agent: 'marketplace',
+    summary: marketplace.activeCount
+      ? `There are ${marketplace.activeCount} active marketplace listing${marketplace.activeCount === 1 ? '' : 's'} in the community right now.`
+      : 'There are no active marketplace listings right now.',
+    tasks: [],
+  };
+}
+
 function planConciergeSummary(mcpContext) {
   const payments = mcpContext.liveData.payments.pendingCount;
   const complaints = mcpContext.liveData.complaints.openCount;
@@ -542,6 +672,7 @@ function applyExecutedTasksToSnapshot(request, executedTasks, actor) {
     staffAttendance: Array.isArray(request.contextSnapshot?.staffAttendance) ? [...request.contextSnapshot.staffAttendance] : [],
     visitors: Array.isArray(request.contextSnapshot?.visitors) ? [...request.contextSnapshot.visitors] : [],
     announcements: Array.isArray(request.contextSnapshot?.announcements) ? [...request.contextSnapshot.announcements] : [],
+    marketplaceListings: Array.isArray(request.contextSnapshot?.marketplaceListings) ? [...request.contextSnapshot.marketplaceListings] : [],
   };
 
   for (const task of executedTasks) {
@@ -675,6 +806,27 @@ function applyExecutedTasksToSnapshot(request, executedTasks, actor) {
         publishState: 'draft',
         taskId: task.id,
       });
+      continue;
+    }
+
+    if (task.type === 'marketplace-listing-create') {
+      contextSnapshot.marketplaceListings = upsertById(contextSnapshot.marketplaceListings, {
+        id: task.payload?.listingId,
+        title: task.payload?.title || 'Marketplace listing',
+        description: task.payload?.description || '',
+        category: task.payload?.category || 'general',
+        condition: task.payload?.condition || 'good',
+        listingType: task.payload?.listingType || 'sell',
+        price: Number(task.payload?.price || 0) || null,
+        residentId: task.payload?.residentId || actor.uid || null,
+        residentName: task.payload?.residentName || actor.name || 'Resident',
+        flat: task.payload?.flat || actor.flat || null,
+        societyId: task.payload?.societyId || actor.societyId || null,
+        status: 'active',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        createdByAgent: true,
+      });
     }
   }
 
@@ -757,6 +909,8 @@ async function orchestrateAgentMessage(request, dependencies) {
         return planAnnouncementTasks(hydratedRequest.message, initialMcpContext);
       case 'booking':
         return planBookingTasks(initialMcpContext);
+      case 'marketplace':
+        return planMarketplaceTasks(hydratedRequest.message, initialMcpContext);
       default:
         return planConciergeSummary(initialMcpContext);
     }

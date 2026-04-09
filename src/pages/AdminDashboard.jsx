@@ -260,6 +260,9 @@ export default function AdminDashboard() {
           <Button variant="outlined" startIcon={<CampaignIcon />} onClick={() => navigate('/announcements')}>
             Manage Announcements
           </Button>
+          <Button variant="outlined" startIcon={<StorefrontIcon />} onClick={() => navigate('/marketplace')}>
+            Review Marketplace
+          </Button>
           <Button variant="outlined" startIcon={<BugReportIcon />} onClick={() => navigate('/complaints')}>
             Review Complaints
           </Button>

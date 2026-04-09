@@ -22,7 +22,7 @@ import {
   subscribeToResidentComplaints,
   updateComplaintStatus,
 } from '../services/communityData';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
 const complaintCategories = [
@@ -65,6 +65,7 @@ export default function Complaints() {
   const { user } = useAuthContext();
   const { t } = useTranslation();
   const location = useLocation();
+  const navigate = useNavigate();
   const isAdmin = user?.role === 'admin';
   const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const prefilledCategory = searchParams.get('category');
@@ -159,6 +160,23 @@ export default function Complaints() {
 
         {banner.message && <Alert severity={banner.type} sx={{ mb: 3 }}>{banner.message}</Alert>}
 
+        <Paper elevation={2} sx={{ p: 2.5, borderRadius: 3, mb: 3 }}>
+          <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={2} alignItems={{ xs: 'flex-start', md: 'center' }}>
+            <Box>
+              <Typography variant="h6" sx={{ mb: 0.75 }}>Issue tracking that residents can trust</Typography>
+              <Typography color="text.secondary">
+                Residents can log issues quickly, track status changes clearly, and see resolution progress without leaving the app.
+              </Typography>
+            </Box>
+            {!isAdmin ? (
+              <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+                <Button variant="contained" onClick={() => handleOpenComplaintDialog('general')}>{t('complaints.raiseComplaint')}</Button>
+                <Button variant="outlined" onClick={() => navigate('/announcements')}>Check notices first</Button>
+              </Stack>
+            ) : null}
+          </Stack>
+        </Paper>
+
         {!isAdmin && (
           <Paper elevation={1} sx={{ p: 2, borderRadius: 3, mb: 3, display: { xs: 'block', md: 'none' } }}>
             <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.25 }}>
@@ -220,8 +238,19 @@ export default function Complaints() {
         <Stack spacing={2}>
           {filteredComplaints.length === 0 && (
             <Paper elevation={2} sx={{ p: 3, borderRadius: 3 }}>
-              <Typography variant="h6">{t('complaints.emptyTitle')}</Typography>
-              <Typography color="text.secondary">{t('complaints.emptySubtitle')}</Typography>
+              <Typography variant="h6" sx={{ mb: 0.75 }}>
+                {statusFilter === 'all' ? t('complaints.emptyTitle') : `No ${statusFilter === 'inprogress' ? 'in-progress' : statusFilter} complaints right now`}
+              </Typography>
+              <Typography color="text.secondary" sx={{ mb: 2 }}>
+                {statusFilter === 'all'
+                  ? t('complaints.emptySubtitle')
+                  : 'Try another filter or raise a new issue if something still needs attention.'}
+              </Typography>
+              {!isAdmin ? (
+                <Button variant="outlined" onClick={() => handleOpenComplaintDialog(form.category)}>
+                  {t('complaints.raiseComplaint')}
+                </Button>
+              ) : null}
             </Paper>
           )}
 

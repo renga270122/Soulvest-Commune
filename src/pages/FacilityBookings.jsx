@@ -127,6 +127,18 @@ export default function FacilityBookings() {
 
         {banner.message && <Alert severity={banner.type} sx={{ mb: 3 }}>{banner.message}</Alert>}
 
+        <Paper elevation={2} sx={{ p: 2.5, borderRadius: 3, mb: 3 }}>
+          <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={2} alignItems={{ xs: 'flex-start', md: 'center' }}>
+            <Box>
+              <Typography variant="h6" sx={{ mb: 0.75 }}>Simple amenity reservations</Typography>
+              <Typography color="text.secondary">
+                Residents can reserve shared spaces, view upcoming bookings, and cancel plans cleanly during the demo.
+              </Typography>
+            </Box>
+            <Chip label={summary.nextBooking ? 'Next booking scheduled' : 'Ready for first reservation'} color="primary" variant="outlined" />
+          </Stack>
+        </Paper>
+
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' }, gap: 2, mb: 3 }}>
           <Paper elevation={1} sx={{ p: 2.5, borderRadius: 3 }}>
             <Typography color="text.secondary">{t('bookings.stats.active')}</Typography>
@@ -165,7 +177,13 @@ export default function FacilityBookings() {
             <Typography variant="h6" sx={{ mb: 2 }}>{t('bookings.myBookings')}</Typography>
             <Stack spacing={1.5}>
               {bookings.length === 0 && (
-                <Typography color="text.secondary">{t('bookings.empty')}</Typography>
+                <Paper variant="outlined" sx={{ p: 2.25, borderRadius: 3 }}>
+                  <Typography variant="subtitle1" sx={{ mb: 0.75 }}>No bookings yet</Typography>
+                  <Typography color="text.secondary" sx={{ mb: 1.5 }}>{t('bookings.empty')}</Typography>
+                  <Button variant="outlined" onClick={() => setDialogOpen(true)}>
+                    {t('bookings.reserveAmenity')}
+                  </Button>
+                </Paper>
               )}
               {bookings.map((booking) => (
                 <Paper key={booking.id} variant="outlined" sx={{ p: 2, borderRadius: 3 }}>

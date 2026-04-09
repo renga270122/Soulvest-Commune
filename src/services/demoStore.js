@@ -123,6 +123,7 @@ const ensureResidentDemoExtensions = (state) => {
 
   state.residentStaff = Array.isArray(state.residentStaff) ? state.residentStaff : [];
   state.residentStaffAttendance = Array.isArray(state.residentStaffAttendance) ? state.residentStaffAttendance : [];
+  state.marketplaceListings = Array.isArray(state.marketplaceListings) ? state.marketplaceListings : [];
 
   seededStaff.forEach((staff) => {
     const existingStaff = state.residentStaff.find((entry) => entry.id === staff.id);
@@ -204,9 +205,74 @@ const ensureResidentDemoExtensions = (state) => {
     });
   }
 
+  if (!state.visitors.some((visitor) => visitor.id === 'visitor_delivery_preapproved_demo')) {
+    state.visitors.push({
+      id: 'visitor_delivery_preapproved_demo',
+      name: 'Blinkit Delivery',
+      visitorName: 'Blinkit Delivery',
+      phone: '9876500016',
+      purpose: 'Delivery',
+      vendorName: 'Blinkit',
+      flat: 'A-101',
+      residentId,
+      residentName: resident?.name || 'Resident',
+      societyId,
+      status: 'preapproved',
+      otp: '581204',
+      passToken: 'SV-DEMO-DROP',
+      qrPayload: JSON.stringify({ type: 'soulvest-pass', passToken: 'SV-DEMO-DROP', otp: '581204' }),
+      expectedAt: twoHoursAhead.toISOString(),
+      passExpiresAt: threeHoursAhead.toISOString(),
+      entryMethod: 'resident-pass',
+      history: [{ type: 'preapproved', actor: resident?.name || 'Resident', at: createdAt }],
+      createdAt,
+      updatedAt: createdAt,
+    });
+  }
+
+  if (!state.marketplaceListings.some((listing) => listing.id === 'marketplace_demo_1')) {
+    state.marketplaceListings.push({
+      id: 'marketplace_demo_1',
+      title: 'Solid wood study desk',
+      description: 'Compact study desk with two drawers. Good condition and easy to move.',
+      category: 'furniture',
+      condition: 'good',
+      listingType: 'sell',
+      price: 6500,
+      residentId,
+      residentName: resident?.name || 'Resident',
+      flat: 'A-101',
+      societyId,
+      status: 'active',
+      currency: 'INR',
+      createdAt,
+      updatedAt: createdAt,
+    });
+  }
+
+  if (!state.marketplaceListings.some((listing) => listing.id === 'marketplace_demo_2')) {
+    state.marketplaceListings.push({
+      id: 'marketplace_demo_2',
+      title: 'Samsung microwave oven',
+      description: '23L microwave, lightly used, works well for reheating and grilling.',
+      category: 'appliance',
+      condition: 'like-new',
+      listingType: 'sell',
+      price: 4800,
+      residentId: 'user_resident_demo_2',
+      residentName: 'Karan Shah',
+      flat: 'A-102',
+      societyId,
+      status: 'active',
+      currency: 'INR',
+      createdAt,
+      updatedAt: createdAt,
+    });
+  }
+
   state.meta = {
     ...state.meta,
-    version: Math.max(Number(state.meta?.version || 1), 3),
+    version: Math.max(Number(state.meta?.version || 1), 5),
   };
 
   return state;
@@ -231,7 +297,7 @@ const createSeedState = () => {
 
   return {
     meta: {
-      version: 3,
+      version: 5,
       initializedAt: createdAt,
     },
     users: [
@@ -422,6 +488,28 @@ const createSeedState = () => {
         createdAt,
         updatedAt: createdAt,
       },
+      {
+        id: 'visitor_delivery_preapproved_demo',
+        name: 'Blinkit Delivery',
+        visitorName: 'Blinkit Delivery',
+        phone: '9876500016',
+        purpose: 'Delivery',
+        vendorName: 'Blinkit',
+        flat: 'A-101',
+        residentId: residentOneId,
+        residentName: 'Priya Nair',
+        societyId,
+        status: 'preapproved',
+        otp: '581204',
+        passToken: 'SV-DEMO-DROP',
+        qrPayload: JSON.stringify({ type: 'soulvest-pass', passToken: 'SV-DEMO-DROP', otp: '581204' }),
+        expectedAt: twoHoursAhead.toISOString(),
+        passExpiresAt: threeHoursAhead.toISOString(),
+        entryMethod: 'resident-pass',
+        history: [{ type: 'preapproved', actor: 'Priya Nair', at: createdAt }],
+        createdAt,
+        updatedAt: createdAt,
+      },
     ],
     announcements: [
       {
@@ -492,6 +580,42 @@ const createSeedState = () => {
         guestCount: 8,
         status: 'confirmed',
         notes: 'Family dinner',
+        createdAt,
+        updatedAt: createdAt,
+      },
+    ],
+    marketplaceListings: [
+      {
+        id: 'marketplace_demo_1',
+        title: 'Solid wood study desk',
+        description: 'Compact study desk with two drawers. Good condition and easy to move.',
+        category: 'furniture',
+        condition: 'good',
+        listingType: 'sell',
+        price: 6500,
+        residentId: residentOneId,
+        residentName: 'Priya Nair',
+        flat: 'A-101',
+        societyId,
+        status: 'active',
+        currency: 'INR',
+        createdAt,
+        updatedAt: createdAt,
+      },
+      {
+        id: 'marketplace_demo_2',
+        title: 'Samsung microwave oven',
+        description: '23L microwave, lightly used, works well for reheating and grilling.',
+        category: 'appliance',
+        condition: 'like-new',
+        listingType: 'sell',
+        price: 4800,
+        residentId: residentTwoId,
+        residentName: 'Karan Shah',
+        flat: 'A-102',
+        societyId,
+        status: 'active',
+        currency: 'INR',
         createdAt,
         updatedAt: createdAt,
       },

@@ -4,6 +4,7 @@ export const FEATURES = Object.freeze({
   VISITOR_OTP: true,
   VISITOR_QR: true,
   AMENITY_BOOKINGS: true,
+  MARKETPLACE: true,
   SECURITY_LOGS: true,
   ANNOUNCEMENTS: true,
   COMPLAINTS: true,

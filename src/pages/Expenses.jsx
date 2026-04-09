@@ -30,6 +30,7 @@ import {
   verifyRazorpayPayment,
 } from '../services/razorpay';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 
 const formatAmount = (amount) => `₹${Number(amount || 0).toLocaleString('en-IN')}`;
 const upiId = import.meta.env.VITE_UPI_ID || 'payments@soulvest';
@@ -44,6 +45,7 @@ const formatDate = (value) => {
 export default function Expenses() {
   const { user } = useAuthContext();
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [payments, setPayments] = useState([]);
   const [selectedPayment, setSelectedPayment] = useState(null);
   const [paymentMethod, setPaymentMethod] = useState('razorpay');
@@ -232,6 +234,21 @@ export default function Expenses() {
           </Alert>
         )}
 
+        <Paper elevation={2} sx={{ p: 2.5, borderRadius: 3, mb: 3 }}>
+          <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={2} alignItems={{ xs: 'flex-start', md: 'center' }}>
+            <Box>
+              <Typography variant="h6" sx={{ mb: 0.75 }}>Billing at a glance</Typography>
+              <Typography color="text.secondary">
+                Track open society charges, pay instantly, and keep receipts ready for residents during the demo.
+              </Typography>
+            </Box>
+            <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+              <Chip label={`${summary.dueCount} open bill${summary.dueCount === 1 ? '' : 's'}`} color={summary.dueCount ? 'warning' : 'success'} variant="outlined" />
+              <Chip label={`${summary.overdueCount} overdue`} color={summary.overdueCount ? 'error' : 'default'} variant="outlined" />
+            </Stack>
+          </Stack>
+        </Paper>
+
         <Box
           sx={{
             display: 'grid',
@@ -269,10 +286,13 @@ export default function Expenses() {
         <Stack spacing={2}>
           {payments.length === 0 && (
             <Paper elevation={1} sx={{ p: 3, borderRadius: 3 }}>
-              <Typography variant="h6">{t('expenses.emptyTitle')}</Typography>
-              <Typography color="text.secondary">
+              <Typography variant="h6" sx={{ mb: 0.75 }}>{t('expenses.emptyTitle')}</Typography>
+              <Typography color="text.secondary" sx={{ mb: 2 }}>
                 {t('expenses.emptySubtitle')}
               </Typography>
+              <Button variant="outlined" onClick={() => navigate('/announcements')}>
+                Review community notices
+              </Button>
             </Paper>
           )}
 

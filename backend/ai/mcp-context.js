@@ -99,6 +99,30 @@ function buildAnnouncementSummary(announcements) {
   };
 }
 
+function buildMarketplaceSummary(listings, user) {
+  const scopedListings = listings.filter((listing) => {
+    const listingStatus = String(listing.status || 'active').toLowerCase();
+    if (listingStatus === 'archived') {
+      return false;
+    }
+
+    if (listingStatus === 'draft') {
+      return listing.residentId === user?.uid || listing.userId === user?.uid;
+    }
+
+    return true;
+  });
+  const active = scopedListings.filter((listing) => String(listing.status || 'active').toLowerCase() === 'active');
+  const own = scopedListings.filter((listing) => listing.residentId === user?.uid || listing.userId === user?.uid);
+
+  return {
+    count: scopedListings.length,
+    activeCount: active.length,
+    ownCount: own.length,
+    latest: sortByDateDescending(scopedListings, 'createdAt').slice(0, 5),
+  };
+}
+
 function buildMcpContext({ message, user = {}, chatHistory = [], contextSnapshot = {}, contextMeta = {} }) {
   const payments = Array.isArray(contextSnapshot.payments) ? contextSnapshot.payments : [];
   const complaints = Array.isArray(contextSnapshot.complaints) ? contextSnapshot.complaints : [];
@@ -107,6 +131,7 @@ function buildMcpContext({ message, user = {}, chatHistory = [], contextSnapshot
   const staffAttendance = Array.isArray(contextSnapshot.staffAttendance) ? contextSnapshot.staffAttendance : [];
   const visitors = Array.isArray(contextSnapshot.visitors) ? contextSnapshot.visitors : [];
   const announcements = Array.isArray(contextSnapshot.announcements) ? contextSnapshot.announcements : [];
+  const marketplaceListings = Array.isArray(contextSnapshot.marketplaceListings) ? contextSnapshot.marketplaceListings : [];
   const paymentSummary = buildPaymentSummary(payments);
 
   return {
@@ -151,6 +176,7 @@ function buildMcpContext({ message, user = {}, chatHistory = [], contextSnapshot
       staff: buildStaffSummary(staffMembers, staffAttendance),
       visitors: buildVisitorSummary(visitors, user),
       announcements: buildAnnouncementSummary(announcements),
+      marketplace: buildMarketplaceSummary(marketplaceListings, user),
     },
   };
 }
@@ -161,6 +187,9 @@ function createPromptContext(mcpContext, routing, collaborationPlans = []) {
   const latestAnnouncementTitles = liveData.announcements.latest.map((announcement) => announcement.title).join(' | ') || 'none';
   const nextBooking = liveData.bookings.next ? `${liveData.bookings.next.amenity} on ${liveData.bookings.next.bookingDate}` : 'none';
   const nextDue = liveData.payments.nextDue ? `${liveData.payments.nextDue.title || 'payment'} on ${liveData.payments.nextDue.dueDate}` : 'none';
+  const latestMarketplaceTitles = liveData.marketplace.latest
+    .map((listing) => `${listing.title || 'Listing'}${listing.price ? ` for INR ${listing.price}` : ''}`)
+    .join(' | ') || 'none';
   const collaborationSummary = collaborationPlans.length
     ? collaborationPlans.map((plan) => `${plan.title}: ${plan.summary}`).join(' | ')
     : 'none';
@@ -179,6 +208,8 @@ function createPromptContext(mcpContext, routing, collaborationPlans = []) {
     `Registered staff count: ${liveData.staff.registeredCount}`,
     `Pending visitors: ${liveData.visitors.pendingCount} (${pendingVisitorNames})`,
     `Latest announcements: ${latestAnnouncementTitles}`,
+    `Marketplace listings: ${liveData.marketplace.activeCount} active, ${liveData.marketplace.ownCount} owned by actor`,
+    `Latest marketplace listings: ${latestMarketplaceTitles}`,
     `Cross-agent collaboration: ${collaborationSummary}`,
     `Latest user message: ${request.message}`,
   ].join('\n');

@@ -128,7 +128,7 @@ async function hydrateAgentRequestContext(request, dependencies) {
   const mergedUser = mergeUserProfile(requestedUser, profile);
   const societyId = mergedUser.societyId || DEFAULT_SOCIETY_ID;
 
-  const [payments, complaints, bookings, staffMembers, staffAttendance, visitors, announcements] = await Promise.all([
+  const [payments, complaints, bookings, staffMembers, staffAttendance, visitors, announcements, marketplaceListings] = await Promise.all([
     safeReadCollection(db, societyId, 'payments'),
     safeReadCollection(db, societyId, 'complaints'),
     safeReadCollection(db, societyId, 'facilityBookings'),
@@ -136,6 +136,7 @@ async function hydrateAgentRequestContext(request, dependencies) {
     safeReadCollection(db, societyId, 'residentStaffAttendance'),
     safeReadCollection(db, societyId, 'visitors'),
     safeReadCollection(db, societyId, 'announcements'),
+    safeReadCollection(db, societyId, 'marketplaceListings'),
   ]);
 
   const mergedSnapshot = {
@@ -147,6 +148,7 @@ async function hydrateAgentRequestContext(request, dependencies) {
     staffAttendance: mergeArrays(filterResidentStaff(staffAttendance, mergedUser), request.contextSnapshot?.staffAttendance),
     visitors: mergeArrays(filterResidentVisitors(visitors, mergedUser), request.contextSnapshot?.visitors),
     announcements: mergeArrays(announcements, request.contextSnapshot?.announcements),
+    marketplaceListings: mergeArrays(marketplaceListings, request.contextSnapshot?.marketplaceListings),
   };
 
   return {
@@ -165,6 +167,7 @@ async function hydrateAgentRequestContext(request, dependencies) {
         staffAttendance: mergedSnapshot.staffAttendance.length,
         visitors: mergedSnapshot.visitors.length,
         announcements: mergedSnapshot.announcements.length,
+        marketplaceListings: mergedSnapshot.marketplaceListings.length,
       },
     },
   };
